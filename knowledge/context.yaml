@@ -320,6 +320,13 @@ interpreters:
     verified: 2026-10-27
     decided_by: ["D#29", "D#31"]
     note: Pfadprüfung über toRealPath, Shell ohne Shell, Timeout samt Kindprozessen, git gehärtet
+  - id: int.toolCheck
+    type: interpreter
+    status: implemented
+    source: core/src/main/scala/ase/core/ToolCheck.scala#ToolCheck
+    verified: 2026-10-27
+    decided_by: ["D#32"]
+    note: reine Prüfung eines Werkzeugaufrufs; LocalTools, Replay und Test-Werkzeuge
   - id: int.runLog
     type: interpreter
     status: implemented
@@ -330,7 +337,7 @@ interpreters:
     status: implemented
     source: core/src/main/scala/ase/core/Event.scala#Event
     verified: 2026-10-27
-    note: Record-Log JSON Lines, Version v, Codec in RecordLog.scala
+    note: Record-Log JSON Lines, Version 2 (D#35), Codec in RecordLog.scala
   - id: type.ports
     type: type
     status: implemented
@@ -448,6 +455,13 @@ decisions:
   - { id: "D#29", type: decision, status: decided, source: "findings.md#D#29", verified: 2026-10-27, title: "Execute nur unter Linux (WSL oder CI)" }
   - { id: "D#30", type: decision, status: decided, source: "findings.md#D#30", verified: 2026-10-27, title: "Sicht nach D#9, Prüfung nach D#27, Datenfluss im Explain" }
   - { id: "D#31", type: decision, status: decided, source: "findings.md#D#31", verified: 2026-10-27, title: "Korrekturen aus dem Review von Schritt 2", tested_by: [ase.core.ReviewRegressionSuite, ase.core.RelPathSuite] }
+  - { id: "D#32", type: decision, status: decided, source: "findings.md#D#32", verified: 2026-10-27, title: "Execute und Replay über einen Kern mit Ports" }
+  - { id: "D#33", type: decision, status: decided, source: "findings.md#D#33", verified: 2026-10-27, title: "Ablauf und Ausgang eines Laufs", measured_by: [eval.5, eval.6] }
+  - { id: "D#34", type: decision, status: decided, source: "findings.md#D#34", verified: 2026-10-27, title: "Zählung zur Laufzeit, Budget je Aufruf eines Lochs" }
+  - { id: "D#35", type: decision, status: decided, source: "findings.md#D#35", verified: 2026-10-27, title: "Record-Log Version 2, StepId" }
+  - { id: "D#36", type: decision, status: decided, source: "findings.md#D#36", verified: 2026-10-27, title: "Shell zur Laufzeit: Umgebung, PATH, git- und grep-Zusätze" }
+  - { id: "D#37", type: decision, status: decided, source: "findings.md#D#37", verified: 2026-10-27, title: "Dateien zur Laufzeit: .git auf aufgelöstem Pfad, atomares EditFile", tested_by: [ase.core.Review3RegressionSuite, ase.core.LocalToolsSuite, ase.core.ExecuteLawsSuite] }
+  - { id: "D#38", type: decision, status: decided, source: "findings.md#D#38", verified: 2026-10-27, title: "Freigabe bindet den vollen Hash", tested_by: [ase.core.Eval6Suite, ase.core.Review3RegressionSuite] }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }
@@ -469,6 +483,8 @@ open:
   - { id: "O#17", type: open, status: open, source: "findings.md#O#17", verified: 2026-10-27, title: "Explain: statische Inhalte vollständig zeigen?" }
   - { id: "O#18", type: open, status: open, source: "findings.md#O#18", verified: 2026-10-27, title: "CheckConfig und Parameter im CheckedTerm" }
   - { id: "O#19", type: open, status: open, source: "findings.md#O#19", verified: 2026-10-27, title: "Doppelte Auswertung, doppelte JSON-Schlüssel (niedrig)" }
+  - { id: "O#20", type: open, status: open, source: "findings.md#O#20", verified: 2026-10-27, title: "Explain-Sicht statisch, Execute-Sicht aufgelöst" }
+  - { id: "O#21", type: open, status: open, source: "findings.md#O#21", verified: 2026-10-27, title: "Restrisiken nach Review 3 (niedrig)" }
 
 evals:
   - id: eval.1

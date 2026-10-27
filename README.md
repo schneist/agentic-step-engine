@@ -40,6 +40,7 @@ Die gefährlichen Schritte (Versionsnummer, Tag, Push) sind **keine** Löcher. D
 $ ase run flows/release.json version=2.4.0 previous=2.3.0
 dryrun    flows/release.json  ok  (worst case 23 steps, depth 2)
 explain   7f3a9c…e21b
+hash      7f3a9c…(64 Hex-Zeichen)…e21b
 params    version=2.4.0 previous=2.3.0
 
 1  Prüft, ob das Arbeitsverzeichnis sauber ist (git status); endet sonst
@@ -134,4 +135,4 @@ Sechs Aufgaben mit bekanntem Ergebnis in [evals/](evals/README.md), gemessen üb
 
 ## Status
 
-Schritt 2 fertig: `core` mit Term-ADT, Codec, Schema, Algebra, DryRun, Freigabe, Cost, Explain, Flows und Hash; noch kein Execute und kein Modell. Siehe [SPEC.md](SPEC.md), Abschnitt Vorgehen.
+Schritt 3 fertig: `core` prüft, erklärt, gibt frei, führt unter Linux aus (Execute), zeichnet auf und spielt ab (Record/Replay); Eval 6 läuft deterministisch. Noch kein Modelladapter und kein Runner (Schritt 4). Siehe [SPEC.md](SPEC.md), Abschnitt Vorgehen.

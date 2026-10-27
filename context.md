@@ -85,6 +85,9 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Reply / touched**: Ergebnis eines Werkzeugaufrufs; `touched` nennt die aufgelösten Pfade, an denen ein Syscall stattfand. Leer heißt: vor jedem Syscall abgelehnt.
 - **Record-Log**: Das versionierte Ereignislog eines Laufs (JSON Lines, Feld `v`); erstes Ereignis ist der Start mit termHash.
 - **Lauf-Log** (`RunLog`): Die Darstellung des Record-Logs für Menschen, im Format des README.
+- **ToolCheck**: Die reine Prüfung eines Werkzeugaufrufs gegen seine Hülle (Operation, Pfade, Allowlist, Policy). LocalTools ruft sie vor jedem Syscall, Replay vor jedem abgespielten Aufruf (D#32).
+- **Aufruf eines Lochs**: Jede Ausführung eines Hole-Knotens, auch jede in einem weiteren Durchlauf von RepeatUntil; jeder Aufruf hat sein eigenes Budget (D#34).
+- **Mutationsprobe**: Einen behobenen Fehler absichtlich wieder einbauen und prüfen, ob ein Gesetz ihn findet. Belegt, dass ein Gesetz prüft, was sein Name behauptet.
 - **Ausschnitt** (`Excerpt`): Gekürzte Ausgabe für das Modell: erste und letzte Zeilen, Gesamtzahl, Hinweis.
 - **Golden-Test**: Ein Test, der eine Ausgabe Zeichen für Zeichen mit einer festgehaltenen vergleicht (Explain für red-test).
 - **CAS** (Compare-and-Swap): `EditFile` ersetzt nur, wenn `expectedOld` genau einmal vorkommt.
@@ -204,6 +207,34 @@ Prüfung und Sicht folgen verschiedenen Regeln. Für die Prüfung gilt ein Befeh
 ### Warum die Korrekturen aus dem Review (D#31)
 
 Ein Reviewer hat versucht, die Tore zu umgehen, und es in mehreren Fällen geschafft. Am lehrreichsten: Eine Hülle, die nur `git status` und das Ändern von Dateien erlaubt, reichte aus, um beliebige Programme zu starten. Der Fill schreibt eine Zeile in `.git/config`, und git führt sie beim nächsten `git status` aus. Das Tor hatte nichts falsch gemacht; es kannte nur nicht alle Wege, auf denen eine Datei zu Code wird. Ebenso grundsätzlich: Zahlen dürfen nicht überlaufen (eine Schleife mit 2^64 Durchläufen ergab „0 Schritte“), und was Explain dem Menschen zeigt, darf das Modell nicht gestalten können, sonst gibt der Mensch frei, was ihm untergeschoben wurde. Die Regel dahinter ist dieselbe wie bei den Pfaden: lieber eine Sache zu viel verbieten (`..`, Backslash, Steuerzeichen, `.git`) als eine Lücke lassen, die nur auf einer Plattform oder nur mit einem bestimmten Programm offen ist.
+
+### Warum Execute und Replay denselben Kern haben (D#32)
+
+Replay soll beweisen, dass ein Lauf vollständig aufgezeichnet ist und sich ohne Dateisystem und Modell wiederholen lässt. Hätte Replay einen eigenen Interpreter, der das Log nur nachliest, bewiese die Gleichheit wenig: Zwei Programme können sich in denselben Fehlern einig sein. Deshalb läuft beides durch denselben Kern, und nur die Anschlüsse nach außen (Werkzeuge, Modell, Mensch, Uhr) sind echt oder aus dem Log. Weicht der Kern beim Abspielen von der Aufzeichnung ab, ist entweder das Log unvollständig oder der Kern nicht deterministisch, und beides soll ein Test finden. Die Uhr ist dabei ein Anschluss wie jeder andere: Sie wird an festen Stellen gefragt, und Replay antwortet an genau der Stelle „abgelaufen“, an der der echte Lauf abgebrochen ist.
+
+### Warum ein Lauf so endet, wie er endet (D#33)
+
+Ein Loch hat ein Modell, das auf Fehler reagieren kann; der feste Teil des Plans hat keins. Scheitert dort ein Schritt, gibt es niemanden, der ihn reparieren könnte, also bricht der Lauf ab, statt zu raten. Ein Exit-Code ungleich 0 ist dagegen kein Fehler, sondern ein Ergebnis, auf das der Plan mit If reagieren kann (Tests sind rot). Fragt ein Lauf den Menschen, und niemand antwortet, endet er mit „ask“: ein ehrlicher Zustand für einen Lauf ohne Menschen daneben, und genau das, was Eval 5 erwartet.
+
+### Warum Schritte zur Laufzeit selbst gezählt werden (D#34)
+
+DryRun rechnet vorab eine obere Schranke. Execute verlässt sich nicht darauf, sondern zählt selbst und kappt hart; zwei unabhängige Zählungen fangen sich gegenseitig auf, wie der Überlauf aus dem ersten Review gezeigt hat. Ein Loch in einer Schleife bekommt in jedem Durchlauf sein Budget neu, so wie DryRun es auch berechnet hat; sonst würde ein freigegebener Plan an einer Stelle scheitern, die der Mensch für erlaubt hielt.
+
+### Warum das Record-Log so aussieht (D#35)
+
+Das Log ist das Beweisstück eines Laufs: Wer später prüfen will, was passiert ist, braucht den freigegebenen Term, seinen Hash, jede Modellantwort und jeden Syscall mit dem Pfad, an dem er wirklich stattfand. Deshalb trägt jedes Werkzeugergebnis die aufgelösten Pfade, nicht die, die im Term standen; ein Symlink kann beides auseinanderführen. Das Format hat eine Version, weil es sich mit der Algebra ändern wird; ein altes Log wird abgelehnt statt falsch gelesen.
+
+### Warum Shell-Aufrufe Zusätze bekommen, die das Modell nicht sieht (D#36)
+
+Programme wie git lesen Konfiguration, die Programme starten kann, und suchen ihr Repository auch oberhalb des Arbeitsverzeichnisses. Beides ist im Alltag praktisch und hier gefährlich. Die Engine setzt deshalb feste Umgebungsvariablen und Optionen, die diese Wege schließen, und gibt Kindprozessen nur eine kleine, bekannte Umgebung mit; ein API-Schlüssel in der Umgebung des Runners erreicht so kein Skript im Workspace. Das Modell sieht diese Zusätze nicht, weil sie nicht verhandelbar sind.
+
+### Warum Dateien so geschrieben werden (D#37)
+
+Die Prüfung muss gegen das laufen, was das Dateisystem tatsächlich tut, nicht gegen den Pfadtext. Ein Symlink auf `.git` umging im zweiten Review die Sperre aus D#31, ein Hardlink ließ `EditFile` eine Datei außerhalb ändern. Deshalb wird der aufgelöste Pfad geprüft, und Änderungen werden als neue Datei geschrieben und über die alte geschoben: Das trennt einen Hardlink, statt durch ihn hindurchzuschreiben, und hinterlässt bei einem Absturz keine halbe Datei.
+
+### Warum Explain den vollen Hash zeigt (D#38)
+
+Die Freigabe soll an genau den Term gebunden sein, den der Mensch gesehen hat. Eine Kurzform aus zehn Zeichen ist zum Lesen gut, zum Binden zu schwach, und im Test hatte der Auto-Approver den Hash gar nicht aus der Anzeige gelesen; die Freigabe konnte dort nie scheitern. Jetzt steht der volle Hash in einer eigenen Zeile, und genau diese Zeile wird bestätigt.
 
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 

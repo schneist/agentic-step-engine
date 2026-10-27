@@ -104,6 +104,12 @@ Alternativen: (a) Scope nach D#9, Lücke dokumentiert. (b) Scope nach D#27, auch
 Gewählt: d. b bricht das Diagnose-Loch in Eval 6; c ist v2. Mit d gibt der Mensch den Datenfluss bewusst frei.
 Umkehrkosten: niedrig. Eine Funktion (Scope.visible) und eine Zeile im Explain.
 
+## D#32 Execute und Replay über einen Kern mit Ports
+
+Alternativen: (a) Execute als eigener Interpreter, Replay liest das Log getrennt nach. (b) Ein Kern (Engine), austauschbare Ports für Werkzeuge, Modell, Mensch, Uhr und Recorder.
+Gewählt: b. Nur dann ist Replay(Record(t)) == Execute(t) ein Gesetz über Vollständigkeit des Logs und Determinismus des Kerns; dieselben Ports tragen die Tests ohne Dateisystem und den Modelladapter in Schritt 4.
+Umkehrkosten: hoch. Engine, Replay, Tests und der Adapter hängen an den Port-Signaturen.
+
 ## D#25 Capabilities über Decoder und eingeschränkte Algebra
 
 Alternativen: (a) feste Teil-Traits pro erlaubter Teilmenge (ReadOnlyAlg …). (b) `decoderFor(envelope)` plus `restrict(alg, envelope)` zur Laufzeit.
