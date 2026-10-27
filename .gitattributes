@@ -1,0 +1,3 @@
+# Execute und Evals laufen unter Linux (WSL, CI; D#29): LF überall, auch in Windows-Checkouts.
+# Sonst bricht bash an Skripten, und CAS-Vergleiche in Fixtures sähen CRLF.
+* text=auto eol=lf

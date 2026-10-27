@@ -1,0 +1,541 @@
+# knowledge/context.yaml
+# Gerüst, Cache, nicht Quelle. Quelle ist der Code.
+# Jeder Eintrag: id, type, status, source (Code-Pfad#Symbol oder Datei), verified (Datum, an dem Eintrag und Quelle übereinstimmten).
+# status: Code-Einträge, Evals, Flows: planned|implemented|superseded. Entscheidungen: decided|superseded. Offene Punkte: open|resolved. Referenzen: kein status.
+# IDs von Entscheidungen und offenen Punkten wie in findings.md: "D#n", "O#n".
+# Kanten: implements (interpreter→operation), guards (invariant→interpreter), tested_by (invariant→Test-Symbol), decided_by (→decision), measured_by (decision→eval).
+# Nichts eintragen, was nur in einer Modellantwort stand und nie im Code gelandet ist.
+
+operations:
+  # Operationen der Algebra; Ausführung (Execute) folgt in Schritt 3.
+  - id: op.readFile
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.readFile
+    verified: 2026-10-27
+    decided_by: ["D#4", "D#5"]
+  - id: op.listDir
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.listDir
+    verified: 2026-10-27
+  - id: op.writeFile
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.writeFile
+    verified: 2026-10-27
+    note: nur neue Dateien (prüft Execute)
+  - id: op.editFile
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.editFile
+    verified: 2026-10-27
+    note: Compare-and-Swap, expectedOld genau einmal (prüft Execute)
+  - id: op.moveFile
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.moveFile
+    verified: 2026-10-27
+    decided_by: ["D#18"]
+    note: DryRun prüft beide Pfade; Ziel existiert nicht, atomar (Execute)
+  - id: op.shell
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.shell
+    verified: 2026-10-27
+    decided_by: ["D#3", "D#12", "D#27"]
+    note: Allowlist und Argument-Policy in DryRun; ohne Pfadargument gilt "."
+  - id: op.ask
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.ask
+    verified: 2026-10-27
+    decided_by: ["D#8"]
+    note: im Loch nur, wenn Ask in allowedOps
+  - id: op.done
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.done
+    verified: 2026-10-27
+    decided_by: ["D#15"]
+    note: in einem Fill beendet Done nur das Loch (Execute)
+  - id: op.think
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.think
+    verified: 2026-10-27
+    note: im ADT Hole; Execute macht Fill → DryRun (CheckedFill) → rekursiv; Laufzeitfehler → neuer Fill (Schritt 3)
+    decided_by: ["D#1", "D#6", "D#15"]
+
+combinators:
+  - id: term.seq
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.seq
+    verified: 2026-10-27
+  - id: term.if
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.branch
+    verified: 2026-10-27
+    note: statische Interpreter sehen beide Zweige; kein Selective
+    decided_by: ["D#20"]
+  - id: term.repeatUntil
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.repeatUntil
+    verified: 2026-10-27
+    note: WorstCaseSteps = max · steps(body)
+    decided_by: ["D#20"]
+  - id: term.hole
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/Model.scala#Term.Hole
+    verified: 2026-10-27
+    decided_by: ["D#1", "D#14"]
+    note: WorstCaseSteps = 1 + maxSteps
+
+predicates:
+  - id: pred.lastOutputEmpty
+    type: predicate
+    status: implemented
+    source: core/src/main/scala/ase/core/Model.scala#Pred.LastOutputEmpty
+    verified: 2026-10-27
+    decided_by: ["D#13"]
+
+types:
+  - id: type.term
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/Model.scala#Term
+    verified: 2026-10-27
+  - id: type.opKind
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/Model.scala#OpKind
+    verified: 2026-10-27
+    decided_by: ["D#8", "D#18"]
+  - id: type.envelope
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/Model.scala#Envelope
+    verified: 2026-10-27
+  - id: type.allowedCommand
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/Model.scala#AllowedCommand
+    verified: 2026-10-27
+    note: Attenuation über gleiches binary und Präfix der requiredPrefixArgs (Attenuation.refines)
+    decided_by: ["D#21"]
+  - id: type.origin
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/Model.scala#Origin
+    verified: 2026-10-27
+    decided_by: ["D#19", "D#26"]
+    note: Human | Model(callId); im Hash, nicht im Fingerprint; JSON "Human" | "Model:<callId>"
+  - id: type.flow
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/Flow.scala#Flow
+    verified: 2026-10-27
+    decided_by: ["D#22"]
+  - id: type.checkedTerm
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/DryRun.scala#DryRun.CheckedTerm
+    verified: 2026-10-27
+    decided_by: ["D#11"]
+    note: Konstruktor private[DryRun]
+  - id: type.approvedTerm
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/Approval.scala#Approval.ApprovedTerm
+    verified: 2026-10-27
+    decided_by: ["D#11"]
+    note: Konstruktor private[Approval]; nur Approval.approve
+  - id: type.checkedFill
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/DryRun.scala#DryRun.CheckedFill
+    verified: 2026-10-27
+    decided_by: ["D#11", "D#6"]
+  - id: type.violation
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/Violation.scala#Violation
+    verified: 2026-10-27
+    note: message ist Handlungsanweisung an das Modell
+  - id: type.decodeError
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/Codec.scala#DecodeError
+    verified: 2026-10-27
+
+schema:
+  - id: schema.submitTerm
+    type: schema
+    status: implemented
+    source: core/src/main/scala/ase/core/Schema.scala#Schema.termSchema
+    verified: 2026-10-27
+    decided_by: ["D#7", "D#10"]
+    note: strict, ausgerollt, Standard-Verschachtelungsgrenze 5, anyOf + const, ohne origin
+
+policies:
+  - id: policy.codec
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/Codec.scala#Codec
+    verified: 2026-10-27
+    decided_by: ["D#26"]
+    note: von Hand; strikt; OriginMode Required|Stamp; decoderFor
+  - id: policy.shellArgs
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/ArgPolicy.scala#ArgPolicy
+    verified: 2026-10-27
+    decided_by: ["D#12", "D#27"]
+  - id: policy.scopeFilter
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/Scope.scala#Scope.visible
+    verified: 2026-10-27
+    decided_by: ["D#9", "D#30"]
+    note: Regel fertig und im Explain sichtbar; Anwendung beim Fill in Execute (Schritt 3)
+  - id: policy.pathRules
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/RelPath.scala#RelPath.parse
+    verified: 2026-10-27
+    decided_by: ["D#29"]
+    note: relativ; kein Doppelpunkt, keine Gerätenamen, kein Punkt/Leerzeichen am Ende; auf allen Plattformen
+  - id: policy.platform
+    type: policy
+    status: planned
+    source: SPEC.md#INTERPRETER
+    verified: 2026-10-27
+    decided_by: ["D#29"]
+    note: Execute nur unter Linux (WSL/CI); Kindprozesse bei Zeitüberschreitung beenden
+  - id: policy.stepCounting
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/DryRun.scala#DryRun.interpreter
+    verified: 2026-10-27
+    decided_by: ["D#14"]
+  - id: policy.lastSemantics
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/DryRun.scala#DryRun.possible
+    verified: 2026-10-27
+    decided_by: ["D#20"]
+    note: statische Seite (Prädikat nie wahr); Auswertung zur Laufzeit in Schritt 3
+  - id: policy.termHash
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/Canonical.scala#TermHash
+    verified: 2026-10-27
+    decided_by: ["D#23"]
+  - id: policy.explainDenials
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/Explain.scala#ExplainConfig
+    verified: 2026-10-27
+    decided_by: ["D#24"]
+  - id: policy.capabilities
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.restrict
+    verified: 2026-10-27
+    decided_by: ["D#25"]
+    note: dazu Codec.decoderFor
+
+interpreters:
+  - id: int.toTerm
+    type: interpreter
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.termWriter
+    verified: 2026-10-27
+    implements: [op.readFile, op.listDir, op.writeFile, op.editFile, op.moveFile, op.shell, op.ask, op.done, op.think]
+    decided_by: ["D#4"]
+  - id: int.dryRun
+    type: interpreter
+    status: implemented
+    source: core/src/main/scala/ase/core/DryRun.scala#DryRun.interpreter
+    verified: 2026-10-27
+    note: plan (Tor 1) → CheckedTerm, fill (Tor 2) → CheckedFill
+  - id: int.approval
+    type: interpreter
+    status: implemented
+    source: core/src/main/scala/ase/core/Approval.scala#Approval.approve
+    verified: 2026-10-27
+    note: keine Deutung der Algebra, sondern die einzige Funktion CheckedTerm → ApprovedTerm
+    decided_by: ["D#11"]
+  - id: int.cost
+    type: interpreter
+    status: implemented
+    source: core/src/main/scala/ase/core/Cost.scala#Cost.interpreter
+    verified: 2026-10-27
+  - id: int.explain
+    type: interpreter
+    status: implemented
+    source: core/src/main/scala/ase/core/Explain.scala#Explain.render
+    verified: 2026-10-27
+    note: Ausgabeformat golden in ExplainSuite
+  - id: int.product
+    type: interpreter
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.product
+    verified: 2026-10-27
+    note: handgeschriebenes Tuple2K-Produkt
+  - id: int.execute
+    type: interpreter
+    status: planned
+    source: SPEC.md#INTERPRETER
+    verified: 2026-10-27
+    note: nimmt nur ApprovedTerm; Record-Modus; Outcome done|ask|aborted
+  - id: int.replay
+    type: interpreter
+    status: planned
+    source: SPEC.md#INTERPRETER
+    verified: 2026-10-27
+    decided_by: ["D#16"]
+
+invariants:
+  - id: inv.nothingUnchecked
+    type: invariant
+    status: planned
+    source: SPEC.md#IDEE
+    verified: 2026-10-27
+    statement: Nichts wird ausgeführt, was nicht vorher geprüft wurde; Execute nimmt nur ApprovedTerm, und der entsteht nur aus CheckedTerm plus bestätigtem Hash.
+    guards: [int.execute, int.approval]
+    tested_by: [ase.coretests.VisibilitySuite, ase.core.ApprovalSuite]
+    decided_by: ["D#11"]
+    note: Typseite fertig; Execute in Schritt 3
+  - id: inv.attenuation
+    type: invariant
+    status: implemented
+    source: core/src/main/scala/ase/core/Attenuation.scala#Attenuation.check
+    verified: 2026-10-27
+    statement: Innere Hülle nie weiter als äußere; maxDepth strikt kleiner; WorstCaseSteps ≤ parent.maxSteps.
+    guards: [int.dryRun]
+    tested_by: ["ase.core.CoreLaws.envelope", ase.core.DryRunSuite]
+  - id: inv.wellFormedHole
+    type: invariant
+    status: implemented
+    source: core/src/main/scala/ase/core/Attenuation.scala#Attenuation.wellFormed
+    verified: 2026-10-27
+    statement: maxSteps ≥ 1, allowedOps nicht leer, maxDepth ≥ 0, Shell ⇔ shellAllowlist nicht leer.
+    guards: [int.dryRun]
+    tested_by: [ase.core.DryRunSuite]
+  - id: inv.interpretersReadOnly
+    type: invariant
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg
+    verified: 2026-10-27
+    statement: Interpreter verändern den Term nie; Produkt kommutativ.
+    guards: [int.dryRun, int.cost, int.explain, int.execute, int.replay]
+    tested_by: ["ase.core.CoreLaws.term"]
+  - id: inv.roundtrip
+    type: invariant
+    status: implemented
+    source: core/src/main/scala/ase/core/Codec.scala#Codec
+    verified: 2026-10-27
+    statement: JSON-Roundtrip identisch (mit origin und in Modellform); toTerm(program(t)) == t; Schema validiert alle generierten Terme bis zur Verschachtelungsgrenze.
+    guards: [int.toTerm]
+    tested_by: ["ase.core.CoreLaws.term", ase.core.SchemaSuite, ase.core.AlgebraSuite]
+  - id: inv.replayEqualsExecute
+    type: invariant
+    status: planned
+    source: SPEC.md#INTERPRETER
+    verified: 2026-10-27
+    statement: Replay(Record(t)) erzeugt dieselbe Ereignisfolge; Schreibvorgänge auf frische Fixture-Kopie ergeben denselben Dateibaum.
+    guards: [int.replay, int.execute]
+    tested_by: []
+    decided_by: ["D#16"]
+  - id: inv.adversarialFill
+    type: invariant
+    status: planned
+    source: SPEC.md#TESTS
+    verified: 2026-10-27
+    statement: Für beliebige Terme und beliebige Modellantworten führt Execute nie einen Syscall außerhalb von Wurzel- oder Loch-Hülle aus (Syscalls der Engine, nicht der Kindprozesse).
+    guards: [int.execute, int.dryRun]
+    tested_by: ["ase.core.CoreLaws.dryRun"]
+    decided_by: ["D#6", "D#12"]
+    note: Tor-2-Seite fertig (jeder Ausbruchsversuch abgelehnt); Syscall-Seite mit Execute und Record in Schritt 3
+  - id: inv.scopeFiltered
+    type: invariant
+    status: planned
+    source: SPEC.md#TERM-ADT
+    verified: 2026-10-27
+    statement: Kein Ergebnis mit Pfad außerhalb des pathPrefix eines Lochs erscheint in dessen Fill-Kontext.
+    guards: [int.execute]
+    tested_by: []
+    decided_by: ["D#9"]
+
+decisions:
+  - { id: "D#1", type: decision, status: decided, source: "findings.md#D#1", verified: 2026-10-27, title: Löcher statt Per-Schritt-Schleife, measured_by: [eval.1, eval.6] }
+  - { id: "D#2", type: decision, status: decided, source: "findings.md#D#2", verified: 2026-10-27, title: Ein Tool submit_term, measured_by: [eval.1, eval.2, eval.3, eval.4, eval.5, eval.6] }
+  - { id: "D#3", type: decision, status: decided, source: "findings.md#D#3", verified: 2026-10-27, title: Shell mit Allowlist in v1 }
+  - { id: "D#4", type: decision, status: decided, source: "findings.md#D#4", verified: 2026-10-27, title: Tagless-Final-Algebra plus Term-ADT }
+  - { id: "D#5", type: decision, status: decided, source: "findings.md#D#5", verified: 2026-10-27, title: "Statischer Baum, nur Applicative", measured_by: [eval.6] }
+  - { id: "D#6", type: decision, status: decided, source: "findings.md#D#6", verified: 2026-10-27, title: Fills ohne erneute Freigabe innerhalb der Hülle }
+  - { id: "D#7", type: decision, status: decided, source: "findings.md#D#7", verified: 2026-10-27, title: Schema handgeschrieben, note: Begründung ersetzt durch D#10 }
+  - { id: "D#8", type: decision, status: decided, source: "findings.md#D#8", verified: 2026-10-27, title: Ask im Loch nur als erlaubte OpKind, measured_by: [eval.5] }
+  - { id: "D#9", type: decision, status: decided, source: "findings.md#D#9", verified: 2026-10-27, title: "Scope: alle umschließenden Seqs, nach pathPrefix gefiltert" }
+  - { id: "D#10", type: decision, status: decided, source: "findings.md#D#10", verified: 2026-10-27, title: "Strict-Schema, ausgerollt bis Verschachtelungsgrenze; tool_choice auto" }
+  - { id: "D#11", type: decision, status: decided, source: "findings.md#D#11", verified: 2026-10-27, title: CheckedTerm und ApprovedTerm getrennt }
+  - { id: "D#12", type: decision, status: decided, source: "findings.md#D#12", verified: 2026-10-27, title: Argument-Policy pro Shell-Befehl }
+  - { id: "D#13", type: decision, status: decided, source: "findings.md#D#13", verified: 2026-10-27, title: "Prädikat LastOutputEmpty; M#-Pflicht ab M#1" }
+  - { id: "D#14", type: decision, status: decided, source: "findings.md#D#14", verified: 2026-10-27, title: Schrittzählung und Tiefe }
+  - { id: "D#15", type: decision, status: decided, source: "findings.md#D#15", verified: 2026-10-27, title: "Laufzeitverhalten im Loch: Done, Neu-Fill, Abbruch", measured_by: [eval.6] }
+  - { id: "D#16", type: decision, status: decided, source: "findings.md#D#16", verified: 2026-10-27, title: Replay-Gleichheit, measured_by: [eval.6] }
+  - { id: "D#17", type: decision, status: decided, source: "findings.md#D#17", verified: 2026-10-27, title: "Eval-Vertrag check.sh WORKDIR OUTCOME" }
+  - { id: "D#18", type: decision, status: decided, source: "findings.md#D#18", verified: 2026-10-27, title: "MoveFile, kein DeleteFile", measured_by: [eval.2] }
+  - { id: "D#19", type: decision, status: decided, source: "findings.md#D#19", verified: 2026-10-27, title: "origin Model(callId); Fingerprint ohne, Hash mit origin", measured_by: [eval.6] }
+  - { id: "D#20", type: decision, status: decided, source: "findings.md#D#20", verified: 2026-10-27, title: "Kontrolloperationen in der Algebra; Bedeutung von Last" }
+  - { id: "D#21", type: decision, status: decided, source: "findings.md#D#21", verified: 2026-10-27, title: Shell-Attenuation über Präfixe }
+  - { id: "D#22", type: decision, status: decided, source: "findings.md#D#22", verified: 2026-10-27, title: Flow-Wrapper mit typisierten Parametern }
+  - { id: "D#23", type: decision, status: decided, source: "findings.md#D#23", verified: 2026-10-27, title: "termHash über JCS (RFC 8785)" }
+  - { id: "D#24", type: decision, status: decided, source: "findings.md#D#24", verified: 2026-10-27, title: explainDenials in der Runner-Konfiguration }
+  - { id: "D#25", type: decision, status: decided, source: "findings.md#D#25", verified: 2026-10-27, title: "Capabilities über decoderFor und restrict" }
+  - { id: "D#26", type: decision, status: decided, source: "findings.md#D#26", verified: 2026-10-27, title: "Codec von Hand; origin setzt die Engine" }
+  - { id: "D#27", type: decision, status: decided, source: "findings.md#D#27", verified: 2026-10-27, title: "Shell ohne Pfadargument berührt das Arbeitsverzeichnis" }
+  - { id: "D#28", type: decision, status: decided, source: "findings.md#D#28", verified: 2026-10-27, title: "fromTerm ohne Applicative-Constraint" }
+  - { id: "D#29", type: decision, status: decided, source: "findings.md#D#29", verified: 2026-10-27, title: "Execute nur unter Linux (WSL oder CI)" }
+  - { id: "D#30", type: decision, status: decided, source: "findings.md#D#30", verified: 2026-10-27, title: "Sicht nach D#9, Prüfung nach D#27, Datenfluss im Explain" }
+
+open:
+  - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }
+  - { id: "O#2", type: open, status: resolved, source: "findings.md#O#2", verified: 2026-10-27, resolved_by: "D#9" }
+  - { id: "O#3", type: open, status: resolved, source: "findings.md#O#3", verified: 2026-10-27, resolved_by: "D#10" }
+  - { id: "O#4", type: open, status: resolved, source: "findings.md#O#4", verified: 2026-10-27, resolved_by: "D#18" }
+  - { id: "O#5", type: open, status: resolved, source: "findings.md#O#5", verified: 2026-10-27, note: bestätigt 2026-10-27 }
+  - { id: "O#6", type: open, status: resolved, source: "findings.md#O#6", verified: 2026-10-27, resolved_by: "D#19" }
+  - { id: "O#7", type: open, status: resolved, source: "findings.md#O#7", verified: 2026-10-27, resolved_by: "D#20" }
+  - { id: "O#8", type: open, status: resolved, source: "findings.md#O#8", verified: 2026-10-27, resolved_by: "D#21" }
+  - { id: "O#9", type: open, status: resolved, source: "findings.md#O#9", verified: 2026-10-27, resolved_by: "D#22" }
+  - { id: "O#10", type: open, status: resolved, source: "findings.md#O#10", verified: 2026-10-27, resolved_by: "D#23" }
+  - { id: "O#11", type: open, status: resolved, source: "findings.md#O#11", verified: 2026-10-27, resolved_by: "D#29" }
+  - { id: "O#12", type: open, status: resolved, source: "findings.md#O#12", verified: 2026-10-27, resolved_by: "D#24" }
+  - { id: "O#13", type: open, status: resolved, source: "findings.md#O#13", verified: 2026-10-27, resolved_by: "D#25" }
+  - { id: "O#14", type: open, status: resolved, source: "findings.md#O#14", verified: 2026-10-27, resolved_by: "D#30" }
+  - { id: "O#15", type: open, status: open, source: "findings.md#O#15", verified: 2026-10-27, title: "Java und sbt im WSL bereitstellen", before: step3 }
+
+evals:
+  - id: eval.1
+    type: eval
+    status: implemented
+    source: evals/1-todos/
+    verified: 2026-10-27
+    title: todos
+    note: Fixture kompiliert; check.sh gegen Lösung und Fehllösung geprüft
+  - id: eval.2
+    type: eval
+    status: implemented
+    source: evals/2-rename/
+    verified: 2026-10-27
+    title: rename
+    note: Datei-Umbenennung mit MoveFile (D#18); check.sh gegen Lösung und drei Fehllösungen geprüft
+    decided_by: ["D#18"]
+  - id: eval.3
+    type: eval
+    status: implemented
+    source: evals/3-red-test-sbt/
+    verified: 2026-10-27
+    title: red-test-sbt
+    note: sbt test rot genau in „Zinseszins über zwei Jahre“
+  - id: eval.4
+    type: eval
+    status: implemented
+    source: evals/4-readme/
+    verified: 2026-10-27
+    title: readme
+    note: Fixture kompiliert
+  - id: eval.5
+    type: eval
+    status: implemented
+    source: evals/5-out-of-envelope/
+    verified: 2026-10-27
+    title: out-of-envelope
+  - id: eval.6
+    type: eval
+    status: implemented
+    source: evals/6-red-test/
+    verified: 2026-10-27
+    title: red-test (Integration, deterministisch und live)
+    relates_to: [flows.red-test]
+    note: Fixture und check.sh fertig; Skript-Modell entsteht in Schritt 3
+  - id: eval.lib
+    type: eval
+    status: implemented
+    source: evals/lib.sh
+    verified: 2026-10-27
+    note: gemeinsame Prüfungen, Vertrag check.sh WORKDIR OUTCOME
+    decided_by: ["D#17"]
+
+flows:
+  - id: flows.release
+    type: flow
+    status: implemented
+    source: flows/release.json
+    verified: 2026-10-27
+    note: Beispiel im README; Flow-Wrapper mit params version/previous (D#22); nicht Teil der Evals in v1; worst case 23, Tiefe 2
+  - id: flows.red-test
+    type: flow
+    status: implemented
+    source: flows/red-test.json
+    verified: 2026-10-27
+    note: Referenzflow für Eval 6; Flow-Wrapper ohne params (D#22); worst case 18, Tiefe 1
+
+references:
+  - id: ref.kiselyov
+    type: reference
+    source: okmij.org/ftp/tagless-final/course/
+    note: Final-Initial-Isomorphismus → ToTerm/fromTerm; Transformationen → DryRun
+  - id: ref.softwaremill-free-vs-tagless
+    type: reference
+    source: softwaremill.com/free-tagless-compared-how-not-to-commit-to-a-monad-too-early
+    note: warum ein Term-ADT nötig ist
+  - id: ref.warski-seen-alive
+    type: reference
+    source: blog.softwaremill.com/final-tagless-seen-alive
+    note: TF zum Einschränken des Effekt-Wrappers, nicht zum Effekt-Tracking
+  - id: ref.degoes-tagless-horror
+    type: reference
+    source: degoes.net/articles/tagless-horror
+    note: Algebra ohne Constraints; Effekte nur in Interpretern
+  - id: ref.jim-best-practices
+    type: reference
+    source: dev.to/devkat/tagless-final-in-scala-best-practices-3a01
+  - id: ref.cb372
+    type: reference
+    source: github.com/cb372/free-vs-tagless-final
+    note: Strukturvorlage
+  - id: ref.miller-ocap
+    type: reference
+    source: Mark Miller, Object Capabilities, attenuation
+    note: Envelopes als Capabilities
+  - id: ref.mokhov-selective
+    type: reference
+    source: Mokhov, Selective Applicative Functors (2019)
+    note: Idee hinter If/RepeatUntil als statische Knoten; Bibliothek nicht genutzt
+  - id: ref.king-parse
+    type: reference
+    source: "Alexis King, Parse, don't validate"
+    note: CheckedTerm und ApprovedTerm als Typen
+  - id: ref.anthropic-agents
+    type: reference
+    source: "Anthropic, Building effective agents (Dez 2024); Tool Use; Structured Outputs"
+    note: "Structured Outputs: strict ohne Rekursion, anyOf statt oneOf (D#10)"
+  - id: ref.inspect-swebench
+    type: reference
+    source: "Inspect AI; SWE-bench"
+    note: Vorlage für evals/
+  - id: ref.event-sourcing
+    type: reference
+    source: Fowler, Young, Event Sourcing
+    note: Record als versioniertes Ereignislog
+  - id: ref.iotte
+    type: reference
+    source: github.com/schneist/IoTTE
+    note: "Vorgängermuster: Algebra, Interpreter, Runner, Marshalling"

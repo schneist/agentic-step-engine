@@ -1,0 +1,9 @@
+{
+  "allowedOps": ["ReadFile", "ListDir", "MoveFile", "EditFile", "Shell", "Ask", "Hole"],
+  "pathPrefix": ".",
+  "maxSteps": 30,
+  "maxDepth": 1,
+  "shellAllowlist": [
+    { "binary": "grep", "requiredPrefixArgs": [] }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "allowedOps": ["ReadFile", "ListDir", "EditFile", "Ask", "Hole"],
+  "pathPrefix": "src/",
+  "maxSteps": 10,
+  "maxDepth": 1,
+  "shellAllowlist": []
+}

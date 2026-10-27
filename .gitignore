@@ -1,0 +1,9 @@
+target/
+.bsp/
+.idea/
+.metals/
+.bloop/
+record/
+*.log
+.env
+*.iml

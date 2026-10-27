@@ -1,0 +1,79 @@
+{
+  "description": "Release-Vorbereitung. Tag und Push macht der Mensch. Worst case 23 Schritte (D#14), Tiefe 2.",
+  "params": {
+    "version": "^[0-9]+[.][0-9]+[.][0-9]+$",
+    "previous": "^[0-9]+[.][0-9]+[.][0-9]+$"
+  },
+  "envelope": {
+    "allowedOps": ["ReadFile", "EditFile", "Shell", "Ask", "Hole"],
+    "pathPrefix": ".",
+    "maxSteps": 25,
+    "maxDepth": 2,
+    "shellAllowlist": [
+      { "binary": "./run-tests.sh", "requiredPrefixArgs": [] },
+      { "binary": "git", "requiredPrefixArgs": ["status"] },
+      { "binary": "git", "requiredPrefixArgs": ["log"] },
+      { "binary": "grep", "requiredPrefixArgs": [] }
+    ]
+  },
+  "term": {
+    "origin": "Human",
+    "type": "Seq",
+    "steps": [
+      { "type": "Shell", "cmd": "git", "args": ["status", "--porcelain"], "origin": "Human" },
+      {
+        "type": "If",
+        "origin": "Human",
+        "pred": { "type": "Not", "p": { "type": "LastOutputEmpty" } },
+        "thenT": { "type": "Done", "summary": "Arbeitsverzeichnis nicht sauber; bitte erst committen oder stashen", "origin": "Human" },
+        "elseT": {
+          "type": "Seq",
+          "origin": "Human",
+          "steps": [
+            { "type": "Shell", "cmd": "./run-tests.sh", "args": [], "origin": "Human" },
+            {
+              "type": "If",
+              "origin": "Human",
+              "pred": { "type": "Not", "p": { "type": "LastExitCode", "code": 0 } },
+              "thenT": { "type": "Ask", "question": "Tests sind rot. Trotzdem weiter?", "origin": "Human" },
+              "elseT": { "type": "Seq", "steps": [], "origin": "Human" }
+            },
+            { "type": "Shell", "cmd": "git", "args": ["log", "--oneline", "v${previous}..HEAD"], "origin": "Human" },
+            {
+              "type": "Hole",
+              "origin": "Human",
+              "goal": "Formuliere das Changelog für ${version} aus den Commits oben, gruppiert nach Features, Fixes, Breaking. Ergänze CHANGELOG.md oben, ändere nichts Bestehendes.",
+              "envelope": {
+                "allowedOps": ["ReadFile", "EditFile"],
+                "pathPrefix": "CHANGELOG.md",
+                "maxSteps": 3,
+                "maxDepth": 0,
+                "shellAllowlist": []
+              }
+            },
+            {
+              "type": "Hole",
+              "origin": "Human",
+              "goal": "Finde Doku-Stellen unter docs/, die von geänderten öffentlichen Schnittstellen betroffen sind, und passe sie an. Betroffene Stellen außerhalb docs/ nicht ändern, sondern im Ergebnis nennen.",
+              "envelope": {
+                "allowedOps": ["ReadFile", "Shell", "EditFile"],
+                "pathPrefix": "docs/",
+                "maxSteps": 12,
+                "maxDepth": 1,
+                "shellAllowlist": [{ "binary": "grep", "requiredPrefixArgs": [] }]
+              }
+            },
+            {
+              "type": "EditFile",
+              "origin": "Human",
+              "path": "build.sbt",
+              "expectedOld": "version := \"${previous}\"",
+              "replacement": "version := \"${version}\""
+            },
+            { "type": "Done", "summary": "Release ${version} vorbereitet; Tag und Push macht der Mensch", "origin": "Human" }
+          ]
+        }
+      }
+    ]
+  }
+}

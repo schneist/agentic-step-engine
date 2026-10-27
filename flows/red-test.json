@@ -1,0 +1,72 @@
+{
+  "description": "Referenzflow für Eval 6. Hülle gleich evals/6-red-test/envelope.json. Worst case 18 Schritte (D#14), Tiefe 1.",
+  "params": {},
+  "envelope": {
+    "allowedOps": ["ReadFile", "ListDir", "WriteFile", "EditFile", "Shell", "Ask", "Hole"],
+    "pathPrefix": ".",
+    "maxSteps": 20,
+    "maxDepth": 1,
+    "shellAllowlist": [
+      { "binary": "./run-tests.sh", "requiredPrefixArgs": [] },
+      { "binary": "grep", "requiredPrefixArgs": [] }
+    ]
+  },
+  "term": {
+    "origin": "Human",
+    "type": "Seq",
+    "steps": [
+      { "type": "Shell", "cmd": "./run-tests.sh", "args": [], "origin": "Human" },
+      { "type": "ListDir", "path": "src", "origin": "Human" },
+      {
+        "type": "Hole",
+        "origin": "Human",
+        "goal": "Finde die Ursache des roten Tests. Ändere nichts; beende mit Done und nenne Datei, Zeile und Ursache.",
+        "envelope": {
+          "allowedOps": ["ReadFile", "Shell"],
+          "pathPrefix": "src/",
+          "maxSteps": 6,
+          "maxDepth": 0,
+          "shellAllowlist": [{ "binary": "grep", "requiredPrefixArgs": [] }]
+        }
+      },
+      {
+        "type": "Hole",
+        "origin": "Human",
+        "goal": "Behebe die gefundene Ursache mit genau einem EditFile. Tests nicht ändern.",
+        "envelope": {
+          "allowedOps": ["ReadFile", "EditFile"],
+          "pathPrefix": "src/",
+          "maxSteps": 3,
+          "maxDepth": 0,
+          "shellAllowlist": []
+        }
+      },
+      {
+        "type": "RepeatUntil",
+        "origin": "Human",
+        "body": { "type": "Shell", "cmd": "./run-tests.sh", "args": [], "origin": "Human" },
+        "until": { "type": "LastExitCode", "code": 0 },
+        "max": 2
+      },
+      {
+        "type": "If",
+        "origin": "Human",
+        "pred": { "type": "LastExitCode", "code": 0 },
+        "thenT": {
+          "type": "Hole",
+          "origin": "Human",
+          "goal": "Schreibe REPORT.md: Ursache, betroffene Datei, Änderung. Grundlage sind die Ergebnisse der beiden Löcher davor.",
+          "envelope": {
+            "allowedOps": ["WriteFile"],
+            "pathPrefix": "REPORT.md",
+            "maxSteps": 1,
+            "maxDepth": 0,
+            "shellAllowlist": []
+          }
+        },
+        "elseT": { "type": "Ask", "question": "Tests weiterhin rot; wie weiter?", "origin": "Human" }
+      },
+      { "type": "Done", "summary": "Roter Test behoben; Bericht in REPORT.md", "origin": "Human" }
+    ]
+  }
+}

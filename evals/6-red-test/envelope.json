@@ -1,0 +1,10 @@
+{
+  "allowedOps": ["ReadFile", "ListDir", "WriteFile", "EditFile", "Shell", "Ask", "Hole"],
+  "pathPrefix": ".",
+  "maxSteps": 20,
+  "maxDepth": 1,
+  "shellAllowlist": [
+    { "binary": "./run-tests.sh", "requiredPrefixArgs": [] },
+    { "binary": "grep", "requiredPrefixArgs": [] }
+  ]
+}
