@@ -296,28 +296,65 @@ interpreters:
     note: handgeschriebenes Tuple2K-Produkt
   - id: int.execute
     type: interpreter
-    status: planned
-    source: SPEC.md#INTERPRETER
+    status: implemented
+    source: core/src/main/scala/ase/core/Execute.scala#Execute.run
     verified: 2026-10-27
-    note: nimmt nur ApprovedTerm; Record-Modus; Outcome done|ask|aborted
+    note: nimmt nur ApprovedTerm; Kern Engine.scala über Ports; LocalTools unter Linux; Record-Log; Outcome done|ask|aborted
   - id: int.replay
     type: interpreter
-    status: planned
-    source: SPEC.md#INTERPRETER
+    status: implemented
+    source: core/src/main/scala/ase/core/Replay.scala#Replay.run
     verified: 2026-10-27
     decided_by: ["D#16"]
+    note: derselbe Kern wie Execute, Ports aus dem Log
+  - id: int.engine
+    type: interpreter
+    status: implemented
+    source: core/src/main/scala/ase/core/Engine.scala#Engine
+    verified: 2026-10-27
+    note: private[core]; Fill → decoderFor → DryRun.fill → restrict; zählt Schritte und Budgets selbst
+  - id: int.localTools
+    type: interpreter
+    status: implemented
+    source: core/src/main/scala/ase/core/LocalTools.scala#LocalTools
+    verified: 2026-10-27
+    decided_by: ["D#29", "D#31"]
+    note: Pfadprüfung über toRealPath, Shell ohne Shell, Timeout samt Kindprozessen, git gehärtet
+  - id: int.runLog
+    type: interpreter
+    status: implemented
+    source: core/src/main/scala/ase/core/RunLog.scala#RunLog
+    verified: 2026-10-27
+  - id: type.event
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/Event.scala#Event
+    verified: 2026-10-27
+    note: Record-Log JSON Lines, Version v, Codec in RecordLog.scala
+  - id: type.ports
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/Ports.scala#Ports
+    verified: 2026-10-27
+    note: Tools, FillModel, AskHandler, Clock, Recorder; ExecConfig mit harten Limits
+  - id: policy.marshal
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/Marshal.scala#Marshal
+    verified: 2026-10-27
+    note: Fehler als Handlungsanweisung, Ausschnitt statt ganzer Ausgabe
 
 invariants:
   - id: inv.nothingUnchecked
     type: invariant
-    status: planned
+    status: implemented
     source: SPEC.md#IDEE
     verified: 2026-10-27
     statement: Nichts wird ausgeführt, was nicht vorher geprüft wurde; Execute nimmt nur ApprovedTerm, und der entsteht nur aus CheckedTerm plus bestätigtem Hash.
     guards: [int.execute, int.approval]
-    tested_by: [ase.coretests.VisibilitySuite, ase.core.ApprovalSuite]
+    tested_by: [ase.coretests.VisibilitySuite, ase.core.ApprovalSuite, ase.core.EngineSuite]
     decided_by: ["D#11"]
-    note: Typseite fertig; Execute in Schritt 3
+    note: Execute.run und Execute.local nehmen nur ApprovedTerm (Compile-Tests); Fills nur über decoderFor, DryRun.fill, restrict
   - id: inv.attenuation
     type: invariant
     status: implemented
@@ -352,23 +389,23 @@ invariants:
     tested_by: ["ase.core.CoreLaws.term", ase.core.SchemaSuite, ase.core.AlgebraSuite]
   - id: inv.replayEqualsExecute
     type: invariant
-    status: planned
+    status: implemented
     source: SPEC.md#INTERPRETER
     verified: 2026-10-27
     statement: Replay(Record(t)) erzeugt dieselbe Ereignisfolge; Schreibvorgänge auf frische Fixture-Kopie ergeben denselben Dateibaum.
     guards: [int.replay, int.execute]
-    tested_by: []
+    tested_by: [ase.core.EngineSuite, ase.core.ExecuteLawsSuite]
     decided_by: ["D#16"]
   - id: inv.adversarialFill
     type: invariant
-    status: planned
+    status: implemented
     source: SPEC.md#TESTS
     verified: 2026-10-27
     statement: Für beliebige Terme und beliebige Modellantworten führt Execute nie einen Syscall außerhalb von Wurzel- oder Loch-Hülle aus (Syscalls der Engine, nicht der Kindprozesse).
     guards: [int.execute, int.dryRun]
-    tested_by: ["ase.core.CoreLaws.dryRun"]
+    tested_by: ["ase.core.CoreLaws.dryRun", ase.core.EngineSuite, ase.core.ExecuteLawsSuite]
     decided_by: ["D#6", "D#12"]
-    note: Tor-2-Seite fertig (jeder Ausbruchsversuch abgelehnt); Syscall-Seite mit Execute und Record in Schritt 3
+    note: Tor-2-Seite und Syscall-Seite über Reply.touched im Record-Log, auch mit Symlinks nach außen
   - id: inv.scopeFiltered
     type: invariant
     status: planned

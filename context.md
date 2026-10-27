@@ -77,6 +77,15 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Konstanter Funktor**: Ein `F[_]`, das sein Argument ignoriert, etwa `Cost.Of[A] = Cost`. So deuten Cost, Explain, DryRun und ToTerm die Algebra, ohne etwas auszuführen.
 - **Sicht** (`Scope.visible`): Welche früheren Ergebnisse ein Loch beim Fill bekommt. Explain zeigt sie vorab als „sieht Ergebnisse von Schritt …“, Execute wendet dieselbe Regel an (D#9, D#30).
 - **WSL**: Windows Subsystem for Linux. Dort läuft Execute auf dem eigenen Rechner (D#29).
+- **Port**: Schnittstelle von Execute zur Außenwelt: `Tools` (Werkzeuge), `FillModel` (Modell beim Fill), `AskHandler` (Mensch bei Ask), `Clock` (Zeitlimit), `Recorder` (Ereignislog). Execute und Replay unterscheiden sich nur in den Ports.
+- **Engine**: Der gemeinsame Kern von Execute und Replay, eine Deutung der Algebra über die Ports.
+- **LocalTools**: Die echten Werkzeuge unter Linux: Pfadprüfung zur Laufzeit, Datei-Operationen, Shell mit Timeout, gehärtetes git.
+- **Submission**: Die Antwort des Modells, so wie submit_term sie liefert: `{"term": …}` als Text.
+- **StepId**: Nummer eines Schritts im Log: auf oberster Ebene wie im Explain, im Loch `Loch.Versuch.Schritt` (etwa `4.2.1`).
+- **Reply / touched**: Ergebnis eines Werkzeugaufrufs; `touched` nennt die aufgelösten Pfade, an denen ein Syscall stattfand. Leer heißt: vor jedem Syscall abgelehnt.
+- **Record-Log**: Das versionierte Ereignislog eines Laufs (JSON Lines, Feld `v`); erstes Ereignis ist der Start mit termHash.
+- **Lauf-Log** (`RunLog`): Die Darstellung des Record-Logs für Menschen, im Format des README.
+- **Ausschnitt** (`Excerpt`): Gekürzte Ausgabe für das Modell: erste und letzte Zeilen, Gesamtzahl, Hinweis.
 - **Golden-Test**: Ein Test, der eine Ausgabe Zeichen für Zeichen mit einer festgehaltenen vergleicht (Explain für red-test).
 - **CAS** (Compare-and-Swap): `EditFile` ersetzt nur, wenn `expectedOld` genau einmal vorkommt.
 
