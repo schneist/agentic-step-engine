@@ -15,7 +15,8 @@ enum RecordError:
   * Von Hand wie der Term-Codec (D#26); Terme darin mit origin.
   */
 object RecordLog:
-  val Version = 1
+  /** 2: End trägt die Schrittzahl der Engine, Io trägt Art und Pfad statt des Ausnahmetextes (Review 3). */
+  val Version = 2
 
   /** Verschachtelungsgrenze beim Lesen eingebetteter Terme; großzügig, das Log schreibt die Engine selbst. */
   private val LogNesting = 64

@@ -119,11 +119,13 @@ class EngineSuite extends munit.ScalaCheckSuite:
     val accepted = r.events.collect { case e: Event.FillAccepted => e }
     assertEquals(accepted.map(_.hash), Vector(TermHash.of(TestSupport.stamp(f, Origin.Model("fill-1")), src)))
     val text = RecordLog.render(r.events)
-    assert(text.linesIterator.forall(_.startsWith("{\"v\":1,")), text)
+    assert(text.linesIterator.forall(_.startsWith(s"{\"v\":${RecordLog.Version},")), text)
     assertEquals(RecordLog.parse(text), Right(r.events))
 
   test("Record-Log: andere Version wird abgelehnt"):
-    assertEquals(RecordLog.parseLine("""{"v":2,"type":"End","outcome":{"type":"Done"}}""", 1), Left(RecordError.UnsupportedVersion(1, 2)))
+    // Version 1 kannte die Schrittzahl im End-Ereignis noch nicht
+    assertEquals(RecordLog.parseLine("""{"v":1,"type":"End","outcome":{"type":"Done"}}""", 1), Left(RecordError.UnsupportedVersion(1, 1)))
+    assertEquals(RecordLog.parseLine("""{"v":2,"type":"End","outcome":{"type":"Done"},"steps":3}""", 1), Right(Event.End(Outcome.Done, 3L)))
 
   // ---------- Gesetze über generierte Pläne und beliebige Modellantworten
 
