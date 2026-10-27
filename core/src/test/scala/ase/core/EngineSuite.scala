@@ -131,7 +131,7 @@ class EngineSuite extends munit.ScalaCheckSuite:
 
   private val plans: Gen[(Envelope, Term, Long)] =
     for
-      (env, t) <- Gens.validPlan
+      (env, t) <- Gen.oneOf(Gens.validPlan, Gens.scopedPlan(Gens.commands, List("README.md", "secret/key.txt", "src/A.scala")))
       seed <- Gen.long
     yield (env, t, seed)
 

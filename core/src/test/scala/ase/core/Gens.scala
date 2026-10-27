@@ -191,6 +191,28 @@ object Gens:
   def validPlanWith(commands: List[AllowedCommand]): Gen[(Envelope, Term)] =
     rootEnvelopeWith(commands).flatMap(env => validTerm(env, env.maxSteps, 3).map(env -> _))
 
+  /** Für Scope- und Baum-Gesetz: erst Lese- und Änderungsvorgänge an Dateien, die es im Fixture gibt (soweit die
+    * Wurzel-Hülle sie erlaubt), dann ein Loch mit engerer Hülle, dann ein gültiger Term. So sieht jedes dieser
+    * Löcher frühere Ergebnisse mit Pfad, auch solche, deren Pfad erst aufgelöst außerhalb seines Präfixes liegt
+    * (Symlink im Fixture), und EditFile trifft wirklich vorhandene Dateien, auch Hardlinks.
+    */
+  def scopedPlan(commands: List[AllowedCommand], reads: List[String], edits: List[(String, String)] = Nil): Gen[(Envelope, Term)] =
+    validPlanWith(commands).flatMap { (env, t) =>
+      val prefix = RelPath.parse(env.pathPrefix).getOrElse(Vector.empty)
+      val h = Origin.Human
+      val readTerms = if env.allowedOps(OpKind.ReadFile) then reads.filter(RelPath.isUnder(_, prefix)).map(Term.ReadFile(_, h)) else Nil
+      val editTerms =
+        if env.allowedOps(OpKind.EditFile) then edits.filter((p, _) => RelPath.isUnder(p, prefix)).map((p, old) => Term.EditFile(p, old, "neu", h))
+        else Nil
+      for
+        pre <- Gen.someOf(readTerms ++ editTerms)
+        k <- Gen.choose(1, 6)
+        hole <- if env.maxDepth >= 1 then childEnvelope(env, k).map(c => List(Term.Hole("ziel", c, h))) else Gen.const(Nil)
+      yield
+        val extra = pre.size + hole.size * (1 + k)
+        (env.copy(maxSteps = env.maxSteps + extra), Term.Seq(pre.toList ++ hole :+ t, h))
+    }
+
   /** Wohlgeformte Loch-Hüllen für AdversarialFill. */
   val holeEnvelope: Gen[Envelope] =
     for

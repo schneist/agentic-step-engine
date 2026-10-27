@@ -23,7 +23,8 @@ class ExecuteLawsSuite extends munit.ScalaCheckSuite:
     assume(Platform.isLinux, s"Execute nur unter Linux (D#29), hier ${Platform.current}")
     assume(scala.util.Try(sh(Path.of("."), "git", "--version")._1 == 0).getOrElse(false), "git fehlt")
 
-  /** Verzeichnisse aus den Segmenten der Generatoren bis Tiefe 3, je mit x.txt; ein Repository (git init). In jedem
+  /** Verzeichnisse aus den Segmenten der Generatoren bis Tiefe 3, je mit x.txt (Hardlink auf outside/x.txt); ein
+    * Repository (git init). In jedem
     * Verzeichnis: link-out (→ outside), link-file (→ outside/secret.txt), up (→ ..), lnk (→ .git der Wurzel),
     * hard.txt (Hardlink auf outside/hard.txt); in jedem docs zusätzlich to-src (→ ../src).
     */
@@ -32,7 +33,8 @@ class ExecuteLawsSuite extends munit.ScalaCheckSuite:
     dirs.foreach { d =>
       val dir = d.foldLeft(ws)(_.resolve(_))
       Files.createDirectories(dir)
-      Files.writeString(dir.resolve("x.txt"), "alt\n")
+      // jede x.txt ist ein Hardlink auf outside/x.txt: ein nicht atomares EditFile änderte die Datei außerhalb
+      Files.createLink(dir.resolve("x.txt"), outside.resolve("x.txt"))
     }
     assertEquals(sh(ws, "git", "init", "-q")._1, 0)
     dirs.foreach { d =>
@@ -51,6 +53,7 @@ class ExecuteLawsSuite extends munit.ScalaCheckSuite:
       Files.createDirectories(outside)
       Files.writeString(outside.resolve("secret.txt"), "geheim\n")
       Files.writeString(outside.resolve("hard.txt"), "geheim\n")
+      Files.writeString(outside.resolve("x.txt"), "alt\n")
     val ws = Files.createDirectories(base.resolve(name))
     fixture(ws, outside)
     (ws, outside)
@@ -80,7 +83,11 @@ class ExecuteLawsSuite extends munit.ScalaCheckSuite:
 
   property("AdversarialFill mit Symlinks und Hardlinks: kein Syscall außerhalb der Hüllen, Baum nur unter den Hüllen geändert, Scope nach Hülle, Replay gleich"):
     requirements()
-    forAll(Gens.validPlanWith(Gens.quickCommands), Gen.long) { case ((env, t), seed) =>
+    // src/up/x.txt und docs/to-src/x.txt liegen aufgelöst außerhalb ihres Präfixes (M1)
+    val reads = List("x.txt", "docs/x.txt", "src/x.txt", "src/up/x.txt", "docs/to-src/x.txt")
+    // x.txt und hard.txt sind Hardlinks nach außen (M3)
+    val edits = List("x.txt" -> "alt", "src/x.txt" -> "alt", "src/up/x.txt" -> "alt", "docs/to-src/x.txt" -> "alt", "hard.txt" -> "geheim", "src/hard.txt" -> "geheim")
+    forAll(Gen.oneOf(Gens.validPlanWith(Gens.quickCommands), Gens.scopedPlan(Gens.quickCommands, reads, edits)), Gen.long) { case ((env, t), seed) =>
       val base = tempDir("ase-law")
       try
         val (ws, outside) = setup(base, "ws")
