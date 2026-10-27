@@ -83,7 +83,7 @@ object RecordLog:
         obj("Asked", "at" -> s(at.show), "question" -> s(q), "answer" -> answer.fold(Json.Null)(s))
       case Event.Finished(at, summary) => obj("Finished", "at" -> s(at.show), "summary" -> s(summary))
       case Event.End(outcome)          => obj("End", "outcome" -> encodeOutcome(outcome))
-    Json.obj("v" -> Json.fromInt(Version)).deepMerge(body)
+    body.mapObject(("v" -> Json.fromInt(Version)) +: _)
 
   def encodeCall(c: Call): Json = c match
     case Call.ReadFile(p)           => obj("ReadFile", "path" -> s(p))

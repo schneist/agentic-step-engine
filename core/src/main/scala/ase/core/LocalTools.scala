@@ -178,7 +178,7 @@ object LocalTools:
             else
               // CREATE_NEW: nur neue Dateien, folgt keinem Symlink am Ziel
               Files.write(p, content.getBytes(UTF_8), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, nofollow)
-              Reply(t, Right(StepResult(None, None)), s"neu, ${lines(content.count(_ == '\n').toLong + 1)}")
+              Reply(t, Right(StepResult(None, None)), s"neu, ${lines(content.count(_ == '\n').toLong + (if content.isEmpty || content.endsWith("\n") then 0 else 1))}")
           }
 
     /** Vorkommen, auch überlappend: "genau einmal" ist streng gemeint. */
