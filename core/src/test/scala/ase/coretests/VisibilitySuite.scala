@@ -36,6 +36,31 @@ class VisibilitySuite extends munit.FunSuite:
     """)
     assert(raw.contains("Required: ase.core.ApprovedTerm"), raw)
 
+  test("Execute nimmt weder einen CheckedTerm noch einen rohen Term, nur einen ApprovedTerm"):
+    assert(compileErrors("""
+      import ase.core.*
+      def c: CheckedTerm = ???
+      def p: Ports[cats.Id] = ???
+      Execute.run[cats.Id](c, p, ExecConfig.default)
+    """).contains("Required: ase.core.ApprovedTerm"))
+    assert(compileErrors("""
+      import ase.core.*
+      def p: Ports[cats.Id] = ???
+      Execute.run[cats.Id](Term.Done("x", Origin.Human), p, ExecConfig.default)
+    """).contains("Required: ase.core.ApprovedTerm"))
+    assert(compileErrors("""
+      import ase.core.*
+      def c: CheckedTerm = ???
+      def m: FillModel[cats.effect.IO] = ???
+      Execute.local[cats.effect.IO](c, java.nio.file.Path.of("."), m, AskHandler.nonInteractive, ExecConfig.default, None)
+    """).contains("Required: ase.core.ApprovedTerm"))
+    assertNoDiff(compileErrors("""
+      import ase.core.*
+      def a: ApprovedTerm = ???
+      def p: Ports[cats.Id] = ???
+      Execute.run[cats.Id](a, p, ExecConfig.default)
+    """), "")
+
   test("Gegenprobe: der erlaubte Weg kompiliert"):
     assertNoDiff(compileErrors("""
       import ase.core.*

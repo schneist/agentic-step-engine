@@ -85,7 +85,12 @@ object Gens:
   // ---------- gültig innerhalb einer Hülle
 
   /** Wohlgeformte Wurzel-Hüllen mit Shell nur, wenn es Befehle gibt. */
-  val rootEnvelope: Gen[Envelope] =
+  val rootEnvelope: Gen[Envelope] = rootEnvelopeWith(commands)
+
+  /** Befehle, die in Execute-Gesetzen wirklich laufen dürfen: schnell, ohne Schreiben (kein sbt). */
+  val quickCommands: List[AllowedCommand] = commands.filterNot(_.binary == "sbt")
+
+  def rootEnvelopeWith(commands: List[AllowedCommand]): Gen[Envelope] =
     for
       ops <- Gen.someOf(OpKind.values.toList.filterNot(_ == OpKind.Shell))
       withShell <- Gen.oneOf(true, false)
@@ -169,8 +174,10 @@ object Gens:
       )
 
   /** Ein Paar aus Wurzel-Hülle und gültigem Term darin. */
-  val validPlan: Gen[(Envelope, Term)] =
-    rootEnvelope.flatMap(env => validTerm(env, env.maxSteps, 3).map(env -> _))
+  val validPlan: Gen[(Envelope, Term)] = validPlanWith(commands)
+
+  def validPlanWith(commands: List[AllowedCommand]): Gen[(Envelope, Term)] =
+    rootEnvelopeWith(commands).flatMap(env => validTerm(env, env.maxSteps, 3).map(env -> _))
 
   /** Wohlgeformte Loch-Hüllen für AdversarialFill. */
   val holeEnvelope: Gen[Envelope] =
@@ -224,6 +231,28 @@ object AdversarialFill:
 
   def gen(hole: Envelope): Gen[(Attack, Term)] =
     Gen.oneOf(attacks(hole)).flatMap((a, g) => g.map(a -> _))
+
+  /** Ausbruch über Symlinks: syntaktisch innerhalb der Hülle, Tor 2 lässt sie durch; erst Execute fängt sie zur
+    * Laufzeit ab. Erwartet im Arbeitsverzeichnis unter jedem Präfix link-out (Verzeichnis außerhalb) und link-file
+    * (Datei außerhalb).
+    */
+  def symlinkAttacks(hole: Envelope): List[Gen[Term]] =
+    val base = RelPath.parse(hole.pathPrefix).map(RelPath.show).getOrElse(".") match
+      case "." => ""
+      case p   => p + "/"
+    val paths = Gen.oneOf(s"${base}link-out/x.txt", s"${base}link-file", s"${base}link-out", s"${base}link-out/neu.txt")
+    def when(op: OpKind)(g: Gen[Term]): Option[Gen[Term]] = Option.when(hole.allowedOps(op))(g)
+    val grep = hole.allowedOps(OpKind.Shell) && hole.shellAllowlist.exists(c => c.binary == "grep" && c.requiredPrefixArgs.isEmpty)
+    val leaves = List(
+      when(OpKind.ReadFile)(paths.map(Term.ReadFile(_, o))),
+      when(OpKind.ListDir)(paths.map(Term.ListDir(_, o))),
+      when(OpKind.WriteFile)(paths.map(Term.WriteFile(_, "ausbruch", o))),
+      when(OpKind.EditFile)(paths.map(Term.EditFile(_, "geheim", "ausbruch", o))),
+      when(OpKind.MoveFile)(Gen.oneOf(Term.MoveFile(s"${base}link-file", s"${base}neu.txt", o), Term.MoveFile(s"${base}x.txt", s"${base}link-out/neu.txt", o))),
+      Some(paths.map(p => Term.If(Pred.FileExists(p), Term.Done("ja", o), Term.Done("nein", o), o))),
+      Option.when(grep)(paths.map(p => Term.Shell("grep", List("-r", "geheim", p), o)))
+    ).flatten
+    List(Gen.oneOf(leaves).flatMap(identity))
 
   /** Welcher Verstoß die Ablehnung begründen muss. */
   def expected(attack: Attack): Violation => Boolean =
