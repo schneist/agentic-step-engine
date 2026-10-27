@@ -7,3 +7,4 @@ record/
 *.log
 .env
 *.iml
+.claude/worktrees/
