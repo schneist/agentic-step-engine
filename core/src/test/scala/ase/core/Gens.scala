@@ -113,7 +113,7 @@ object Gens:
     for
       ops <- Gen.someOf(parent.allowedOps.toList)
       shell <- Gen.someOf(parent.shellAllowlist.toList)
-      ext <- Gen.oneOf(Vector.empty[String], Vector("src"))
+      ext <- Gen.oneOf(Vector.empty[String], Vector("src"), Vector("docs"))
     yield
       val prefix = RelPath.parse(parent.pathPrefix).getOrElse(Vector.empty) ++ ext
       val usableShell = usable(RelPath.show(prefix), shell)
@@ -159,9 +159,20 @@ object Gens:
         )
     val leaf = Gen.oneOf(leaves).flatMap(identity)
     val pred = path.flatMap(p => Gen.oneOf(Pred.FileExists(p), Pred.Not(Pred.FileExists(p))))
+    // ein Loch im Rumpf von RepeatUntil: jeder Durchlauf ruft es neu auf, mit eigenem Budget (D#14)
+    val holeLoop: List[(Int, Gen[Term])] =
+      Option.when(env.allowedOps(OpKind.Hole) && env.maxDepth >= 1 && budget >= 4)(
+        1 -> Gen.choose(2, math.min(3, budget / 2)).flatMap { m =>
+          for
+            child <- Gen.choose(1, budget / m - 1).flatMap(childEnvelope(env, _))
+            until <- Gen.oneOf(pred, Gen.const(Pred.LastOutputContains("fertig")))
+          yield Term.RepeatUntil(Term.Hole("ziel", child, o), until, m, o)
+        }
+      ).toList
     if level <= 0 || budget < 2 then leaf
     else
       Gen.frequency(
+        (List(
         4 -> leaf,
         1 -> Gen.choose(0, math.min(3, budget)).flatMap { k =>
           Gen.listOfN(k, Gen.lzy(validTerm(env, budget / math.max(k, 1), level - 1, o))).map(Term.Seq(_, o))
@@ -171,6 +182,7 @@ object Gens:
         1 -> Gen.choose(1, math.min(3, budget)).flatMap { m =>
           Gen.zip(Gen.lzy(validTerm(env, budget / m, level - 1, o)), pred).map((b, p) => Term.RepeatUntil(b, p, m, o))
         }
+        ) ++ holeLoop)*
       )
 
   /** Ein Paar aus Wurzel-Hülle und gültigem Term darin. */
@@ -232,23 +244,42 @@ object AdversarialFill:
   def gen(hole: Envelope): Gen[(Attack, Term)] =
     Gen.oneOf(attacks(hole)).flatMap((a, g) => g.map(a -> _))
 
-  /** Ausbruch über Symlinks: syntaktisch innerhalb der Hülle, Tor 2 lässt sie durch; erst Execute fängt sie zur
-    * Laufzeit ab. Erwartet im Arbeitsverzeichnis unter jedem Präfix link-out (Verzeichnis außerhalb) und link-file
-    * (Datei außerhalb).
+  /** Ausbruch über Symlinks und Hardlinks: syntaktisch innerhalb der Hülle, Tor 2 lässt sie durch; erst Execute
+    * fängt sie zur Laufzeit ab. Erwartet im Arbeitsverzeichnis unter jedem Verzeichnis link-out (Verzeichnis
+    * außerhalb), link-file (Datei außerhalb), up (→ ..), lnk (→ .git der Wurzel), hard.txt (Hardlink auf eine Datei
+    * außerhalb) und unter jedem docs to-src (→ ../src).
     */
   def symlinkAttacks(hole: Envelope): List[Gen[Term]] =
     val base = RelPath.parse(hole.pathPrefix).map(RelPath.show).getOrElse(".") match
       case "." => ""
       case p   => p + "/"
-    val paths = Gen.oneOf(s"${base}link-out/x.txt", s"${base}link-file", s"${base}link-out", s"${base}link-out/neu.txt")
+    val paths = Gen.oneOf(
+      List("link-out/x.txt", "link-file", "link-out", "link-out/neu.txt", "up", "up/x.txt", "up/link-file", "lnk", "lnk/config", "lnk/HEAD", "hard.txt", "to-src/x.txt")
+        .map(base + _)
+    )
+    // was eine Änderung dort bewirken soll: Datei außerhalb, Repo-Konfiguration, Datei über der Präfixgrenze
+    val edits = Gen.oneOf(
+      (s"${base}link-file", "geheim"),
+      (s"${base}hard.txt", "geheim"),
+      (s"${base}lnk/config", "[core]"),
+      (s"${base}up/x.txt", "alt"),
+      (s"${base}to-src/x.txt", "alt")
+    )
+    val targets = Gen.oneOf(List("link-out/neu.txt", "lnk/neu", "lnk/hooks/pre-commit", "up/neu.txt", "to-src/neu.txt").map(base + _))
     def when(op: OpKind)(g: Gen[Term]): Option[Gen[Term]] = Option.when(hole.allowedOps(op))(g)
     val grep = hole.allowedOps(OpKind.Shell) && hole.shellAllowlist.exists(c => c.binary == "grep" && c.requiredPrefixArgs.isEmpty)
     val leaves = List(
       when(OpKind.ReadFile)(paths.map(Term.ReadFile(_, o))),
       when(OpKind.ListDir)(paths.map(Term.ListDir(_, o))),
-      when(OpKind.WriteFile)(paths.map(Term.WriteFile(_, "ausbruch", o))),
-      when(OpKind.EditFile)(paths.map(Term.EditFile(_, "geheim", "ausbruch", o))),
-      when(OpKind.MoveFile)(Gen.oneOf(Term.MoveFile(s"${base}link-file", s"${base}neu.txt", o), Term.MoveFile(s"${base}x.txt", s"${base}link-out/neu.txt", o))),
+      when(OpKind.WriteFile)(Gen.oneOf(paths, targets).flatMap(identity).map(Term.WriteFile(_, "ausbruch", o))),
+      when(OpKind.EditFile)(edits.map((p, old) => Term.EditFile(p, old, "ausbruch\n[core]\n\tfsmonitor = /bin/false", o))),
+      when(OpKind.MoveFile)(
+        Gen.oneOf(
+          Gen.const(Term.MoveFile(s"${base}link-file", s"${base}neu.txt", o)),
+          Gen.const(Term.MoveFile(s"${base}hard.txt", s"${base}hart-neu.txt", o)),
+          targets.map(t => Term.MoveFile(s"${base}x.txt", t, o))
+        ).flatMap(identity)
+      ),
       Some(paths.map(p => Term.If(Pred.FileExists(p), Term.Done("ja", o), Term.Done("nein", o), o))),
       Option.when(grep)(paths.map(p => Term.Shell("grep", List("-r", "geheim", p), o)))
     ).flatten

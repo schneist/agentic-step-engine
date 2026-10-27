@@ -142,12 +142,17 @@ class EngineSuite extends munit.ScalaCheckSuite:
       Replay.verify(approved, reread, config).map(_.events) == Right(r.events)
     }
 
-  property("AdversarialFill: kein Syscall außerhalb von Wurzel- oder Loch-Hülle, nie mehr Schritte als DryRun erlaubt"):
+  property("AdversarialFill: kein Syscall außerhalb von Wurzel- oder Loch-Hülle, Scope nach Hülle, nie mehr Schritte als DryRun erlaubt"):
     forAll(plans) { (env, t, seed) =>
       val approved = approve(t, env, check)
-      val r = Execute.run[W](approved, ports(fakeTools(check.argPolicies), adversarialModel(seed), _ => Some("ja")), config).runA(files).value
+      var requests = Vector.empty[FillRequest]
+      val adversary = adversarialModel(seed)
+      val model: FillRequest => ModelReply = req => { requests :+= req; adversary(req) }
+      val r = Execute.run[W](approved, ports(fakeTools(check.argPolicies), model, _ => Some("ja")), config).runA(files).value
       val esc = escapes(r.events, env)
       assert(esc.isEmpty, esc.mkString("\n"))
+      val leaks = scopeLeaks(requests, r.events, check.argPolicies)
+      assert(leaks.isEmpty, leaks.mkString("\n"))
       assert(r.stats.steps <= approved.checked.worstCaseSteps, s"${r.stats.steps} > ${approved.checked.worstCaseSteps}")
       assert(r.events.last.isInstanceOf[Event.End])
       true
