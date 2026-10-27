@@ -94,8 +94,14 @@ object Gens:
       steps <- Gen.choose(5, 40)
       depth <- Gen.choose(0, 2)
     yield
-      val allOps = ops.toSet ++ (if withShell then Set(OpKind.Shell) else Set.empty) ++ Set(OpKind.Hole)
-      Envelope(allOps, prefix, steps, depth, shell.toSet)
+      val usableShell = usable(prefix, shell)
+      val withUsable = withShell && usableShell.nonEmpty
+      val allOps = ops.toSet ++ (if withUsable then Set(OpKind.Shell) else Set.empty) ++ Set(OpKind.Hole)
+      Envelope(allOps, prefix, steps, depth, if withUsable then usableShell else Set.empty)
+
+  /** Befehle, die unter dem Präfix nutzbar sind: unter einem Unterpfad nur solche, die Pfade nehmen (D#27, D#31). */
+  def usable(prefix: String, cs: Iterable[AllowedCommand]): Set[AllowedCommand] =
+    cs.filter(c => Attenuation.wellFormed(Envelope(Set(OpKind.Shell), prefix, 1, 0, Set(c)), Location.root).isEmpty).toSet
 
   /** Eine Hülle, die parent abschwächt: Teilmenge der Operationen und Befehle, gleicher oder engerer Pfad, Tiefe - 1. */
   def childEnvelope(parent: Envelope, maxSteps: Int): Gen[Envelope] =
@@ -105,14 +111,15 @@ object Gens:
       ext <- Gen.oneOf(Vector.empty[String], Vector("src"))
     yield
       val prefix = RelPath.parse(parent.pathPrefix).getOrElse(Vector.empty) ++ ext
-      val withShell = ops.contains(OpKind.Shell) && shell.nonEmpty
+      val usableShell = usable(RelPath.show(prefix), shell)
+      val withShell = ops.contains(OpKind.Shell) && usableShell.nonEmpty
       val finalOps = ops.toSet.filterNot(o => o == OpKind.Shell && !withShell)
       Envelope(
         if finalOps.isEmpty then Set(OpKind.Hole) else finalOps,
         RelPath.show(prefix),
         maxSteps,
         parent.maxDepth - 1,
-        if withShell then shell.toSet else Set.empty
+        if withShell then usableShell else Set.empty
       )
 
   /** Ein Shell-Aufruf, der Allowlist und Policy genügt und nur Pfade unter prefix berührt (D#27). */

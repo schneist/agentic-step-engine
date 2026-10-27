@@ -28,13 +28,17 @@ object Cost:
     def done(summary: String, origin: Origin): Cost = leaf(summary)
     def think(goal: String, envelope: Envelope, origin: Origin): Cost =
       Cost(
-        1L + math.max(envelope.maxSteps, 0),
+        Steps.add(1L, math.max(envelope.maxSteps, 0).toLong),
         config.attemptsPerFill.toLong,
         tokens(goal) + config.attemptsPerFill.toLong * config.tokensPerFill
       )
     def seq(steps: List[Cost], origin: Origin): Cost =
       steps.foldLeft(Cost(0, 0, 0))((a, b) =>
-        Cost(a.worstCaseSteps + b.worstCaseSteps, a.worstCaseModelCalls + b.worstCaseModelCalls, a.tokenEstimate + b.tokenEstimate)
+        Cost(
+          Steps.add(a.worstCaseSteps, b.worstCaseSteps),
+          Steps.add(a.worstCaseModelCalls, b.worstCaseModelCalls),
+          Steps.add(a.tokenEstimate, b.tokenEstimate)
+        )
       )
     def branch(pred: Pred, thenP: Cost, elseP: Cost, origin: Origin): Cost =
       Cost(
@@ -44,4 +48,4 @@ object Cost:
       )
     def repeatUntil(body: Cost, until: Pred, max: Int, origin: Origin): Cost =
       val n = math.max(max, 0).toLong
-      Cost(n * body.worstCaseSteps, n * body.worstCaseModelCalls, n * body.tokenEstimate)
+      Cost(Steps.mul(n, body.worstCaseSteps), Steps.mul(n, body.worstCaseModelCalls), Steps.mul(n, body.tokenEstimate))

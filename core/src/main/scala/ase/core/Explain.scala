@@ -37,8 +37,8 @@ object Explain:
     val header = Vector(
       s"dryrun    ok  (worst case ${checked.worstCaseSteps} steps, depth ${checked.depth})",
       s"explain   ${checked.termHash.short}"
-    ) ++ Option.when(params.nonEmpty)(s"params    ${params.toList.sorted.map((k, v) => s"$k=$v").mkString(" ")}")
-    val footer = Vector(s"shell     ${if allowlist.isEmpty then "keine" else allowlist.mkString(", ")}") ++
+    ) ++ Option.when(params.nonEmpty)(s"params    ${Text.visible(params.toList.sorted.map((k, v) => s"$k=$v").mkString(" "))}")
+    val footer = Vector(s"shell     ${if allowlist.isEmpty then "keine" else Text.visible(allowlist.mkString(", "))}") ++
       Option.when(denied.nonEmpty)(s"nicht erlaubt, u. a.: ${denied.mkString(", ")}") ++
       Option.when(warned.nonEmpty)(s"Warnung: erlaubt, obwohl in explainDenials: ${warned.mkString(", ")}")
     (header ++ Vector("") ++ body ++ Vector("") ++ footer).mkString("\n")
@@ -50,14 +50,15 @@ object Explain:
   type Out[A] = State => (Vector[String], Int, Vector[Scope.Seen])
 
   private def quote(s: String, max: Int = 50): String =
-    val flat = s.replace("\n", "⏎")
-    "„" + (if flat.length > max then flat.take(max) + "…" else flat) + "“"
+    val v = Text.visible(s)
+    if v.length > max then s"„${v.take(max)}…“ (gekürzt, ${s.length} Zeichen)" else s"„$v“"
 
   private def runsWorkspaceCode(cmd: String, config: ExplainConfig): Option[List[String]] =
     if cmd.startsWith("./") then Some(List(cmd.drop(2))) else config.workspaceCode.get(cmd)
 
   private def codePaths(t: Term, config: ExplainConfig): List[Vector[String]] = t match
     case Term.Shell(cmd, _, _)        => runsWorkspaceCode(cmd, config).toList.flatten.flatMap(RelPath.parse(_).toOption)
+    case Term.Hole(_, e, _)           => e.shellAllowlist.toList.flatMap(c => runsWorkspaceCode(c.binary, config).toList.flatten).flatMap(RelPath.parse(_).toOption)
     case Term.Seq(steps, _)           => steps.flatMap(codePaths(_, config))
     case Term.If(_, a, b, _)          => codePaths(a, config) ++ codePaths(b, config)
     case Term.RepeatUntil(b, _, _, _) => codePaths(b, config)
@@ -73,10 +74,10 @@ object Explain:
 
   private def interpreter(code: List[Vector[String]], config: ExplainConfig, check: CheckConfig): AgentAlg[Out] = new AgentAlg[Out]:
     private def pad(indent: Int): String = "  " * indent
-    private def note(text: String, indent: Int): String = "   " + pad(indent) + text
+    private def note(text: String, indent: Int): String = "   " + pad(indent) + Text.visible(text)
 
     private def step(text: String, paths: List[String]): Out[StepResult] = s =>
-      (Vector(f"${s.next}%-3d" + pad(s.indent) + text), s.next + 1, s.prior :+ Scope.Seen(s.next, paths))
+      (Vector(f"${s.next}%-3d" + pad(s.indent) + Text.visible(text)), s.next + 1, s.prior :+ Scope.Seen(s.next, paths))
 
     def readFile(path: String, origin: Origin): Out[StepResult] = step(s"liest $path", List(path))
     def listDir(path: String, origin: Origin): Out[StepResult] = step(s"listet $path", List(path))
@@ -95,6 +96,7 @@ object Explain:
       val prefix = RelPath.parse(envelope.pathPrefix).toOption
       val changesCode = envelope.allowedOps.exists(writes) && prefix.exists(p => code.exists(RelPath.overlaps(p, _)))
       val seen = Scope.visible(s.prior, envelope).map(_.step)
+      val runsCode = envelope.shellAllowlist.toList.filter(c => runsWorkspaceCode(c.binary, config).isDefined).map(_.show).sorted
       val sees =
         if seen.isEmpty then "sieht keine früheren Ergebnisse"
         else s"sieht Ergebnisse von Schritt ${seen.mkString(", ")}"
@@ -102,7 +104,8 @@ object Explain:
         f"${s.next}%-3d" + pad(s.indent) + s"Hier entscheidet der Agent: ${quote(goal, 70)}",
         note(envelopeText(envelope), s.indent),
         note(sees, s.indent)
-      ) ++ Option.when(changesCode)(note("Hinweis: darf Code ändern, der im Lauf ausgeführt wird", s.indent))
+      ) ++ Option.when(changesCode)(note("Hinweis: darf Code ändern, der im Lauf ausgeführt wird", s.indent)) ++
+        Option.when(runsCode.nonEmpty)(note(s"Hinweis: darf Workspace-Code ausführen (${runsCode.mkString(", ")})", s.indent))
       // Das Ergebnis eines Lochs ist seine Done-Zusammenfassung, pfadlos (D#9)
       (lines, s.next + 1, s.prior :+ Scope.Seen(s.next, Nil))
 

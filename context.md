@@ -192,6 +192,10 @@ Die Engine startet Programme ohne Shell, Argumente als Liste. Unter Linux ist da
 
 Prüfung und Sicht folgen verschiedenen Regeln. Für die Prüfung gilt ein Befehl ohne Pfad als Zugriff auf alles (D#27), damit ein Loch sich keinen Zugriff erschleicht. Für die Sicht zählen nur ausdrücklich genannte Pfade (D#9), sonst sähe das Diagnose-Loch nicht einmal den roten Test, den es erklären soll. Das lässt eine Lücke: Die Ausgabe eines Testskripts kann Inhalte von überall enthalten. Solche Befehle laufen aber nur auf oberster Ebene, im freigegebenen Plan. Damit der Mensch auch den Datenfluss freigibt und nicht nur die Schritte, nennt Explain unter jedem Loch die früheren Ergebnisse, die es sehen wird. Für Workflow-Leser: Das ist die Datenzuordnung eines Tasks, sichtbar in der Prozessdefinition.
 
+### Warum die Korrekturen aus dem Review (D#31)
+
+Ein Reviewer hat versucht, die Tore zu umgehen, und es in mehreren Fällen geschafft. Am lehrreichsten: Eine Hülle, die nur `git status` und das Ändern von Dateien erlaubt, reichte aus, um beliebige Programme zu starten. Der Fill schreibt eine Zeile in `.git/config`, und git führt sie beim nächsten `git status` aus. Das Tor hatte nichts falsch gemacht; es kannte nur nicht alle Wege, auf denen eine Datei zu Code wird. Ebenso grundsätzlich: Zahlen dürfen nicht überlaufen (eine Schleife mit 2^64 Durchläufen ergab „0 Schritte“), und was Explain dem Menschen zeigt, darf das Modell nicht gestalten können, sonst gibt der Mensch frei, was ihm untergeschoben wurde. Die Regel dahinter ist dieselbe wie bei den Pfaden: lieber eine Sache zu viel verbieten (`..`, Backslash, Steuerzeichen, `.git`) als eine Lücke lassen, die nur auf einer Plattform oder nur mit einem bestimmten Programm offen ist.
+
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 
 Was nicht erlaubt ist, ist unendlich. Für den Menschen beruhigend ist aber die Zeile „git push ist nicht dabei“. Welche Befehle für ihn wichtig sind, weiß die Engine nicht; das steht deshalb in der Konfiguration. Steht ein solcher Befehl doch in der Allowlist, ist das eine Warnung wert.

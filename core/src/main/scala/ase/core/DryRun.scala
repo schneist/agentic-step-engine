@@ -51,7 +51,7 @@ object DryRun:
       case Right(prefix) =>
         val a = AgentAlg.fromTerm(term)(interpreter)(Ctx(env, prefix, Location.root, None, config))
         val nesting = Term.nesting(term)
-        val all = Attenuation.wellFormed(env, envLoc).toVector ++
+        val all = Attenuation.wellFormed(env, envLoc, config).toVector ++
           Option.when(nesting > config.nestingLimit)(Violation.NestingTooDeep(Location.root, nesting, config.nestingLimit)) ++
           a.violations ++
           Option.when(a.worstCase > env.maxSteps)(Violation.StepBudgetExceeded(Location.root, a.worstCase, env.maxSteps))
@@ -142,14 +142,14 @@ object DryRun:
     def think(goal: String, envelope: Envelope, origin: Origin): Check[StepResult] = ctx =>
       val at = ctx.loc / "envelope"
       val v = op(OpKind.Hole, ctx) ++
-        Attenuation.wellFormed(envelope, at) ++
+        Attenuation.wellFormed(envelope, at, ctx.config) ++
         Attenuation.check(envelope, ctx.env, at, Attenuation.Mode.Hole)
-      Analysis(v, 1L + math.max(envelope.maxSteps, 0).toLong, Some(Output), 1 + math.max(envelope.maxDepth, 0))
+      Analysis(v, Steps.add(1L, math.max(envelope.maxSteps, 0).toLong), Some(Output), 1 + math.max(envelope.maxDepth, 0))
 
     def seq(steps: List[Check[StepResult]], origin: Origin): Check[StepResult] = ctx =>
       steps.zipWithIndex.foldLeft(Analysis(Vector.empty, 0L, ctx.last, 0)) { case (acc, (step, i)) =>
         val a = step(ctx.copy(loc = ctx.loc.at("steps", i), last = acc.last))
-        Analysis(acc.violations ++ a.violations, acc.worstCase + a.worstCase, a.last, math.max(acc.holeDepth, a.holeDepth))
+        Analysis(acc.violations ++ a.violations, Steps.add(acc.worstCase, a.worstCase), a.last, math.max(acc.holeDepth, a.holeDepth))
       }
 
     def branch(pred: Pred, thenP: Check[StepResult], elseP: Check[StepResult], origin: Origin): Check[StepResult] = ctx =>
@@ -169,7 +169,7 @@ object DryRun:
       Analysis(
         Option.when(max < 1)(Violation.InvalidRepeat(ctx.loc, max)).toVector ++
           b.violations ++ predicate(until, b.last, ctx.loc / "until", ctx),
-        math.max(max, 0).toLong * b.worstCase,
+        Steps.mul(math.max(max, 0).toLong, b.worstCase),
         b.last,
         b.holeDepth
       )

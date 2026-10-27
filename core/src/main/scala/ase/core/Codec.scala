@@ -14,6 +14,7 @@ enum DecodeError:
   case TooDeep(loc: Location)
   case OriginNotAllowed(loc: Location)
   case InvalidOrigin(loc: Location, value: String)
+  case LoneSurrogate(loc: Location)
 
   def message: String = this match
     case InvalidJson(d)            => s"Kein gültiges JSON: $d"
@@ -25,6 +26,7 @@ enum DecodeError:
     case TooDeep(loc)              => s"${loc.show}: zu tief verschachtelt; flache die Struktur ab."
     case OriginNotAllowed(loc)     => s"${loc.show}: origin setzt die Engine, nicht das Modell."
     case InvalidOrigin(loc, value) => s"${loc.show}: origin „$value“ ist weder Human noch Model:<callId>."
+    case LoneSurrogate(loc)        => s"${loc.show}: Text enthält ein einzelnes Surrogat-Zeichen."
 
 /** origin beim Decodieren (D#26): Flows und Aufzeichnungen tragen es; Modellantworten nicht, die Engine stempelt. */
 enum OriginMode:
@@ -137,10 +139,10 @@ object Codec:
         case "LastOutputContains" => only(o, loc, Set("type", "text")) *> string(o, loc, "text").map(Pred.LastOutputContains(_))
         case "LastOutputEmpty"    => only(o, loc, Set("type")).as(Pred.LastOutputEmpty)
         case "Not" =>
-          deeper(loc, level) *> only(o, loc, Set("type", "p")) *>
+          deeper(loc, level) >> only(o, loc, Set("type", "p")) *>
             field(o, loc, "p").flatMap(decodePred(_, loc / "p", level - 1)).map(Pred.Not(_))
         case "And" =>
-          deeper(loc, level) *> only(o, loc, Set("type", "p", "q")) *>
+          deeper(loc, level) >> only(o, loc, Set("type", "p", "q")) *>
             (
               field(o, loc, "p").flatMap(decodePred(_, loc / "p", level - 1)),
               field(o, loc, "q").flatMap(decodePred(_, loc / "q", level - 1))
@@ -187,20 +189,20 @@ object Codec:
             field(o, loc, "envelope").flatMap(decodeEnvelope(_, loc / "envelope"))
           ).mapN((or, g, e) => Term.Hole(g, e, or))
         case "Seq" =>
-          deeper(loc, level) *> header(o, loc, Set("steps"), mode).flatMap { or =>
+          deeper(loc, level) >> header(o, loc, Set("steps"), mode).flatMap { or =>
             array(o, loc, "steps")
               .flatMap(_.zipWithIndex.traverse((j, i) => termAt(j, loc.at("steps", i), level - 1, mode, limits)))
               .map(Term.Seq(_, or))
           }
         case "If" =>
-          deeper(loc, level) *> (
+          deeper(loc, level) >> (
             header(o, loc, Set("pred", "thenT", "elseT"), mode),
             field(o, loc, "pred").flatMap(decodePred(_, loc / "pred", limits.nestingLimit)),
             child(o, "thenT", loc / "thenT"),
             child(o, "elseT", loc / "elseT")
           ).mapN((or, p, a, b) => Term.If(p, a, b, or))
         case "RepeatUntil" =>
-          deeper(loc, level) *> (
+          deeper(loc, level) >> (
             header(o, loc, Set("body", "until", "max"), mode),
             child(o, "body", loc / "body"),
             field(o, loc, "until").flatMap(decodePred(_, loc / "until", limits.nestingLimit)),
@@ -241,7 +243,7 @@ object Codec:
     o(name).toRight(DecodeError.MissingField(loc, name))
 
   private def string(o: JsonObject, loc: Location, name: String): Result[String] =
-    field(o, loc, name).flatMap(_.asString.toRight(DecodeError.Malformed(loc / name, "Text")))
+    field(o, loc, name).flatMap(_.asString.toRight(DecodeError.Malformed(loc / name, "Text"))).flatMap(text(_, loc / name))
 
   private def int(o: JsonObject, loc: Location, name: String): Result[Int] =
     field(o, loc, name).flatMap(_.asNumber.flatMap(_.toInt).toRight(DecodeError.Malformed(loc / name, "eine ganze Zahl")))
@@ -250,4 +252,9 @@ object Codec:
     field(o, loc, name).flatMap(_.asArray.map(_.toList).toRight(DecodeError.Malformed(loc / name, "eine Liste")))
 
   private def strings(o: JsonObject, loc: Location, name: String): Result[List[String]] =
-    array(o, loc, name).flatMap(_.zipWithIndex.traverse((j, i) => j.asString.toRight(DecodeError.Malformed(loc.at(name, i), "Text"))))
+    array(o, loc, name).flatMap(_.zipWithIndex.traverse((j, i) =>
+      j.asString.toRight(DecodeError.Malformed(loc.at(name, i), "Text")).flatMap(text(_, loc.at(name, i)))
+    ))
+
+  private def text(s: String, loc: Location): Result[String] =
+    Either.cond(!Text.hasLoneSurrogate(s), s, DecodeError.LoneSurrogate(loc))

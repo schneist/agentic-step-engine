@@ -33,12 +33,24 @@ object Attenuation:
       case Mode.Flow => Option.when(child.maxSteps > parent.maxSteps)(Violation.WiderSteps(loc, child.maxSteps, parent.maxSteps))
     ops ++ prefix ++ shell ++ depth ++ steps
 
-  /** Well-Formedness: ein Loch muss lösbar beschränkt sein (D#21). */
-  def wellFormed(e: Envelope, loc: Location): List[Violation] =
-    List(
+  /** Well-Formedness: ein Loch muss lösbar beschränkt sein (D#21). Jeder erlaubte Befehl muss nutzbar sein:
+    * es gibt eine Argument-Policy, und unter einem engeren pathPrefix als "." nimmt er Pfade an (D#27, D#31).
+    */
+  def wellFormed(e: Envelope, loc: Location, config: CheckConfig = CheckConfig.default): List[Violation] =
+    val root = RelPath.parse(e.pathPrefix).exists(_.isEmpty)
+    val unusable = e.shellAllowlist.toList.sortBy(_.show).flatMap { c =>
+      val policies = config.argPolicies.filter(p =>
+        p.binary == c.binary && (p.prefixArgs.startsWith(c.requiredPrefixArgs) || c.requiredPrefixArgs.startsWith(p.prefixArgs))
+      )
+      if policies.isEmpty then Some(s"„${c.show}“ hat keine Argument-Policy")
+      else if !root && policies.forall(_.positional == Positional.NoArgs) then
+        Some(s"„${c.show}“ nimmt keine Pfade und berührt damit das ganze Arbeitsverzeichnis, nicht nur ${e.pathPrefix}")
+      else None
+    }
+    (List(
       Option.when(e.maxSteps < 1)("maxSteps muss mindestens 1 sein"),
       Option.when(e.allowedOps.isEmpty)("allowedOps ist leer"),
       Option.when(e.maxDepth < 0)("maxDepth darf nicht negativ sein"),
       Option.when(e.allowedOps(OpKind.Shell) && e.shellAllowlist.isEmpty)("Shell erlaubt, aber kein Befehl in shellAllowlist"),
       Option.when(!e.allowedOps(OpKind.Shell) && e.shellAllowlist.nonEmpty)("shellAllowlist ohne Shell in allowedOps")
-    ).flatten.map(Violation.IllFormed(loc, _))
+    ).flatten ++ unusable).map(Violation.IllFormed(loc, _))

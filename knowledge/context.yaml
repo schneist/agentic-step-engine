@@ -202,13 +202,20 @@ policies:
     verified: 2026-10-27
     decided_by: ["D#9", "D#30"]
     note: Regel fertig und im Explain sichtbar; Anwendung beim Fill in Execute (Schritt 3)
+  - id: policy.text
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/Text.scala#Text
+    verified: 2026-10-27
+    decided_by: ["D#31"]
+    note: gefährliche Zeichen, sichtbare Escapes, einsame Surrogate; Steps sättigend
   - id: policy.pathRules
     type: policy
     status: implemented
     source: core/src/main/scala/ase/core/RelPath.scala#RelPath.parse
     verified: 2026-10-27
     decided_by: ["D#29"]
-    note: relativ; kein Doppelpunkt, keine Gerätenamen, kein Punkt/Leerzeichen am Ende; auf allen Plattformen
+    note: relativ; kein .., kein Backslash, keine Steuerzeichen, kein .git; kein Doppelpunkt, keine Gerätenamen, kein Punkt/Leerzeichen am Ende; auf allen Plattformen (D#29, D#31)
   - id: policy.platform
     type: policy
     status: planned
@@ -403,6 +410,7 @@ decisions:
   - { id: "D#28", type: decision, status: decided, source: "findings.md#D#28", verified: 2026-10-27, title: "fromTerm ohne Applicative-Constraint" }
   - { id: "D#29", type: decision, status: decided, source: "findings.md#D#29", verified: 2026-10-27, title: "Execute nur unter Linux (WSL oder CI)" }
   - { id: "D#30", type: decision, status: decided, source: "findings.md#D#30", verified: 2026-10-27, title: "Sicht nach D#9, Prüfung nach D#27, Datenfluss im Explain" }
+  - { id: "D#31", type: decision, status: decided, source: "findings.md#D#31", verified: 2026-10-27, title: "Korrekturen aus dem Review von Schritt 2", tested_by: [ase.core.ReviewRegressionSuite, ase.core.RelPathSuite] }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }
@@ -420,6 +428,10 @@ open:
   - { id: "O#13", type: open, status: resolved, source: "findings.md#O#13", verified: 2026-10-27, resolved_by: "D#25" }
   - { id: "O#14", type: open, status: resolved, source: "findings.md#O#14", verified: 2026-10-27, resolved_by: "D#30" }
   - { id: "O#15", type: open, status: resolved, source: "findings.md#O#15", verified: 2026-10-27, note: "JDK 17, sbt 1.10.7 im WSL" }
+  - { id: "O#16", type: open, status: open, source: "findings.md#O#16", verified: 2026-10-27, title: "Sicht von Shell-Aufrufen ohne Pfad (Review M3)" }
+  - { id: "O#17", type: open, status: open, source: "findings.md#O#17", verified: 2026-10-27, title: "Explain: statische Inhalte vollständig zeigen?" }
+  - { id: "O#18", type: open, status: open, source: "findings.md#O#18", verified: 2026-10-27, title: "CheckConfig und Parameter im CheckedTerm" }
+  - { id: "O#19", type: open, status: open, source: "findings.md#O#19", verified: 2026-10-27, title: "Doppelte Auswertung, doppelte JSON-Schlüssel (niedrig)" }
 
 evals:
   - id: eval.1

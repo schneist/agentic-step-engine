@@ -49,7 +49,8 @@ class DryRunSuite extends munit.FunSuite:
     assert(violations(hole(back), rootStatus).exists { case _: Violation.WiderShell => true; case _ => false })
 
   test("Argument-Policy"):
-    val inDocs = root.copy(pathPrefix = "docs")
+    // unter docs nur Befehle, die Pfade nehmen; git status berührt das ganze Arbeitsverzeichnis (D#27, D#31)
+    val inDocs = root.copy(pathPrefix = "docs", shellAllowlist = Set(AllowedCommand("grep", Nil), AllowedCommand("ls", Nil)))
     def rejected(t: Term, env: Envelope = root) = violations(t, env).nonEmpty
     assert(rejected(Term.Shell("grep", List("-rn", "token", "src"), h), inDocs), "Pfad außerhalb des Präfix")
     assert(rejected(Term.Shell("grep", List("-r", "token"), h), inDocs), "ohne Pfad gilt . (D#27)")

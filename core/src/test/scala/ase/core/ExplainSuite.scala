@@ -14,16 +14,16 @@ class ExplainSuite extends munit.FunSuite:
          |
          |1  führt aus: ./run-tests.sh (führt Workspace-Code aus)
          |2  listet src
-         |3  Hier entscheidet der Agent: „Finde die Ursache des roten Tests. Ändere nichts; beende mit Done und …“
+         |3  Hier entscheidet der Agent: „Finde die Ursache des roten Tests. Ändere nichts; beende mit Done und …“ (gekürzt, 101 Zeichen)
          |   darf ReadFile, Shell · unter src/ · max 6 Schritte · Tiefe 0 · shell: grep
          |   sieht Ergebnisse von Schritt 1, 2
-         |4  Hier entscheidet der Agent: „Behebe die gefundene Ursache mit genau einem EditFile. Tests nicht änd…“
+         |4  Hier entscheidet der Agent: „Behebe die gefundene Ursache mit genau einem EditFile. Tests nicht änd…“ (gekürzt, 74 Zeichen)
          |   darf ReadFile, EditFile · unter src/ · max 3 Schritte · Tiefe 0
          |   sieht Ergebnisse von Schritt 1, 2, 3
          |   wiederhole höchstens 2-mal, bis Exit-Code 0:
          |5    führt aus: ./run-tests.sh (führt Workspace-Code aus)
          |   wenn Exit-Code 0:
-         |6    Hier entscheidet der Agent: „Schreibe REPORT.md: Ursache, betroffene Datei, Änderung. Grundlage sin…“
+         |6    Hier entscheidet der Agent: „Schreibe REPORT.md: Ursache, betroffene Datei, Änderung. Grundlage sin…“ (gekürzt, 111 Zeichen)
          |     darf WriteFile · unter REPORT.md · max 1 Schritt · Tiefe 0
          |     sieht Ergebnisse von Schritt 1, 3, 4, 5
          |   sonst:
