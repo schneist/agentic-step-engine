@@ -11,6 +11,7 @@ class ExplainSuite extends munit.FunSuite:
       Explain.render(c, check = TestSupport.config),
       s"""dryrun    ok  (worst case 18 steps, depth 1)
          |explain   ${c.termHash.short}
+         |hash      ${c.termHash.hex}
          |
          |1  führt aus: ./run-tests.sh (führt Workspace-Code aus)
          |2  listet src

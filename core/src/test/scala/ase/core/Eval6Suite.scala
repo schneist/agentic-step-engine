@@ -8,15 +8,23 @@ import java.nio.file.{Files, Path}
 import java.security.MessageDigest
 import scala.concurrent.duration.*
 
-/** Auto-Approver: gibt frei, was Explain gezeigt hat (Glossar). Explain zeigt den termHash gekürzt; der Approver
-  * bestätigt nur, wenn die gezeigte Kurzform zum geprüften Term passt.
+/** Auto-Approver: gibt frei, was Explain gezeigt hat (Glossar). Er liest den vollen Hash aus der Zeile
+  * `hash      <64 hex>` des Explain-Textes und übergibt genau diesen an Approval.approve; passt er nicht zum
+  * geprüften Term, scheitert die Freigabe dort.
   */
 object AutoApprover:
+  private val HashLine = "^hash      ([0-9a-f]{64})$".r
+
+  /** Die Zeile direkt unter `explain   <kurz>`. */
+  def shownHash(explain: String): Option[TermHash] =
+    explain.linesIterator.toList.sliding(2).collectFirst {
+      case List(e, HashLine(hex)) if e.startsWith("explain   ") => hex
+    }.flatMap(TermHash.fromHex)
+
   def approve(checked: CheckedTerm, explain: String): Either[String, ApprovedTerm] =
-    val shown = explain.linesIterator.collectFirst { case l if l.startsWith("explain ") => l.drop("explain".length).trim }
-    shown match
-      case Some(s) if s == checked.termHash.short => Approval.approve(checked, checked.termHash).left.map(_.toString)
-      case other                                   => Left(s"Explain zeigt $other, geprüft ist ${checked.termHash.short}")
+    shownHash(explain) match
+      case Some(h) => Approval.approve(checked, h).left.map(_.toString)
+      case None    => Left("Explain zeigt keine Zeile „hash“")
 
 /** Eval 6 im deterministischen Modus (evals/README.md): Skript-Modell mit eingebauten Fehlern, ganze Kette. */
 class Eval6Suite extends munit.FunSuite:

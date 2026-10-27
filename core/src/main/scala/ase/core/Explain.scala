@@ -36,7 +36,9 @@ object Explain:
     val warned = config.explainDenials.filter(Attenuation.allowedBy(root.shellAllowlist, _)).map(_.show)
     val header = Vector(
       s"dryrun    ok  (worst case ${checked.worstCaseSteps} steps, depth ${checked.depth})",
-      s"explain   ${checked.termHash.short}"
+      s"explain   ${checked.termHash.short}",
+      // der volle Hash, den die Freigabe bestätigt (Approval.approve)
+      s"hash      ${checked.termHash.hex}"
     ) ++ Option.when(params.nonEmpty)(s"params    ${Text.visible(params.toList.sorted.map((k, v) => s"$k=$v").mkString(" "))}")
     val footer = Vector(s"shell     ${if allowlist.isEmpty then "keine" else Text.visible(allowlist.mkString(", "))}") ++
       Option.when(denied.nonEmpty)(s"nicht erlaubt, u. a.: ${denied.mkString(", ")}") ++
