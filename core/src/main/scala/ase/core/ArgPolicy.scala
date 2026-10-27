@@ -45,8 +45,10 @@ object ArgPolicy:
   def find(policies: List[ArgPolicy], cmd: String, args: List[String]): Option[ArgPolicy] =
     policies.filter(p => p.binary == cmd && args.startsWith(p.prefixArgs)).maxByOption(_.prefixArgs.size)
 
-  /** Abgelehnte Argumente mit Grund und die ausdrücklich genannten Pfade. */
-  final case class Parsed(rejected: List[(String, String)], paths: List[String]):
+  /** Abgelehnte Argumente mit Grund und die ausdrücklich genannten Pfade; pathAt sind deren Stellen in args
+    * (Execute gibt dort den normalisierten Pfad weiter).
+    */
+  final case class Parsed(rejected: List[(String, String)], paths: List[String], pathAt: List[Int]):
     /** Was der Aufruf berührt: ohne Pfadargument das Arbeitsverzeichnis (D#27). */
     def touched: List[String] = if paths.isEmpty then List(".") else paths
 
@@ -65,12 +67,14 @@ object ArgPolicy:
       val all = (policy.flags ++ policy.valuedFlags ++ policy.prefixFlags.map(_ + "…")).toList.sorted
       if all.isEmpty then "keine" else all.mkString(" ")
 
+    // paths: Pfad mit seiner Stelle in args
     @annotation.tailrec
-    def loop(rest: List[String], afterDashDash: Boolean, positionals: Int, rejected: List[(String, String)], paths: List[String]): Parsed =
+    def loop(rest: List[String], afterDashDash: Boolean, positionals: Int, rejected: List[(String, String)], paths: List[(String, Int)]): Parsed =
+      val i = args.size - rest.size
       rest match
-        case Nil => Parsed(rejected.reverse, paths.reverse)
+        case Nil => Parsed(rejected.reverse, paths.reverse.map(_._1), paths.reverse.map(_._2))
         case arg :: tail if afterDashDash =>
-          loop(tail, true, positionals, rejected, arg :: paths)
+          loop(tail, true, positionals, rejected, (arg, i) :: paths)
         case "--" :: tail =>
           if dashDashAllowed then loop(tail, true, positionals, rejected, paths)
           else loop(tail, false, positionals, ("--", "„--“ ist hier nicht vorgesehen") :: rejected, paths)
@@ -86,10 +90,10 @@ object ArgPolicy:
             case NoArgs =>
               loop(tail, false, positionals, (arg, "keine weiteren Argumente erlaubt") :: rejected, paths)
             case Paths =>
-              loop(tail, false, positionals + 1, rejected, arg :: paths)
+              loop(tail, false, positionals + 1, rejected, (arg, i) :: paths)
             case PatternThenPaths =>
               if positionals == 0 then loop(tail, false, 1, rejected, paths)
-              else loop(tail, false, positionals + 1, rejected, arg :: paths)
+              else loop(tail, false, positionals + 1, rejected, (arg, i) :: paths)
             case PathsAfterDashDash =>
               loop(tail, false, positionals, (arg, "Pfade erst nach „--“") :: rejected, paths)
             case RevisionThenPathsAfterDashDash =>
