@@ -7,6 +7,9 @@ lazy val core = project
   .settings(
     name := "ase-core",
     scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked"),
+    // Der Schema-Validator prüft tief verschachtelte anyOf-Alternativen; mit dem Standard-Heap von sbt reicht das nicht.
+    Test / fork := true,
+    Test / javaOptions += "-Xmx2g",
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-core"        % "2.12.0",
       "org.typelevel" %% "cats-effect"      % "3.5.7",
