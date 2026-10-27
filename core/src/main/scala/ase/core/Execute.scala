@@ -27,11 +27,14 @@ enum ExecuteError:
   case UnsupportedPlatform(os: String)
   case InvalidWorkspace(path: String, reason: String)
   case RecordUnavailable(path: String, reason: String)
+  /** Die Record-Datei läge im Arbeitsverzeichnis; ein Fill könnte sie lesen oder ändern. */
+  case RecordInsideWorkspace(path: String)
 
   def message: String = this match
     case UnsupportedPlatform(os)          => s"Execute läuft nur unter Linux (WSL oder CI), nicht unter $os (D#29)."
     case InvalidWorkspace(path, reason)   => s"Arbeitsverzeichnis $path: $reason"
     case RecordUnavailable(path, reason)  => s"Record-Log $path: $reason"
+    case RecordInsideWorkspace(path)      => s"Record-Log $path liegt im Arbeitsverzeichnis; lege es außerhalb ab."
 
 /** Execute nur unter Linux (D#29). */
 object Platform:
@@ -64,7 +67,7 @@ object Execute:
     LocalTools.open[F](workspace, config.copy(check = checkConfig(approved, config))).flatMap {
       case Left(e) => Sync[F].pure(Left(e))
       case Right(tools) =>
-        openRecorder[F](record).flatMap {
+        Sync[F].blocking(outsideWorkspace(workspace, record)).flatMap(_.flatTraverse(_ => openRecorder[F](record))).flatMap {
           case Left(e) => Sync[F].pure(Left(e))
           case Right((recorder, close)) =>
             deadline[F](config.maxDuration)
@@ -77,6 +80,14 @@ object Execute:
   /** Uhr ab Start des Laufs. */
   def deadline[F[_]: Sync](limit: FiniteDuration): F[Clock[F]] =
     Sync[F].monotonic.map(start => (_: Int) => Sync[F].monotonic.map(now => now - start > limit))
+
+  /** Die Record-Datei liegt außerhalb des Arbeitsverzeichnisses, auch aufgelöst (Symlinks im Pfad). */
+  private def outsideWorkspace(workspace: Path, record: Option[Path]): Either[ExecuteError, Unit] =
+    record match
+      case None => Right(())
+      case Some(path) =>
+        try Either.cond(!LocalTools.realPath(path).startsWith(workspace.toRealPath()), (), ExecuteError.RecordInsideWorkspace(path.toString))
+        catch case NonFatal(e) => Left(ExecuteError.RecordUnavailable(path.toString, e.toString))
 
   private def openRecorder[F[_]: Sync](record: Option[Path]): F[Either[ExecuteError, (Recorder[F], F[Unit])]] =
     record match

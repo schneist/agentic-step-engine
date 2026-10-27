@@ -14,6 +14,10 @@ object Replay:
     case Unexpected(requested: String, recorded: String)
     case Exhausted(requested: String)
     case Diverged(index: Int, recorded: Option[Event], replayed: Option[Event])
+    /** Ein aufgezeichneter Werkzeugaufruf verletzt die Hülle oder die Allowlist, die Aufzeichnung zeigt aber keine
+      * Ablehnung.
+      */
+    case OutsideEnvelope(call: String, error: ToolError)
 
   /** Noch nicht abgespielte Antworten, je Port in Reihenfolge. */
   final case class Cursor(calls: List[(Call, Reply)], fills: List[(String, ModelReply)], asks: List[(String, Option[String])])
@@ -29,7 +33,7 @@ object Replay:
           recorded.collect { case Event.Fill(_, _, id, r) => (id, r) }.toList,
           recorded.collect { case Event.Asked(_, q, a) => (q, a) }.toList
         )
-        Execute.run[R](approved, ports(recorded), config).runA(cursor)
+        Execute.run[R](approved, ports(recorded, Execute.checkConfig(approved, config).argPolicies), config).runA(cursor)
       case Some(Event.Start(h, _, _)) => Left(ReplayError.HashMismatch(h, approved.termHash))
       case _                          => Left(ReplayError.NoStart)
 
@@ -51,14 +55,19 @@ object Replay:
     writes(events).traverse(tools.call(_, envelope))
 
   private def isTimeLimit(e: Event): Boolean = e match
-    case Event.End(Outcome.Aborted(AbortReason.LimitReached(Limit.Time(_)))) => true
-    case _                                                                   => false
+    case Event.End(Outcome.Aborted(AbortReason.LimitReached(Limit.Time(_))), _) => true
+    case _                                                                      => false
 
-  private def ports(recorded: Vector[Event]): Ports[R] =
-    val tools: Tools[R] = (call, _) =>
+  private def ports(recorded: Vector[Event], policies: List[ArgPolicy]): Ports[R] =
+    // Jeder aufgezeichnete Aufruf geht durch dieselbe syntaktische Prüfung wie in LocalTools, gegen die Hülle des
+    // Aufrufs. Scheitert sie, muss die Aufzeichnung genau diese Ablehnung ohne Syscall zeigen.
+    val tools: Tools[R] = (call, env) =>
       StateT { cur =>
         cur.calls match
-          case (c, reply) :: rest if c == call => Right((cur.copy(calls = rest), reply))
+          case (c, reply) :: rest if c == call =>
+            ToolCheck.call(call, env, policies) match
+              case Left(e) if reply != Reply(Nil, Left(e), "") => Left(ReplayError.OutsideEnvelope(call.toString, e))
+              case _                                          => Right((cur.copy(calls = rest), reply))
           case (c, _) :: _                     => Left(ReplayError.Unexpected(call.toString, c.toString))
           case Nil                             => Left(ReplayError.Exhausted(call.toString))
       }

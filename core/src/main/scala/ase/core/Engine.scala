@@ -8,27 +8,34 @@ import cats.syntax.all.*
   * Effekte nur über die Ports; Execute gibt echte, Replay aufgezeichnete.
   */
 private[core] object Engine:
-  /** Ein umschließendes Loch mit seiner Hülle. */
-  final case class Frame(id: StepId, envelope: Envelope)
+  /** Ein umschließender Aufruf eines Lochs mit seiner Hülle. call: laufende Nummer des Aufrufs im Lauf; an ihr hängt
+    * das Budget, damit jeder Durchlauf von RepeatUntil sein eigenes hat (D#14).
+    */
+  final case class Frame(call: Int, envelope: Envelope)
 
   /** Hülle, in der gerade geprüft wird; Positionspräfix; umschließende Löcher (innerstes zuerst); Loch-Tiefe. */
   final case class Ctx(envelope: Envelope, at: Vector[Int], holes: List[Frame], depth: Int):
     def id(n: Int): StepId = StepId(at :+ n)
 
-  /** Ein früheres Ergebnis für den Scope (D#9): Pfade wie im Term, pfadlos = leer. */
+  /** Ein früheres Ergebnis für den Scope (D#9): die aufgelösten Pfade relativ zum Arbeitsverzeichnis, pfadlos = leer. */
   final case class Entry(at: StepId, label: String, paths: List[String], result: StepResult)
 
+  /** fills: Zahl der Fills je Loch-Position (für die StepId); calls: Zahl der Aufrufe von Löchern; used: ausgeführte
+    * Schritte je Aufruf.
+    */
   final case class State(
       events: Vector[Event],
       last: StepResult,
       scope: Vector[Entry],
       steps: Long,
       modelCalls: Int,
-      used: Map[StepId, Int]
+      fills: Map[StepId, Int],
+      calls: Int,
+      used: Map[Int, Int]
   )
 
   object State:
-    val initial: State = State(Vector.empty, StepResult(None, None), Vector.empty, 0L, 0, Map.empty)
+    val initial: State = State(Vector.empty, StepResult(None, None), Vector.empty, 0L, 0, Map.empty, 0, Map.empty)
 
   enum Stop:
     /** Done: beendet das Loch, auf oberster Ebene den Lauf (D#15). */
@@ -55,7 +62,7 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
         case Right(_) | Left(Stop.Finished(_)) => Outcome.Done
         case Left(Stop.Failed(at, error))      => Outcome.Aborted(AbortReason.StepFailed(at, error))
         case Left(Stop.Halt(o))                => o
-      emit(s, Event.End(outcome)).map(end => RunResult(outcome, end.events))
+      emit(s, Event.End(outcome, s.steps)).map(end => RunResult(outcome, end.events))
     }
 
   // ---------- Hilfen
@@ -73,12 +80,12 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
     if s.steps >= stepCap then Some(aborted(AbortReason.LimitReached(Limit.TotalSteps(stepCap))))
     else
       ctx.holes
-        .find(f => s.used.getOrElse(f.id, 0) >= f.envelope.maxSteps)
+        .find(f => s.used.getOrElse(f.call, 0) >= f.envelope.maxSteps)
         .map(f => Stop.Failed(at, ToolError.BudgetExhausted(f.envelope.maxSteps)))
 
-  /** Ein ausgeführter Schritt zählt gesamt und für jedes umschließende Loch (D#14). */
+  /** Ein ausgeführter Schritt zählt gesamt und für jeden umschließenden Aufruf eines Lochs (D#14). */
   private def count(ctx: Ctx, s: State): State =
-    s.copy(steps = s.steps + 1, used = ctx.holes.foldLeft(s.used)((u, f) => u.updated(f.id, u.getOrElse(f.id, 0) + 1)))
+    s.copy(steps = s.steps + 1, used = ctx.holes.foldLeft(s.used)((u, f) => u.updated(f.call, u.getOrElse(f.call, 0) + 1)))
 
   private def timeUp(s: State): F[Option[Stop]] =
     ports.clock.expired(s.events.size).map(Option.when(_)(aborted(AbortReason.LimitReached(Limit.Time(config.maxDuration.toSeconds)))))
@@ -90,7 +97,8 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
       case None       => ports.tools.call(call, ctx.envelope).flatMap(reply => emit(s, Event.Step(at, call, reply)).map((_, Right(reply))))
     }
 
-  private def leaf(label: String, call: Call, paths: List[String]): Exec[StepResult] = n =>
+  /** Ein Blatt. scopePaths: welche Pfade das Ergebnis für den Scope trägt, aus der Antwort der Werkzeuge (M1). */
+  private def leaf(label: String, call: Call, scopePaths: Reply => List[String]): Exec[StepResult] = n =>
     val run: Run = (ctx, s0) =>
       val at = ctx.id(n)
       admit(ctx, s0, at) match
@@ -101,7 +109,7 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
             case (s, Right(reply)) =>
               val counted = count(ctx, s)
               reply.result match
-                case Right(r)  => (counted.copy(last = r, scope = counted.scope :+ Entry(at, label, paths, r)), Right(r))
+                case Right(r)  => (counted.copy(last = r, scope = counted.scope :+ Entry(at, label, scopePaths(reply), r)), Right(r))
                 case Left(err) => (counted, Left(Stop.Failed(at, err)))
           }
     (n + 1, run)
@@ -135,6 +143,9 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
 
   // ---------- Löcher
 
+  /** Ein Aufruf eines Lochs: eigene Aufrufnummer, eigenes Budget, Versuche ab 1. */
+  private final case class HoleCall(at: StepId, call: Int, goal: String, env: Envelope, outer: Vector[Entry])
+
   private def hole(goal: String, env: Envelope): Exec[StepResult] = n =>
     val run: Run = (ctx, s0) =>
       val at = ctx.id(n)
@@ -143,7 +154,10 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
         admit(ctx, s0, at) match
           case Some(stop) => halt(s0, stop)
           case None =>
-            emit(s0, Event.Hole(at, goal, env)).flatMap(s => attempt(ctx, at, goal, env, s.scope)(1, Vector.empty, false, s))
+            emit(s0, Event.Hole(at, goal, env)).flatMap { s =>
+              val h = HoleCall(at, s.calls + 1, goal, env, s.scope)
+              attempt(ctx, h)(1, Vector.empty, false, s.copy(calls = h.call))
+            }
     (n + 1, run)
 
   private def scopeLines(scope: Vector[Entry], env: Envelope): Vector[ScopeLine] =
@@ -153,31 +167,30 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
       ScopeLine(e.at.show, e.label, text)
     }
 
-  /** Ein Versuch für das Loch at. outer: Scope vor dem Loch; counted: der Schritt des Lochs ist schon gezählt. */
-  private def attempt(ctx: Ctx, at: StepId, goal: String, env: Envelope, outer: Vector[Entry])(
-      k: Int,
-      errors: Vector[String],
-      counted: Boolean,
-      s: State
-  ): Res =
-    val remaining = env.maxSteps - s.used.getOrElse(at, 0)
+  /** Versuch k für den Aufruf h. counted: der Schritt des Lochs ist für diesen Aufruf schon gezählt. */
+  private def attempt(ctx: Ctx, h: HoleCall)(k: Int, errors: Vector[String], counted: Boolean, s: State): Res =
+    val env = h.env
+    val remaining = env.maxSteps - s.used.getOrElse(h.call, 0)
     def next(s1: State, toModel: String, countedNow: Boolean): Res =
-      attempt(ctx, at, goal, env, outer)(k + 1, errors :+ toModel, countedNow, s1)
+      attempt(ctx, h)(k + 1, errors :+ toModel, countedNow, s1)
 
-    if k > config.attemptsPerFill then halt(s, aborted(AbortReason.AttemptsExhausted(at, config.attemptsPerFill)))
-    else if remaining <= 0 then halt(s, aborted(AbortReason.BudgetExhausted(at, env.maxSteps)))
+    if k > config.attemptsPerFill then halt(s, aborted(AbortReason.AttemptsExhausted(h.at, config.attemptsPerFill)))
+    else if remaining <= 0 then halt(s, aborted(AbortReason.BudgetExhausted(h.at, env.maxSteps)))
     else if s.modelCalls >= config.maxModelCalls then halt(s, aborted(AbortReason.LimitReached(Limit.ModelCalls(config.maxModelCalls))))
     else
       timeUp(s).flatMap {
         case Some(stop) => halt(s, stop)
         case None =>
           val callId = s"fill-${s.modelCalls + 1}"
-          val request = FillRequest(callId, at.show, k, goal, env, remaining, check.nestingLimit, scopeLines(s.scope, env), errors)
+          // laufende Nummer des Fills an dieser Position, über Versuche und Durchläufe hinweg (StepId)
+          val fillNo = s.fills.getOrElse(h.at, 0) + 1
+          val request = FillRequest(callId, h.at.show, k, h.goal, env, remaining, check.nestingLimit, scopeLines(s.scope, env), errors)
           ports.model.fill(request).flatMap { reply =>
-            emit(s.copy(modelCalls = s.modelCalls + 1), Event.Fill(at, k, callId, reply)).flatMap { s1 =>
+            val sCalled = s.copy(modelCalls = s.modelCalls + 1, fills = s.fills.updated(h.at, fillNo))
+            emit(sCalled, Event.Fill(h.at, k, callId, reply)).flatMap { s1 =>
               def reject(gate: Gate, term: Option[Term], reasons: List[String]): Res =
                 val toModel = Marshal.rejection(reasons)
-                emit(s1, Event.FillRejected(at, k, gate, term, reasons, toModel)).flatMap(next(_, toModel, counted))
+                emit(s1, Event.FillRejected(h.at, k, gate, term, reasons, toModel)).flatMap(next(_, toModel, counted))
 
               reply match
                 case ModelReply.Failed(reason, _) => reject(Gate.Answer, None, List(reason))
@@ -190,57 +203,60 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
                         case Right(cf) if cf.worstCaseSteps < 0 || cf.worstCaseSteps > remaining =>
                           val v = Violation.StepBudgetExceeded(Location.root, cf.worstCaseSteps, remaining)
                           reject(Gate.DryRun, Some(term), List(Marshal(v)))
-                        case Right(cf) => accepted(ctx, at, env, outer, k, errors, counted, remaining, cf, s1, goal)
+                        case Right(cf) => accepted(ctx, h, k, fillNo, errors, counted, remaining, cf, s1)
             }
           }
       }
 
   private def accepted(
       ctx: Ctx,
-      at: StepId,
-      env: Envelope,
-      outer: Vector[Entry],
+      h: HoleCall,
       k: Int,
+      fillNo: Int,
       errors: Vector[String],
       counted: Boolean,
       remaining: Int,
       cf: CheckedFill,
-      s1: State,
-      goal: String
+      s1: State
   ): Res =
-    // der angenommene Fill zählt einmal als Schritt des Lochs, Wiederholungen nicht (D#14)
+    // der angenommene Fill zählt einmal je Aufruf als Schritt des Lochs, Wiederholungen nicht (D#14)
     val s2 = if counted then s1 else count(ctx, s1)
-    emit(s2, Event.FillAccepted(at, k, cf.termHash, cf.worstCaseSteps, remaining, cf.term)).flatMap { s3 =>
-      val inner = Ctx(env, at.parts :+ k, Frame(at, env) :: ctx.holes, ctx.depth + 1)
-      val (_, program) = AgentAlg.fromTerm[Exec](cf.term)(AgentAlg.restrict[Exec](alg, env)(refuse))(1)
+    emit(s2, Event.FillAccepted(h.at, k, cf.termHash, cf.worstCaseSteps, remaining, cf.term)).flatMap { s3 =>
+      val inner = Ctx(h.env, h.at.parts :+ fillNo, Frame(h.call, h.env) :: ctx.holes, ctx.depth + 1)
+      val (_, program) = AgentAlg.fromTerm[Exec](cf.term)(AgentAlg.restrict[Exec](alg, h.env)(refuse))(1)
       def finish(s: State, summary: String): Res =
         val r = StepResult(None, Some(summary))
-        emit(s, Event.HoleDone(at, summary)).map(s5 => (s5.copy(last = r, scope = outer :+ Entry(at, s"Ergebnis von Loch ${at.show}", Nil, r)), Right(r)))
+        emit(s, Event.HoleDone(h.at, summary)).map(s5 =>
+          (s5.copy(last = r, scope = h.outer :+ Entry(h.at, s"Ergebnis von Loch ${h.at.show}", Nil, r)), Right(r))
+        )
       program(inner, s3.copy(last = StepResult(None, None))).flatMap {
         case (s4, Right(_))                        => finish(s4, "")
         case (s4, Left(Stop.Finished(summary)))    => finish(s4, summary)
         case (s4, Left(Stop.Failed(failedAt, err))) =>
           val toModel = Marshal.failure(failedAt, err)
-          emit(s4, Event.FillFailed(at, k, err, toModel)).flatMap(s5 =>
-            attempt(ctx, at, goal, env, outer)(k + 1, errors :+ toModel, true, s5)
-          )
+          emit(s4, Event.FillFailed(h.at, k, err, toModel)).flatMap(s5 => attempt(ctx, h)(k + 1, errors :+ toModel, true, s5))
         case halted => F.pure(halted)
       }
     }
 
   // ---------- die Deutung
 
+  /** Datei-Operationen tragen für den Scope die aufgelösten Pfade (bei MoveFile beide), nicht die Pfade im Term. */
+  private val resolved: Reply => List[String] = _.touched
+
   val alg: AgentAlg[Exec] = new AgentAlg[Exec]:
-    def readFile(path: String, origin: Origin): Exec[StepResult] = leaf(s"read $path", Call.ReadFile(path), List(path))
-    def listDir(path: String, origin: Origin): Exec[StepResult] = leaf(s"list $path", Call.ListDir(path), List(path))
+    def readFile(path: String, origin: Origin): Exec[StepResult] = leaf(s"read $path", Call.ReadFile(path), resolved)
+    def listDir(path: String, origin: Origin): Exec[StepResult] = leaf(s"list $path", Call.ListDir(path), resolved)
     def writeFile(path: String, content: String, origin: Origin): Exec[StepResult] =
-      leaf(s"write $path", Call.WriteFile(path, content), List(path))
+      leaf(s"write $path", Call.WriteFile(path, content), resolved)
     def editFile(path: String, expectedOld: String, replacement: String, origin: Origin): Exec[StepResult] =
-      leaf(s"edit $path", Call.EditFile(path, expectedOld, replacement), List(path))
+      leaf(s"edit $path", Call.EditFile(path, expectedOld, replacement), resolved)
     def moveFile(from: String, to: String, origin: Origin): Exec[StepResult] =
-      leaf(s"move $from → $to", Call.MoveFile(from, to), List(from, to))
+      leaf(s"move $from → $to", Call.MoveFile(from, to), resolved)
     def shell(cmd: String, args: List[String], origin: Origin): Exec[StepResult] =
-      leaf(s"shell ${(cmd :: args).mkString(" ")}", Call.Shell(cmd, args), Scope.shellPaths(cmd, args, check.argPolicies))
+      // ohne ausdrückliches Pfadargument pfadlos (D#30), sonst die aufgelösten Pfade
+      val explicit = Scope.shellPaths(cmd, args, check.argPolicies).nonEmpty
+      leaf(s"shell ${(cmd :: args).mkString(" ")}", Call.Shell(cmd, args), r => if explicit then r.touched else Nil)
 
     def ask(question: String, origin: Origin): Exec[StepResult] = n =>
       val run: Run = (ctx, s0) =>
@@ -248,14 +264,18 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
         admit(ctx, s0, at) match
           case Some(stop) => halt(s0, stop)
           case None =>
-            ports.ask.ask(question).flatMap { answer =>
-              emit(count(ctx, s0), Event.Asked(at, question, answer)).map { s =>
-                answer match
-                  case Some(a) =>
-                    val r = StepResult(None, Some(a))
-                    (s.copy(last = r, scope = s.scope :+ Entry(at, s"ask $question", Nil, r)), Right(r))
-                  case None => (s, Left(Stop.Halt(Outcome.Ask(question))))
-              }
+            timeUp(s0).flatMap {
+              case Some(stop) => halt(s0, stop)
+              case None =>
+                ports.ask.ask(question).flatMap { answer =>
+                  emit(count(ctx, s0), Event.Asked(at, question, answer)).map { s =>
+                    answer match
+                      case Some(a) =>
+                        val r = StepResult(None, Some(a))
+                        (s.copy(last = r, scope = s.scope :+ Entry(at, s"ask $question", Nil, r)), Right(r))
+                      case None => (s, Left(Stop.Halt(Outcome.Ask(question))))
+                  }
+                }
             }
       (n + 1, run)
 

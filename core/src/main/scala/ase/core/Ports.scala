@@ -105,15 +105,10 @@ final case class Stats(
 )
 
 object Stats:
+  /** Die Schrittzahl zählt die Engine selbst (D#14) und schreibt sie ins End-Ereignis; ohne End ist sie 0. */
   def of(events: Vector[Event]): Stats =
-    val leaves = events.count {
-      case Event.Step(_, _: Call.FileExists, _)  => false
-      case _: Event.Step | _: Event.Asked | _: Event.Finished => true
-      case _                                     => false
-    }
-    val holes = events.collect { case e: Event.FillAccepted => e.at }.distinct.size
     Stats(
-      steps = leaves.toLong + holes,
+      steps = events.collectFirst { case Event.End(_, n) => n }.getOrElse(0L),
       modelCalls = events.count(_.isInstanceOf[Event.Fill]),
       gate2Rejections = events.count { case e: Event.FillRejected => e.gate != Gate.Answer; case _ => false },
       unusableAnswers = events.count { case e: Event.FillRejected => e.gate == Gate.Answer; case _ => false },

@@ -87,7 +87,7 @@ object RunLog:
       case Event.Asked(at, q, answer) =>
         Vector(line(lead(at), "ask", s"${quote(q, 80)}  → ${answer.fold("keine Antwort")(a => quote(a, 80))}"))
       case Event.Finished(at, summary) => Vector(line(lead(at), "done", summary))
-      case Event.End(outcome) =>
+      case Event.End(outcome, _) =>
         val text = outcome match
           case Outcome.Done       => "Lauf beendet"
           case Outcome.Ask(q)     => s"Lauf endet mit ask: ${quote(q, 80)}"

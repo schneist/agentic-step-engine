@@ -20,6 +20,8 @@ object Marshal:
       s"Pfad „$p“ liegt außerhalb von $prefix; erlaubt ist nur $prefix. Ist dort etwas betroffen, nenne es im Ergebnis."
     case ToolError.OutsideWorkspace(p) =>
       s"Pfad „$p“ führt aus dem Arbeitsverzeichnis heraus (Symlink); nutze nur Pfade, die im Arbeitsverzeichnis bleiben."
+    case ToolError.GitDirLocked(p) =>
+      s"Pfad „$p“ führt in das Git-Verzeichnis; das ist gesperrt. Nutze Pfade außerhalb von .git."
     case ToolError.Unresolvable(p)      => s"Pfad „$p“ lässt sich nicht auflösen (Symlink ins Leere?); nimm einen anderen Pfad."
     case ToolError.NotFound(p)          => s"„$p“ gibt es nicht; prüfe den Pfad mit ListDir."
     case ToolError.NotAFile(p)          => s"„$p“ ist keine normale Datei."
@@ -39,12 +41,14 @@ object Marshal:
     case ToolError.ShellNotAllowed(cmd, args) => s"Befehl „${(cmd :: args).mkString(" ")}“ ist hier nicht erlaubt."
     case ToolError.ShellArgRejected(cmd, a, r) => s"Argument „$a“ für $cmd abgelehnt: $r."
     case ToolError.ProgramNotFound(cmd)       => s"Programm „$cmd“ wurde nicht gefunden oder ist nicht ausführbar."
+    case ToolError.NoGitRepository =>
+      "Das Arbeitsverzeichnis ist kein eigenes Git-Repository (kein .git-Verzeichnis); git ist hier nicht verfügbar."
     case ToolError.Timeout(cmd, seconds, out) =>
       val tail = if out.isBlank then "" else s"\nAusgabe bis dahin:\n$out"
       s"„$cmd“ lief länger als $seconds s und wurde samt Kindprozessen beendet.$tail"
     case ToolError.OpNotAllowed(op)      => s"$op ist in dieser Hülle nicht erlaubt."
     case ToolError.BudgetExhausted(max)  => s"Das Schrittbudget des Lochs ($max) ist aufgebraucht."
-    case ToolError.Io(detail)            => s"Ein-/Ausgabefehler: $detail"
+    case ToolError.Io(kind, p)           => s"Ein-/Ausgabefehler ($kind) bei „$p“."
 
   /** Was nach einer Ablehnung an das Modell geht. */
   def rejection(reasons: List[String]): String =

@@ -1,7 +1,9 @@
 package ase.core
 
 /** Position eines Schritts im Lauf. Auf oberster Ebene die statische Nummer wie im Explain; in einem Loch
-  * zusätzlich Versuch und Nummer im Teilterm: 4.2.1 = Loch 4, Versuch 2, Schritt 1 des Fills.
+  * zusätzlich die laufende Nummer des Fills an dieser Stelle und die Nummer im Teilterm: 4.2.1 = Loch 4, zweiter
+  * Fill dort, Schritt 1. Die Fill-Nummer zählt über Versuche und über Durchläufe von RepeatUntil weiter, damit
+  * jeder Aufruf eines Lochs eigene Positionen hat.
   */
 final case class StepId(parts: Vector[Int]):
   def show: String = parts.mkString(".")
@@ -37,6 +39,16 @@ enum Call:
     case _: Shell      => Some(OpKind.Shell)
     case _: FileExists => None
 
+  /** Das Ziel des Aufrufs, wie im Term (für Fehler ohne aufgelösten Pfad). */
+  def target: String = this match
+    case ReadFile(p)       => p
+    case ListDir(p)        => p
+    case WriteFile(p, _)   => p
+    case EditFile(p, _, _) => p
+    case MoveFile(f, _)    => f
+    case Shell(cmd, _)     => cmd
+    case FileExists(p)     => p
+
   def writes: Boolean = this match
     case _: WriteFile | _: EditFile | _: MoveFile => true
     case _                                        => false
@@ -46,6 +58,8 @@ enum ToolError:
   case InvalidPath(path: String, reason: String)
   case OutsidePrefix(path: String, prefix: String)
   case OutsideWorkspace(path: String)
+  /** Der aufgelöste Pfad liegt im Git-Verzeichnis, etwa über einen Symlink auf .git. */
+  case GitDirLocked(path: String)
   case Unresolvable(path: String)
   case NotFound(path: String)
   case NotAFile(path: String)
@@ -61,10 +75,15 @@ enum ToolError:
   case ShellNotAllowed(cmd: String, args: List[String])
   case ShellArgRejected(cmd: String, arg: String, reason: String)
   case ProgramNotFound(cmd: String)
+  /** git läuft nur, wenn das Arbeitsverzeichnis selbst ein Repository mit echtem .git-Verzeichnis ist. */
+  case NoGitRepository
   case Timeout(cmd: String, seconds: Long, output: String)
   case OpNotAllowed(op: OpKind)
   case BudgetExhausted(maxSteps: Int)
-  case Io(detail: String)
+  /** Ein-/Ausgabefehler: nur die Art (Klassenname der Ausnahme) und der Pfad relativ zum Arbeitsverzeichnis, nie
+    * der Ausnahmetext; der kann Pfade außerhalb nennen.
+    */
+  case Io(kind: String, path: String)
 
 /** Antwort der Werkzeugschicht. touched: aufgelöste Pfade relativ zum Arbeitsverzeichnis, an denen ein Syscall
   * stattfand; leer heißt: vor jedem Syscall abgelehnt. note: kurze Angabe für das Lauf-Log.
@@ -105,7 +124,9 @@ enum Outcome:
     case Ask(_)     => "ask"
     case Aborted(_) => "aborted"
 
-/** Ereignis im Record-Log (Event Sourcing). Das erste ist Start mit dem termHash. */
+/** Ereignis im Record-Log (Event Sourcing). Das erste ist Start mit dem termHash, das letzte End mit dem Ausgang
+  * und der Schrittzahl, wie die Engine sie gezählt hat (D#14).
+  */
 enum Event:
   case Start(termHash: TermHash, root: Envelope, term: Term)
   case Step(at: StepId, call: Call, reply: Reply)
@@ -118,4 +139,4 @@ enum Event:
   case HoleDone(at: StepId, summary: String)
   case Asked(at: StepId, question: String, answer: Option[String])
   case Finished(at: StepId, summary: String)
-  case End(outcome: Outcome)
+  case End(outcome: Outcome, steps: Long)

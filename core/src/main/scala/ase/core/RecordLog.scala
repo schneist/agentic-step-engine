@@ -82,7 +82,7 @@ object RecordLog:
       case Event.Asked(at, q, answer) =>
         obj("Asked", "at" -> s(at.show), "question" -> s(q), "answer" -> answer.fold(Json.Null)(s))
       case Event.Finished(at, summary) => obj("Finished", "at" -> s(at.show), "summary" -> s(summary))
-      case Event.End(outcome)          => obj("End", "outcome" -> encodeOutcome(outcome))
+      case Event.End(outcome, steps)   => obj("End", "outcome" -> encodeOutcome(outcome), "steps" -> Json.fromLong(steps))
     body.mapObject(("v" -> Json.fromInt(Version)) +: _)
 
   def encodeCall(c: Call): Json = c match
@@ -112,6 +112,7 @@ object RecordLog:
     case ToolError.InvalidPath(p, reason)        => obj("InvalidPath", "path" -> s(p), "reason" -> s(reason))
     case ToolError.OutsidePrefix(p, prefix)      => obj("OutsidePrefix", "path" -> s(p), "prefix" -> s(prefix))
     case ToolError.OutsideWorkspace(p)           => obj("OutsideWorkspace", "path" -> s(p))
+    case ToolError.GitDirLocked(p)               => obj("GitDirLocked", "path" -> s(p))
     case ToolError.Unresolvable(p)               => obj("Unresolvable", "path" -> s(p))
     case ToolError.NotFound(p)                   => obj("NotFound", "path" -> s(p))
     case ToolError.NotAFile(p)                   => obj("NotAFile", "path" -> s(p))
@@ -127,10 +128,11 @@ object RecordLog:
     case ToolError.ShellNotAllowed(cmd, args)    => obj("ShellNotAllowed", "cmd" -> s(cmd), "args" -> strs(args))
     case ToolError.ShellArgRejected(cmd, a, r)   => obj("ShellArgRejected", "cmd" -> s(cmd), "arg" -> s(a), "reason" -> s(r))
     case ToolError.ProgramNotFound(cmd)          => obj("ProgramNotFound", "cmd" -> s(cmd))
+    case ToolError.NoGitRepository               => obj("NoGitRepository")
     case ToolError.Timeout(cmd, seconds, output) => obj("Timeout", "cmd" -> s(cmd), "seconds" -> Json.fromLong(seconds), "output" -> s(output))
     case ToolError.OpNotAllowed(op)              => obj("OpNotAllowed", "op" -> s(op.toString))
     case ToolError.BudgetExhausted(max)          => obj("BudgetExhausted", "maxSteps" -> Json.fromInt(max))
-    case ToolError.Io(detail)                    => obj("Io", "detail" -> s(detail))
+    case ToolError.Io(kind, p)                   => obj("Io", "kind" -> s(kind), "path" -> s(p))
 
   private def encodeLimit(l: Limit): Json = l match
     case Limit.TotalSteps(max) => obj("TotalSteps", "max" -> Json.fromInt(max))
@@ -207,7 +209,7 @@ object RecordLog:
       case "HoleDone" => (at(c), get[String](c, "summary")).mapN(Event.HoleDone(_, _))
       case "Asked"    => (at(c), get[String](c, "question"), get[Option[String]](c, "answer")).mapN(Event.Asked(_, _, _))
       case "Finished" => (at(c), get[String](c, "summary")).mapN(Event.Finished(_, _))
-      case "End"      => decodeOutcome(c.downField("outcome")).map(Event.End(_))
+      case "End"      => (decodeOutcome(c.downField("outcome")), get[Long](c, "steps")).mapN(Event.End(_, _))
       case other      => Left(s"unbekanntes Ereignis „$other“")
     }
 
@@ -245,6 +247,7 @@ object RecordLog:
       case "InvalidPath"       => (p, get[String](c, "reason")).mapN(ToolError.InvalidPath(_, _))
       case "OutsidePrefix"     => (p, get[String](c, "prefix")).mapN(ToolError.OutsidePrefix(_, _))
       case "OutsideWorkspace"  => p.map(ToolError.OutsideWorkspace(_))
+      case "GitDirLocked"      => p.map(ToolError.GitDirLocked(_))
       case "Unresolvable"      => p.map(ToolError.Unresolvable(_))
       case "NotFound"          => p.map(ToolError.NotFound(_))
       case "NotAFile"          => p.map(ToolError.NotAFile(_))
@@ -261,11 +264,12 @@ object RecordLog:
       case "ShellArgRejected" =>
         (get[String](c, "cmd"), get[String](c, "arg"), get[String](c, "reason")).mapN(ToolError.ShellArgRejected(_, _, _))
       case "ProgramNotFound" => get[String](c, "cmd").map(ToolError.ProgramNotFound(_))
+      case "NoGitRepository" => Right(ToolError.NoGitRepository)
       case "Timeout" =>
         (get[String](c, "cmd"), get[Long](c, "seconds"), get[String](c, "output")).mapN(ToolError.Timeout(_, _, _))
       case "OpNotAllowed"    => opKind(c, "op").map(ToolError.OpNotAllowed(_))
       case "BudgetExhausted" => get[Int](c, "maxSteps").map(ToolError.BudgetExhausted(_))
-      case "Io"              => get[String](c, "detail").map(ToolError.Io(_))
+      case "Io"              => (get[String](c, "kind"), p).mapN(ToolError.Io(_, _))
       case other             => Left(s"unbekannter Fehler „$other“")
     }
 
