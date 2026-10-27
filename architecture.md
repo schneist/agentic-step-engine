@@ -103,6 +103,7 @@ Umkehrkosten: mittel. a ließe sich später als Schicht in der Runner-Konfigurat
 Alternativen: (a) Scope nach D#9, Lücke dokumentiert. (b) Scope nach D#27, auch Ausgaben ohne Pfad gelten als ".". (c) Sicht pro Schritt im Flow markieren (braucht Verweise, D#5). (d) wie a, aber Explain zeigt pro Loch, was es sieht.
 Gewählt: d. b bricht das Diagnose-Loch in Eval 6; c ist v2. Mit d gibt der Mensch den Datenfluss bewusst frei.
 Umkehrkosten: niedrig. Eine Funktion (Scope.visible) und eine Zeile im Explain.
+Nachtrag D#39: Ohne Pfadargument sind nur Workspace-Code und Befehle aus `pathless` (git log) pfadlos; grep, ls, git status zählen als ".".
 
 ## D#32 Execute und Replay über einen Kern mit Ports
 

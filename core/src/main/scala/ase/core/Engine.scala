@@ -254,9 +254,9 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
     def moveFile(from: String, to: String, origin: Origin): Exec[StepResult] =
       leaf(s"move $from → $to", Call.MoveFile(from, to), resolved)
     def shell(cmd: String, args: List[String], origin: Origin): Exec[StepResult] =
-      // ohne ausdrückliches Pfadargument pfadlos (D#30), sonst die aufgelösten Pfade
-      val explicit = Scope.shellPaths(cmd, args, check.argPolicies).nonEmpty
-      leaf(s"shell ${(cmd :: args).mkString(" ")}", Call.Shell(cmd, args), r => if explicit then r.touched else Nil)
+      // pfadlos nach Scope.shellPaths (D#39), sonst die aufgelösten Pfade
+      val pathless = Scope.shellPaths(cmd, args, check).isEmpty
+      leaf(s"shell ${(cmd :: args).mkString(" ")}", Call.Shell(cmd, args), r => if pathless then Nil else r.touched)
 
     def ask(question: String, origin: Origin): Exec[StepResult] = n =>
       val run: Run = (ctx, s0) =>

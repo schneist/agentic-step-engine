@@ -14,7 +14,7 @@ class LocalToolsSuite extends munit.FunSuite:
 
   private val all = Envelope(OpKind.values.toSet, ".", 50, 1, Set(AllowedCommand("grep", Nil), AllowedCommand("git", Nil)))
   private def scripts(names: String*) =
-    ExecConfig.default.copy(check = CheckConfig.default.copy(argPolicies = ArgPolicy.defaults ++ names.map(ArgPolicy.script)))
+    CheckConfig.default.copy(argPolicies = ArgPolicy.defaults ++ names.map(ArgPolicy.script))
 
   /** Arbeitsverzeichnis ws mit src/A.scala und einem Verzeichnis außerhalb (outside/secret.txt); Symlinks nach außen. */
   private def withWs(name: String)(body: (Path, Path) => Unit): Unit =
@@ -37,11 +37,11 @@ class LocalToolsSuite extends munit.FunSuite:
       Files.createSymbolicLink(ws.resolve("src/inner.scala"), ws.resolve("src/A.scala"))
       (ws, outside)
 
-  private def tools(ws: Path, config: ExecConfig = ExecConfig.default): Tools[IO] =
-    runIO(LocalTools.open[IO](ws, config)).fold(e => fail(e.message), identity)
+  private def tools(ws: Path, config: ExecConfig = ExecConfig.default, check: CheckConfig = CheckConfig.default): Tools[IO] =
+    runIO(LocalTools.open[IO](ws, config, check)).fold(e => fail(e.message), identity)
 
-  private def call(ws: Path, c: Call, env: Envelope = all, config: ExecConfig = ExecConfig.default): Reply =
-    runIO(tools(ws, config).call(c, env))
+  private def call(ws: Path, c: Call, env: Envelope = all, config: ExecConfig = ExecConfig.default, check: CheckConfig = CheckConfig.default): Reply =
+    runIO(tools(ws, config, check).call(c, env))
 
   private def error(r: Reply): Option[ToolError] = r.result.left.toOption
 
@@ -118,9 +118,9 @@ class LocalToolsSuite extends munit.FunSuite:
 
   withWs("Shell: Zeitüberschreitung beendet den Prozess samt Kindprozessen"): (ws, _) =>
       script(ws, "slow.sh", "sleep 60 &\necho \"kind $!\"\nsleep 60\n")
-      val config = scripts("./slow.sh").copy(shellTimeout = 2.seconds)
+      val config = ExecConfig.default.copy(shellTimeout = 2.seconds)
       val started = System.nanoTime()
-      val r = call(ws, Call.Shell("./slow.sh", Nil), shellEnv("./slow.sh"), config)
+      val r = call(ws, Call.Shell("./slow.sh", Nil), shellEnv("./slow.sh"), config, scripts("./slow.sh"))
       assert((System.nanoTime() - started).nanos < 20.seconds)
       val out = error(r) match
         case Some(ToolError.Timeout("./slow.sh", 2L, out)) => out
@@ -132,15 +132,16 @@ class LocalToolsSuite extends munit.FunSuite:
   withWs("Shell: Ausgabe begrenzt, stdin leer, Programm relativ zum Arbeitsverzeichnis"): (ws, _) =>
       script(ws, "loud.sh", "for i in $(seq 1 100000); do echo \"Zeile $i\"; done\n")
       script(ws, "stdin.sh", "if read -r x; then echo \"gelesen: $x\"; else echo \"stdin leer\"; fi\n")
-      val config = scripts("./loud.sh", "./stdin.sh").copy(maxBytesPerStep = 2048)
-      val loud = call(ws, Call.Shell("./loud.sh", Nil), shellEnv("./loud.sh"), config)
+      val config = ExecConfig.default.copy(maxBytesPerStep = 2048)
+      val check = scripts("./loud.sh", "./stdin.sh")
+      val loud = call(ws, Call.Shell("./loud.sh", Nil), shellEnv("./loud.sh"), config, check)
       val text = loud.result.toOption.flatMap(_.output).getOrElse("")
       assertEquals(loud.result.map(_.exitCode), Right(Some(0)))
       assert(text.contains("von 100000 Zeilen ausgelassen") && text.endsWith("Zeile 100000") && text.length < 4096, text.take(300))
       assertEquals(loud.touched, List("loud.sh", "."))
-      val stdin = call(ws, Call.Shell("./stdin.sh", Nil), shellEnv("./stdin.sh"), config)
+      val stdin = call(ws, Call.Shell("./stdin.sh", Nil), shellEnv("./stdin.sh"), config, check)
       assertEquals(stdin.result.map(_.output), Right(Some("stdin leer\n")))
-      assertEquals(error(call(ws, Call.Shell("./fehlt.sh", Nil), shellEnv("./fehlt.sh"), scripts("./fehlt.sh"))), Some(ToolError.ProgramNotFound("./fehlt.sh")))
+      assertEquals(error(call(ws, Call.Shell("./fehlt.sh", Nil), shellEnv("./fehlt.sh"), ExecConfig.default, scripts("./fehlt.sh"))), Some(ToolError.ProgramNotFound("./fehlt.sh")))
 
   withWs("git gehärtet: präparierte .git/config mit fsmonitor startet kein fremdes Programm"): (ws, outside) =>
       assume(sh(ws, "git", "--version")._1 == 0, "git fehlt")

@@ -116,7 +116,7 @@ class Review3RegressionSuite extends munit.FunSuite:
   test("M4 Auto-Approver übergibt den gezeigten Hash; ein geänderter Hash im Text lässt die Freigabe scheitern"):
     val root = Envelope(Set(OpKind.ReadFile), ".", 5, 0, Set.empty)
     val checked = DryRun.plan(Term.ReadFile("a.txt", h), root, check).fold(v => fail(v.toString), identity)
-    val explain = Explain.render(checked, check = check)
+    val explain = Explain.render(checked)
     val lines = explain.linesIterator.toVector
     val i = lines.indexWhere(_.startsWith("explain   "))
     assertEquals(lines(i + 1), s"hash      ${checked.termHash.hex}")
@@ -150,7 +150,7 @@ class Review3RegressionSuite extends munit.FunSuite:
       // sichtbar bleibt nur, was aufgelöst unter src liegt
       assertEquals(seen.flatMap(_.scope.map(_.at)), Vector("2"))
       assert(!seen.flatMap(_.scope).exists(_.text.contains("hunter2")))
-      assertEquals(scopeLeaks(seen, res.events, check.argPolicies), Nil)
+      assertEquals(scopeLeaks(seen, res.events, check), Nil)
     }
 
   // ---------- K1: Git-Verzeichnis auch über Symlinks gesperrt
@@ -203,7 +203,7 @@ class Review3RegressionSuite extends munit.FunSuite:
       Files.createSymbolicLink(ws.resolve("src/deep"), Path.of("../.git/hooks"))
       Files.createSymbolicLink(ws.resolve("gross"), Path.of(".GIT"))
       val all = Envelope(OpKind.values.toSet, ".", 50, 1, Set(AllowedCommand("grep", Nil), AllowedCommand("ls", Nil)))
-      val tools = runIO(LocalTools.open[IO](ws, config)).fold(e => fail(e.message), identity)
+      val tools = runIO(LocalTools.open[IO](ws, config, check)).fold(e => fail(e.message), identity)
       def call(c: Call) = runIO(tools.call(c, all))
       val cases = List(
         Call.ReadFile("lnk/config") -> "lnk/config",
@@ -307,7 +307,7 @@ class Review3RegressionSuite extends munit.FunSuite:
       Files.createDirectories(ws.resolve("src"))
       Files.createSymbolicLink(ws.resolve("src/loop1"), Path.of("loop2"))
       Files.createSymbolicLink(ws.resolve("src/loop2"), Path.of("loop1"))
-      val tools = runIO(LocalTools.open[IO](ws, config)).fold(e => fail(e.message), identity)
+      val tools = runIO(LocalTools.open[IO](ws, config, check)).fold(e => fail(e.message), identity)
       val reply = runIO(tools.call(Call.ReadFile("src/loop1"), Envelope(Set(OpKind.ReadFile), ".", 5, 0, Set.empty)))
       reply.result match
         case Left(e @ ToolError.Io(kind, "src/loop1")) =>

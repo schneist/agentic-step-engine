@@ -72,7 +72,7 @@ class ExecuteLawsSuite extends munit.ScalaCheckSuite:
       val model: FillRequest => ModelReply = r =>
         if r.attempt == 1 then ModelReply.Answer(submission(Term.EditFile("src/link-file", "geheim", "ausbruch", m)), 1)
         else ModelReply.Answer(submission(Term.Done("außerhalb, nicht geändert", m)), 1)
-      val tools = runIO(LocalTools.open[IO](ws, config)).fold(e => fail(e.message), identity)
+      val tools = runIO(LocalTools.open[IO](ws, config, check)).fold(e => fail(e.message), identity)
       val r = runIO(Execute.run[IO](approved, ports[IO](tools, model, _ => None), config))
       assertEquals(r.outcome, Outcome.Done)
       assertEquals(r.events.collect { case e: Event.FillRejected => e }, Vector.empty)
@@ -94,7 +94,7 @@ class ExecuteLawsSuite extends munit.ScalaCheckSuite:
         val wsBefore = snapshot(ws)
         val outsideBefore = snapshot(outside)
         val approved = approve(t, env, check)
-        val tools = runIO(LocalTools.open[IO](ws, config)).fold(e => fail(e.message), identity)
+        val tools = runIO(LocalTools.open[IO](ws, config, check)).fold(e => fail(e.message), identity)
         var requests = Vector.empty[FillRequest]
         val adversary = adversarialModel(seed, AdversarialFill.symlinkAttacks)
         val model: FillRequest => ModelReply = req => { requests :+= req; adversary(req) }
@@ -106,7 +106,7 @@ class ExecuteLawsSuite extends munit.ScalaCheckSuite:
         assertEquals(snapshot(outside), outsideBefore)
         val unexplained = unexplainedChanges(changes(wsBefore, snapshot(ws)), r.events, env)
         assert(unexplained.isEmpty, s"Änderungen ohne passenden Schreibschritt: ${unexplained.mkString(", ")}")
-        val leaks = scopeLeaks(requests, r.events, check.argPolicies)
+        val leaks = scopeLeaks(requests, r.events, check)
         assert(leaks.isEmpty, leaks.mkString("\n"))
         assert(r.stats.steps <= approved.checked.worstCaseSteps)
 
@@ -114,7 +114,7 @@ class ExecuteLawsSuite extends munit.ScalaCheckSuite:
         assertEquals(Replay.verify(approved, reread, config).map(_.events), Right(r.events))
 
         val (fresh, _) = setup(base, "fresh")
-        val freshTools = runIO(LocalTools.open[IO](fresh, config)).fold(e => fail(e.message), identity)
+        val freshTools = runIO(LocalTools.open[IO](fresh, config, check)).fold(e => fail(e.message), identity)
         runIO(Replay.applyWrites[IO](r.events, freshTools, all))
         assertEquals(tree(fresh), tree(ws))
         true

@@ -33,7 +33,7 @@ object Replay:
           recorded.collect { case Event.Fill(_, _, id, r) => (id, r) }.toList,
           recorded.collect { case Event.Asked(_, q, a) => (q, a) }.toList
         )
-        Execute.run[R](approved, ports(recorded, Execute.checkConfig(approved, config).argPolicies), config).runA(cursor)
+        Execute.run[R](approved, ports(recorded, Execute.checkConfig(approved).argPolicies), config).runA(cursor)
       case Some(Event.Start(h, _, _)) => Left(ReplayError.HashMismatch(h, approved.termHash))
       case _                          => Left(ReplayError.NoStart)
 

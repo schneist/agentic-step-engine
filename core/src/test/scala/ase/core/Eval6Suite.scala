@@ -30,7 +30,8 @@ object AutoApprover:
 class Eval6Suite extends munit.FunSuite:
   override def munitTimeout: Duration = 3.minutes
 
-  private val config = ExecConfig.default.copy(check = TestSupport.config, shellTimeout = 30.seconds)
+  private val config = ExecConfig.default.copy(shellTimeout = 30.seconds)
+  private val check = TestSupport.config
   private val m = Origin.Model("skript")
 
   private def repoPath(relative: String): Path =
@@ -82,19 +83,19 @@ class Eval6Suite extends munit.FunSuite:
       val greeterBefore = sha(ws.resolve(greeter))
 
       // Plan: das Skript-Modell liefert JSON, die Engine decodiert mit Stempel und prüft (Tor 1)
-      def decode(text: String, n: Int) = Submission.decode(text, root, config.check.nestingLimit, Origin.Model(s"plan-$n"))
+      def decode(text: String, n: Int) = Submission.decode(text, root, check.nestingLimit, Origin.Model(s"plan-$n"))
       val p1 = decode(plan1, 1).fold(e => fail(e.message), identity)
-      val v1 = DryRun.plan(p1, root, config.check).left.toOption.map(_.toList).getOrElse(Nil)
+      val v1 = DryRun.plan(p1, root, check).left.toOption.map(_.toList).getOrElse(Nil)
       assertEquals(v1.size, 1, v1.map(_.render))
       assert(v1.head.isInstanceOf[Violation.DepthNotSmaller])
       val p2 = decode(plan2, 2).fold(e => fail(e.message), identity)
       assertEquals(Fingerprint.of(p2), Fingerprint.of(flow.term))
-      val checked = DryRun.plan(p2, root, config.check).fold(v => fail(v.toList.map(_.render).mkString("\n")), identity)
+      val checked = DryRun.plan(p2, root, check).fold(v => fail(v.toList.map(_.render).mkString("\n")), identity)
       assertEquals(checked.worstCaseSteps, 18L)
       assert(checked.worstCaseSteps <= root.maxSteps)
       assertEquals(checked.depth, 1)
 
-      val explain = Explain.render(checked, check = config.check)
+      val explain = Explain.render(checked)
       val approved = AutoApprover.approve(checked, explain).fold(fail(_), identity)
 
       // Fills: das Modell merkt sich die Anfragen und den Datei-Hash im Moment der Anfrage
@@ -156,7 +157,7 @@ class Eval6Suite extends munit.FunSuite:
       assertEquals(Replay.verify(approved, recorded, config).map(_.events), Right(recorded))
       val fresh = base.resolve("fresh")
       copyTree(fixtureDir, fresh)
-      val freshTools = runIO(LocalTools.open[IO](fresh, config)).fold(e => fail(e.message), identity)
+      val freshTools = runIO(LocalTools.open[IO](fresh, config, check)).fold(e => fail(e.message), identity)
       runIO(Replay.applyWrites[IO](recorded, freshTools, root))
       assertEquals(tree(fresh), tree(ws))
 

@@ -75,7 +75,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **CheckConfig**: Verschachtelungsgrenze und Argument-Policies, mit denen DryRun prüft.
 - **Ergebnisform** (`Shape`): Welche Felder das Ergebnis eines Schritts haben kann (Exit-Code, Ausgabe); damit erkennt DryRun Bedingungen, die nie wahr werden (D#20).
 - **Konstanter Funktor**: Ein `F[_]`, das sein Argument ignoriert, etwa `Cost.Of[A] = Cost`. So deuten Cost, Explain, DryRun und ToTerm die Algebra, ohne etwas auszuführen.
-- **Sicht** (`Scope.visible`): Welche früheren Ergebnisse ein Loch beim Fill bekommt. Explain zeigt sie vorab als „sieht Ergebnisse von Schritt …“, Execute wendet dieselbe Regel an (D#9, D#30).
+- **Sicht** (`Scope.visible`): Welche früheren Ergebnisse ein Loch beim Fill bekommt. Explain zeigt sie vorab als Obergrenze „kann Ergebnisse von Schritt … sehen“, Execute wendet dieselbe Regel auf aufgelöste Pfade an (D#9, D#30, D#39, D#42). Pfadlos ist ein Ergebnis ohne Pfad, das jedes Loch sehen kann: Workspace-Code, Befehle aus `pathless`, Antworten, Zusammenfassungen von Löchern.
 - **WSL**: Windows Subsystem for Linux. Dort läuft Execute auf dem eigenen Rechner (D#29).
 - **Port**: Schnittstelle von Execute zur Außenwelt: `Tools` (Werkzeuge), `FillModel` (Modell beim Fill), `AskHandler` (Mensch bei Ask), `Clock` (Zeitlimit), `Recorder` (Ereignislog). Execute und Replay unterscheiden sich nur in den Ports.
 - **Engine**: Der gemeinsame Kern von Execute und Replay, eine Deutung der Algebra über die Ports.
@@ -235,6 +235,26 @@ Die Prüfung muss gegen das laufen, was das Dateisystem tatsächlich tut, nicht 
 ### Warum Explain den vollen Hash zeigt (D#38)
 
 Die Freigabe soll an genau den Term gebunden sein, den der Mensch gesehen hat. Eine Kurzform aus zehn Zeichen ist zum Lesen gut, zum Binden zu schwach, und im Test hatte der Auto-Approver den Hash gar nicht aus der Anzeige gelesen; die Freigabe konnte dort nie scheitern. Jetzt steht der volle Hash in einer eigenen Zeile, und genau diese Zeile wird bestätigt.
+
+### Warum nur manche Befehle ohne Pfad pfadlos sind (D#39)
+
+`grep -rn password` ohne Pfad liest den ganzen Workspace. Galt die Ausgabe als pfadlos, sah sie jedes Loch, auch eines, das nur REPORT.md schreiben darf; der Filter aus D#9 war damit umgangen. Ganz streng (D#27, alles ohne Pfad ist ".") sähe aber das Diagnose-Loch in Eval 6 den roten Test nicht und das Changelog-Loch im Release-Flow die Commits nicht. Die Grenze verläuft deshalb nach dem Inhalt der Ausgabe: Programme, die Workspace-Code ausführen, liefern das Ergebnis, um das es im Flow geht (Testausgabe), und `git log` liefert Metadaten, keine Dateiinhalte. Beide Listen stehen in der Prüfkonfiguration, nicht im Code.
+
+### Warum der CheckedTerm seine Prüfkonfiguration trägt (D#40)
+
+Explain und Execute bekamen die Prüfkonfiguration bisher getrennt vom geprüften Term. Nichts verhinderte, dass der Runner Explain mit anderen Policies aufruft als DryRun; dann zeigt die Freigabe etwas anderes, als geprüft wurde. Liegt die Konfiguration im CheckedTerm, ist es dieselbe, weil es keinen anderen Weg gibt. Gleiches gilt für die Flow-Parameter, die Explain anzeigt.
+
+### Warum Explain Inhalte vollständig zeigt (D#41)
+
+Eine Kürzung ist ein Versteck: Hinter sechzig Leerzeichen stand im Review ein `Process("curl …")`, und der Mensch sah nur „harmlos…“. Was ein statischer Schritt schreibt, gibt der Mensch frei, also muss er es lesen können. Der Rahmen „│ “ vor jeder Zeile sorgt dafür, dass ein Inhalt nicht wie eine Zeile des Explain aussehen kann.
+
+### Warum Explain „kann sehen“ sagt (D#42)
+
+Explain kennt nur die Pfade im Term, Execute die aufgelösten; ein Symlink kann einen Pfad unter `docs/` nach außen führen, dann fällt das Ergebnis zur Laufzeit aus der Sicht heraus. Execute zeigt also höchstens, was Explain angekündigt hat. Die Formulierung sagt genau das.
+
+### Warum bekannte Grenzen bleiben (D#43)
+
+Die verbleibenden Lücken (Zeitfenster zwischen Prüfung und Syscall, Lesen über vorhandene Hardlinks, Kindprozesse nach dem Ende, Replay ohne Schreibvorgänge der Kindprozesse) brauchen entweder Workspace-Code, den der Mensch ohnehin freigibt (D#12), oder Mittel des Betriebssystems wie Namespaces oder einen Container. Das wäre ein eigenes Vorhaben. Sie stehen hier, damit niemand mehr Sicherheit annimmt, als es gibt.
 
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 

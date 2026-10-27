@@ -49,11 +49,11 @@ object Platform:
   * Freigabe (D#6). Effekte nur über die Ports; `local` verbindet sie mit Dateisystem, Prozessen und Uhr.
   */
 object Execute:
-  /** Die einzige Stelle, an der Execute die Prüfkonfiguration bestimmt (später aus dem CheckedTerm). */
-  def checkConfig(approved: ApprovedTerm, config: ExecConfig): CheckConfig = config.check
+  /** Die einzige Stelle, an der Execute die Prüfkonfiguration bestimmt: die, mit der DryRun geprüft hat (D#40). */
+  def checkConfig(approved: ApprovedTerm): CheckConfig = approved.checked.config
 
   def run[F[_]: Monad](approved: ApprovedTerm, ports: Ports[F], config: ExecConfig): F[RunResult] =
-    Engine[F](ports, config, checkConfig(approved, config), approved.checked.rootEnvelope).run(approved.term, approved.termHash)
+    Engine[F](ports, config, checkConfig(approved), approved.checked.rootEnvelope).run(approved.term, approved.termHash)
 
   /** Lauf im Arbeitsverzeichnis, unter Linux; mit record schreibt er das Ereignislog als JSON Lines mit. */
   def local[F[_]: Sync](
@@ -64,7 +64,7 @@ object Execute:
       config: ExecConfig,
       record: Option[Path]
   ): F[Either[ExecuteError, RunResult]] =
-    LocalTools.open[F](workspace, config.copy(check = checkConfig(approved, config))).flatMap {
+    LocalTools.open[F](workspace, config, checkConfig(approved)).flatMap {
       case Left(e) => Sync[F].pure(Left(e))
       case Right(tools) =>
         Sync[F].blocking(outsideWorkspace(workspace, record)).flatMap(_.flatTraverse(_ => openRecorder[F](record))).flatMap {

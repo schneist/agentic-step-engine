@@ -1,6 +1,6 @@
 package ase.core
 
-/** Was ein Loch beim Fill sieht (D#9, D#30). Eine Regel für Explain (vorher) und Execute (zur Laufzeit). */
+/** Was ein Loch beim Fill sieht (D#9, D#30, D#39). Eine Regel für Explain (vorher) und Execute (zur Laufzeit). */
 object Scope:
   /** Ergebnis eines früheren Schritts: Nummer wie im Explain und die Pfade, die das Ergebnis trägt (leer = pfadlos). */
   final case class Seen(step: Int, paths: List[String])
@@ -11,8 +11,15 @@ object Scope:
       case Left(_)       => Vector.empty
       case Right(prefix) => prior.filter(_.paths.forall(RelPath.isUnder(_, prefix)))
 
-  /** Pfade eines Shell-Ergebnisses: nur ausdrücklich genannte (D#9), nicht das implizite "." der Prüfung (D#27).
-    * Ohne Policy gilt das Ergebnis als Ergebnis über das ganze Arbeitsverzeichnis.
+  /** Pfade eines Shell-Ergebnisses (D#39): die ausdrücklich genannten. Ohne Pfadargument pfadlos (leer) nur bei
+    * Programmen, die Workspace-Code ausführen, und bei Befehlen aus config.pathless; sonst das ganze
+    * Arbeitsverzeichnis ".". Ohne Policy ebenfalls ".".
     */
-  def shellPaths(cmd: String, args: List[String], policies: List[ArgPolicy]): List[String] =
-    ArgPolicy.find(policies, cmd, args).fold(List("."))(ArgPolicy.parse(_, args).paths)
+  def shellPaths(cmd: String, args: List[String], config: CheckConfig): List[String] =
+    ArgPolicy.find(config.argPolicies, cmd, args) match
+      case None => List(".")
+      case Some(policy) =>
+        val explicit = ArgPolicy.parse(policy, args).paths
+        if explicit.nonEmpty then explicit
+        else if config.runsWorkspaceCode(cmd).isDefined || config.pathless.exists(_.allows(cmd, args)) then Nil
+        else List(".")

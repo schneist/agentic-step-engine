@@ -6,10 +6,9 @@ import cats.syntax.all.*
 import scala.concurrent.duration.*
 
 /** Konfiguration von Execute: harte Limits (SPEC RUNNER) und Kürzung (MARSHALLING). Der Runner liest sie aus einer
-  * Datei; check ist dieselbe Prüfkonfiguration wie für Tor 1 (Verschachtelungsgrenze, Argument-Policies).
+  * Datei. Die Prüfkonfiguration kommt aus dem CheckedTerm (D#40).
   */
 final case class ExecConfig(
-    check: CheckConfig,
     attemptsPerFill: Int,
     maxTotalSteps: Int,
     maxModelCalls: Int,
@@ -25,7 +24,6 @@ final case class ExecConfig(
 
 object ExecConfig:
   val default: ExecConfig = ExecConfig(
-    check = CheckConfig.default,
     attemptsPerFill = 3,
     maxTotalSteps = 200,
     maxModelCalls = 30,

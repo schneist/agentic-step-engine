@@ -1,10 +1,9 @@
 package ase.core
 
-/** explainDenials (D#24): Befehle, die Explain als „nicht erlaubt, u. a.“ nennt.
-  * workspaceCode (D#12): Programme, die Code aus dem Arbeitsverzeichnis ausführen, und dessen Pfade.
-  * Programme, die mit "./" beginnen, führen sich selbst aus.
+/** explainDenials (D#24): Befehle, die Explain als „nicht erlaubt, u. a.“ nennt. Welche Programme Workspace-Code
+  * ausführen, steht in der Prüfkonfiguration des CheckedTerm (D#39, D#40).
   */
-final case class ExplainConfig(explainDenials: List[AllowedCommand], workspaceCode: Map[String, List[String]])
+final case class ExplainConfig(explainDenials: List[AllowedCommand])
 
 object ExplainConfig:
   val default: ExplainConfig = ExplainConfig(
@@ -14,26 +13,23 @@ object ExplainConfig:
       AllowedCommand("git", List("tag")),
       AllowedCommand("rm", Nil),
       AllowedCommand("curl", Nil)
-    ),
-    Map("sbt" -> List("build.sbt", "project", "src"))
+    )
   )
 
 /** Ein geprüfter Term als Text zur Freigabe. Löcher als „Hier entscheidet der Agent“ mit der Hülle im Klartext
-  * und den früheren Ergebnissen, die das Loch sehen wird (D#30).
+  * und den früheren Ergebnissen, die das Loch sehen kann (D#30, D#42). Prüfkonfiguration und Flow-Parameter
+  * kommen aus dem CheckedTerm (D#40).
   */
 object Explain:
-  def render(
-      checked: CheckedTerm,
-      params: Map[String, String] = Map.empty,
-      config: ExplainConfig = ExplainConfig.default,
-      check: CheckConfig = CheckConfig.default
-  ): String =
+  def render(checked: CheckedTerm, config: ExplainConfig = ExplainConfig.default): String =
     val root = checked.rootEnvelope
-    val code = codePaths(checked.term, config)
-    val (body, _, _) = AgentAlg.fromTerm(checked.term)(interpreter(code, config, check))(State(0, 1, Vector.empty))
+    val check = checked.config
+    val code = codePaths(checked.term, check)
+    val (body, _, _) = AgentAlg.fromTerm(checked.term)(interpreter(code, check))(State(0, 1, Vector.empty))
     val allowlist = root.shellAllowlist.toList.map(_.show).sorted
     val denied = config.explainDenials.filterNot(Attenuation.allowedBy(root.shellAllowlist, _)).map(_.show)
     val warned = config.explainDenials.filter(Attenuation.allowedBy(root.shellAllowlist, _)).map(_.show)
+    val params = checked.params
     val header = Vector(
       s"dryrun    ok  (worst case ${checked.worstCaseSteps} steps, depth ${checked.depth})",
       s"explain   ${checked.termHash.short}",
@@ -51,19 +47,31 @@ object Explain:
   /** Zeilen, nächste Nummer, frühere Ergebnisse nach diesem Knoten. */
   type Out[A] = State => (Vector[String], Int, Vector[Scope.Seen])
 
-  private def quote(s: String, max: Int = 50): String =
+  /** Prosa (Ziele, Fragen) gekürzt in einer Zeile. */
+  private def quote(s: String, max: Int): String =
     val v = Text.visible(s)
     if v.length > max then s"„${v.take(max)}…“ (gekürzt, ${s.length} Zeichen)" else s"„$v“"
 
-  private def runsWorkspaceCode(cmd: String, config: ExplainConfig): Option[List[String]] =
-    if cmd.startsWith("./") then Some(List(cmd.drop(2))) else config.workspaceCode.get(cmd)
+  /** Statischer Inhalt passt in die Zeile, wenn er kurz ist und keinen Zeilenumbruch hat; sonst als Block (D#41). */
+  private val InlineMax = 50
 
-  private def codePaths(t: Term, config: ExplainConfig): List[Vector[String]] = t match
-    case Term.Shell(cmd, _, _)        => runsWorkspaceCode(cmd, config).toList.flatten.flatMap(RelPath.parse(_).toOption)
-    case Term.Hole(_, e, _)           => e.shellAllowlist.toList.flatMap(c => runsWorkspaceCode(c.binary, config).toList.flatten).flatMap(RelPath.parse(_).toOption)
-    case Term.Seq(steps, _)           => steps.flatMap(codePaths(_, config))
-    case Term.If(_, a, b, _)          => codePaths(a, config) ++ codePaths(b, config)
-    case Term.RepeatUntil(b, _, _, _) => codePaths(b, config)
+  private def fitsInLine(s: String): Boolean = !s.contains('\n') && Text.visible(s).length <= InlineMax
+
+  /** Inhalt vollständig, eine Zeile pro Zeile; ein Zeilenende am Schluss ergibt keine leere Zeile. */
+  private def contentLines(s: String): Vector[String] =
+    val ls = s.split("\n", -1).toVector
+    if ls.size > 1 && ls.last.isEmpty then ls.init else ls
+
+  private def lineCount(s: String): String =
+    val n = contentLines(s).size
+    if n == 1 then "1 Zeile" else s"$n Zeilen"
+
+  private def codePaths(t: Term, check: CheckConfig): List[Vector[String]] = t match
+    case Term.Shell(cmd, _, _)        => check.runsWorkspaceCode(cmd).toList.flatten.flatMap(RelPath.parse(_).toOption)
+    case Term.Hole(_, e, _)           => e.shellAllowlist.toList.flatMap(c => check.runsWorkspaceCode(c.binary).toList.flatten).flatMap(RelPath.parse(_).toOption)
+    case Term.Seq(steps, _)           => steps.flatMap(codePaths(_, check))
+    case Term.If(_, a, b, _)          => codePaths(a, check) ++ codePaths(b, check)
+    case Term.RepeatUntil(b, _, _, _) => codePaths(b, check)
     case _                            => Nil
 
   private val writes = Set(OpKind.WriteFile, OpKind.EditFile, OpKind.MoveFile)
@@ -74,23 +82,31 @@ object Explain:
     val steps = if e.maxSteps == 1 then "1 Schritt" else s"${e.maxSteps} Schritte"
     s"darf $ops · unter ${e.pathPrefix} · max $steps · Tiefe ${e.maxDepth}${shell.getOrElse("")}"
 
-  private def interpreter(code: List[Vector[String]], config: ExplainConfig, check: CheckConfig): AgentAlg[Out] = new AgentAlg[Out]:
+  private def interpreter(code: List[Vector[String]], check: CheckConfig): AgentAlg[Out] = new AgentAlg[Out]:
     private def pad(indent: Int): String = "  " * indent
     private def note(text: String, indent: Int): String = "   " + pad(indent) + Text.visible(text)
 
-    private def step(text: String, paths: List[String]): Out[StepResult] = s =>
-      (Vector(f"${s.next}%-3d" + pad(s.indent) + Text.visible(text)), s.next + 1, s.prior :+ Scope.Seen(s.next, paths))
+    /** Inhaltsblock unter einem Schritt: jede Zeile mit Rahmen, gefährliche Zeichen sichtbar (D#31, D#41). */
+    private def block(title: String, content: String, indent: Int): Vector[String] =
+      note(s"$title (${lineCount(content)}):", indent + 1) +:
+        contentLines(content).map(l => "   " + pad(indent + 1) + "│ " + Text.visible(l))
+
+    private def step(text: String, paths: List[String], details: Int => Vector[String] = _ => Vector.empty): Out[StepResult] = s =>
+      (Vector(f"${s.next}%-3d" + pad(s.indent) + Text.visible(text)) ++ details(s.indent), s.next + 1, s.prior :+ Scope.Seen(s.next, paths))
 
     def readFile(path: String, origin: Origin): Out[StepResult] = step(s"liest $path", List(path))
     def listDir(path: String, origin: Origin): Out[StepResult] = step(s"listet $path", List(path))
     def writeFile(path: String, content: String, origin: Origin): Out[StepResult] =
-      step(s"legt $path neu an (${content.length} Zeichen)", List(path))
+      if content.isEmpty then step(s"legt $path neu an (leer)", List(path))
+      else step(s"legt $path neu an (${content.length} Zeichen)", List(path), block("Inhalt", content, _))
     def editFile(path: String, expectedOld: String, replacement: String, origin: Origin): Out[StepResult] =
-      step(s"ersetzt in $path  ${quote(expectedOld)}  durch  ${quote(replacement)}", List(path))
+      if fitsInLine(expectedOld) && fitsInLine(replacement) then
+        step(s"ersetzt in $path  „${Text.visible(expectedOld)}“  durch  „${Text.visible(replacement)}“", List(path))
+      else step(s"ersetzt in $path", List(path), i => block("alt", expectedOld, i) ++ block("neu", replacement, i))
     def moveFile(from: String, to: String, origin: Origin): Out[StepResult] = step(s"verschiebt $from nach $to", List(from, to))
     def shell(cmd: String, args: List[String], origin: Origin): Out[StepResult] =
-      val marker = if runsWorkspaceCode(cmd, config).isDefined then " (führt Workspace-Code aus)" else ""
-      step(s"führt aus: ${(cmd :: args).mkString(" ")}$marker", Scope.shellPaths(cmd, args, check.argPolicies))
+      val marker = if check.runsWorkspaceCode(cmd).isDefined then " (führt Workspace-Code aus)" else ""
+      step(s"führt aus: ${(cmd :: args).mkString(" ")}$marker", Scope.shellPaths(cmd, args, check))
     def ask(question: String, origin: Origin): Out[StepResult] = step(s"fragt: ${quote(question, 80)}", Nil)
     def done(summary: String, origin: Origin): Out[StepResult] = step(s"fertig: $summary", Nil)
 
@@ -98,10 +114,11 @@ object Explain:
       val prefix = RelPath.parse(envelope.pathPrefix).toOption
       val changesCode = envelope.allowedOps.exists(writes) && prefix.exists(p => code.exists(RelPath.overlaps(p, _)))
       val seen = Scope.visible(s.prior, envelope).map(_.step)
-      val runsCode = envelope.shellAllowlist.toList.filter(c => runsWorkspaceCode(c.binary, config).isDefined).map(_.show).sorted
+      val runsCode = envelope.shellAllowlist.toList.filter(c => check.runsWorkspaceCode(c.binary).isDefined).map(_.show).sorted
+      // Execute filtert nach aufgelösten Pfaden und zeigt höchstens diese Ergebnisse, nie mehr (D#42)
       val sees =
-        if seen.isEmpty then "sieht keine früheren Ergebnisse"
-        else s"sieht Ergebnisse von Schritt ${seen.mkString(", ")}"
+        if seen.isEmpty then "kann keine früheren Ergebnisse sehen"
+        else s"kann Ergebnisse von Schritt ${seen.mkString(", ")} sehen"
       val lines = Vector(
         f"${s.next}%-3d" + pad(s.indent) + s"Hier entscheidet der Agent: ${quote(goal, 70)}",
         note(envelopeText(envelope), s.indent),

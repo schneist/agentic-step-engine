@@ -22,7 +22,7 @@ final class LocalTools[F[_]] private (fs: LocalTools.Fs)(using F: Sync[F]) exten
 
 object LocalTools:
   /** Prüft Plattform und Arbeitsverzeichnis; das Arbeitsverzeichnis wird einmal mit toRealPath aufgelöst. */
-  def open[F[_]: Sync](workspace: Path, config: ExecConfig): F[Either[ExecuteError, Tools[F]]] =
+  def open[F[_]: Sync](workspace: Path, config: ExecConfig, check: CheckConfig): F[Either[ExecuteError, Tools[F]]] =
     Sync[F].blocking {
       for
         _ <- Platform.check(Platform.current)
@@ -31,7 +31,7 @@ object LocalTools:
             val r = workspace.toRealPath()
             Either.cond(Files.isDirectory(r), r, ExecuteError.InvalidWorkspace(workspace.toString, "kein Verzeichnis"))
           catch case NonFatal(e) => Left(ExecuteError.InvalidWorkspace(workspace.toString, e.toString))
-      yield LocalTools[F](Fs(root, config))
+      yield LocalTools[F](Fs(root, config, check.argPolicies))
     }
 
   private val ReaderGraceMillis = 2000L
@@ -88,7 +88,7 @@ object LocalTools:
   /** grep liest das Git-Verzeichnis nicht mit, auch nicht bei grep -r über "." (für das Modell unsichtbar). */
   private[core] def grepArgs(args: List[String]): List[String] = "--exclude-dir=.git" :: args
 
-  private[core] final class Fs(root: Path, config: ExecConfig):
+  private[core] final class Fs(root: Path, config: ExecConfig, policies: List[ArgPolicy]):
     private val path: List[String] = safePath(sys.env.getOrElse("PATH", ""), root)
 
     private def at(segments: Vector[String]): Path = segments.foldLeft(root)(_.resolve(_))
@@ -142,7 +142,7 @@ object LocalTools:
     // ---------- Operationen
 
     def run(c: Call, env: Envelope): Reply =
-      ToolCheck.call(c, env, config.check.argPolicies) match
+      ToolCheck.call(c, env, policies) match
         case Left(e) => fail(Nil, e)
         case Right(()) =>
           try
@@ -316,7 +316,7 @@ object LocalTools:
     private def shell(cmd: String, args: List[String], env: Envelope): Reply =
       val checked =
         for
-          sc <- ToolCheck.shell(cmd, args, env, config.check.argPolicies)
+          sc <- ToolCheck.shell(cmd, args, env, policies)
           // auch zur Laufzeit: jeder Pfad aufgelöst, ohne Pfad das Arbeitsverzeichnis (D#27)
           paths <- sc.touched.traverse(resolve(_, env))
           exe <- program(cmd, env)

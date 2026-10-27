@@ -124,7 +124,7 @@ object ExecSupport:
     * des Lochs liegen. Pfadlos sind Shell-Aufrufe ohne ausdrücklichen Pfad (D#30), Antworten auf Ask und Ergebnisse
     * früherer Löcher; sonst zählen die aufgelösten Pfade aus dem Log (touched), nicht die Pfade im Term.
     */
-  def scopeLeaks(requests: Vector[FillRequest], events: Vector[Event], policies: List[ArgPolicy]): List[String] =
+  def scopeLeaks(requests: Vector[FillRequest], events: Vector[Event], check: CheckConfig): List[String] =
     requests.toList.flatMap { r =>
       val prefix = prefixOf(r.envelope)
       r.scope.toList.flatMap { line =>
@@ -139,7 +139,7 @@ object ExecSupport:
         else
           steps.toList.flatMap { (c, reply) =>
             val explicit = c match
-              case Call.Shell(cmd, args) => Scope.shellPaths(cmd, args, policies).nonEmpty
+              case Call.Shell(cmd, args) => Scope.shellPaths(cmd, args, check).nonEmpty
               case _                     => true
             if !explicit then Nil
             else

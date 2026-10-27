@@ -153,7 +153,7 @@ class EngineSuite extends munit.ScalaCheckSuite:
       val r = Execute.run[W](approved, ports(fakeTools(check.argPolicies), model, _ => Some("ja")), config).runA(files).value
       val esc = escapes(r.events, env)
       assert(esc.isEmpty, esc.mkString("\n"))
-      val leaks = scopeLeaks(requests, r.events, check.argPolicies)
+      val leaks = scopeLeaks(requests, r.events, check)
       assert(leaks.isEmpty, leaks.mkString("\n"))
       assert(r.stats.steps <= approved.checked.worstCaseSteps, s"${r.stats.steps} > ${approved.checked.worstCaseSteps}")
       assert(r.events.last.isInstanceOf[Event.End])

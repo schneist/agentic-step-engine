@@ -2,21 +2,41 @@ package ase.core
 
 import cats.data.NonEmptyList
 
-/** Konfiguration der Prüfung: Verschachtelungsgrenze (D#10) und Argument-Policies (D#12). */
-final case class CheckConfig(nestingLimit: Int, argPolicies: List[ArgPolicy])
+/** Konfiguration der Prüfung: Verschachtelungsgrenze (D#10) und Argument-Policies (D#12).
+  * workspaceCode (D#12): Programme, die Code aus dem Arbeitsverzeichnis ausführen, und dessen Pfade; Programme, die
+  * mit "./" beginnen, führen sich selbst aus. pathless (D#39): Befehle, deren Ausgabe ohne Pfadargument keine
+  * Dateiinhalte trägt. Beide bestimmen mit, was ein Loch sieht (Scope.shellPaths).
+  */
+final case class CheckConfig(
+    nestingLimit: Int,
+    argPolicies: List[ArgPolicy],
+    workspaceCode: Map[String, List[String]],
+    pathless: List[AllowedCommand]
+):
+  def runsWorkspaceCode(cmd: String): Option[List[String]] =
+    if cmd.startsWith("./") then Some(List(cmd.drop(2))) else workspaceCode.get(cmd)
 
 object CheckConfig:
-  val default: CheckConfig = CheckConfig(DecodeLimits.DefaultNesting, ArgPolicy.defaults)
+  val default: CheckConfig = CheckConfig(
+    DecodeLimits.DefaultNesting,
+    ArgPolicy.defaults,
+    Map("sbt" -> List("build.sbt", "project", "src")),
+    List(AllowedCommand("git", List("log")))
+  )
 
 /** Tor 1 und Tor 2: führt nichts aus, prüft den Term gegen eine Hülle. */
 object DryRun:
-  /** Ein geprüfter Term (D#11). Nur DryRun erzeugt ihn; freigegeben ist er damit noch nicht. */
+  /** Ein geprüfter Term (D#11). Nur DryRun erzeugt ihn; freigegeben ist er damit noch nicht. Er trägt die
+    * Prüfkonfiguration und die gebundenen Flow-Parameter, damit Explain und Execute dieselben verwenden (D#40).
+    */
   final class CheckedTerm private[DryRun] (
       val term: Term,
       val rootEnvelope: Envelope,
       val termHash: TermHash,
       val worstCaseSteps: Long,
-      val depth: Int
+      val depth: Int,
+      val config: CheckConfig,
+      val params: Map[String, String]
   )
 
   /** Ein Fill-Teilterm, der Tor 2 bestanden hat (D#11). Läuft ohne eigene Freigabe (D#6). */
@@ -27,8 +47,14 @@ object DryRun:
       val worstCaseSteps: Long
   )
 
-  def plan(term: Term, root: Envelope, config: CheckConfig): Either[NonEmptyList[Violation], CheckedTerm] =
-    analyse(term, root, config).map(a => CheckedTerm(term, root, TermHash.of(term, root), a.worstCase, a.holeDepth))
+  /** params: die Werte, die Flow.bind schon in den Term eingesetzt hat; nur zur Anzeige im Explain (D#22). */
+  def plan(
+      term: Term,
+      root: Envelope,
+      config: CheckConfig,
+      params: Map[String, String] = Map.empty
+  ): Either[NonEmptyList[Violation], CheckedTerm] =
+    analyse(term, root, config).map(a => CheckedTerm(term, root, TermHash.of(term, root), a.worstCase, a.holeDepth, config, params))
 
   def fill(term: Term, hole: Envelope, config: CheckConfig): Either[NonEmptyList[Violation], CheckedFill] =
     analyse(term, hole, config).map(a => CheckedFill(term, hole, TermHash.of(term, hole), a.worstCase))

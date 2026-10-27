@@ -200,8 +200,8 @@ policies:
     status: implemented
     source: core/src/main/scala/ase/core/Scope.scala#Scope.visible
     verified: 2026-10-27
-    decided_by: ["D#9", "D#30"]
-    note: Regel fertig und im Explain sichtbar; Anwendung beim Fill in Execute (Schritt 3)
+    decided_by: ["D#9", "D#30", "D#39", "D#42"]
+    note: eine Regel für Explain und Execute; Shell-Pfade über Scope.shellPaths mit CheckConfig (D#39)
   - id: policy.text
     type: policy
     status: implemented
@@ -462,6 +462,11 @@ decisions:
   - { id: "D#36", type: decision, status: decided, source: "findings.md#D#36", verified: 2026-10-27, title: "Shell zur Laufzeit: Umgebung, PATH, git- und grep-Zusätze" }
   - { id: "D#37", type: decision, status: decided, source: "findings.md#D#37", verified: 2026-10-27, title: "Dateien zur Laufzeit: .git auf aufgelöstem Pfad, atomares EditFile", tested_by: [ase.core.Review3RegressionSuite, ase.core.LocalToolsSuite, ase.core.ExecuteLawsSuite] }
   - { id: "D#38", type: decision, status: decided, source: "findings.md#D#38", verified: 2026-10-27, title: "Freigabe bindet den vollen Hash", tested_by: [ase.core.Eval6Suite, ase.core.Review3RegressionSuite] }
+  - { id: "D#39", type: decision, status: decided, source: "findings.md#D#39", verified: 2026-10-27, title: "Sicht ohne Pfadargument: pfadlos nur Workspace-Code und pathless", tested_by: [ase.core.ScopeSuite] }
+  - { id: "D#40", type: decision, status: decided, source: "findings.md#D#40", verified: 2026-10-27, title: "CheckedTerm trägt Prüfkonfiguration und Flow-Parameter", tested_by: [ase.core.ExplainSuite, ase.core.Eval6Suite] }
+  - { id: "D#41", type: decision, status: decided, source: "findings.md#D#41", verified: 2026-10-27, title: "Explain zeigt statische Inhalte vollständig als Block", tested_by: [ase.core.ReviewRegressionSuite] }
+  - { id: "D#42", type: decision, status: decided, source: "findings.md#D#42", verified: 2026-10-27, title: "Explain: Sicht als Obergrenze (kann … sehen)", tested_by: [ase.core.ExplainSuite] }
+  - { id: "D#43", type: decision, status: decided, source: "findings.md#D#43", verified: 2026-10-27, title: "Bekannte Grenzen akzeptiert (TOCTOU, Hardlink-Lesen, Kindprozesse, Replay)" }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }
@@ -479,12 +484,12 @@ open:
   - { id: "O#13", type: open, status: resolved, source: "findings.md#O#13", verified: 2026-10-27, resolved_by: "D#25" }
   - { id: "O#14", type: open, status: resolved, source: "findings.md#O#14", verified: 2026-10-27, resolved_by: "D#30" }
   - { id: "O#15", type: open, status: resolved, source: "findings.md#O#15", verified: 2026-10-27, note: "JDK 17, sbt 1.10.7 im WSL" }
-  - { id: "O#16", type: open, status: open, source: "findings.md#O#16", verified: 2026-10-27, title: "Sicht von Shell-Aufrufen ohne Pfad (Review M3)" }
-  - { id: "O#17", type: open, status: open, source: "findings.md#O#17", verified: 2026-10-27, title: "Explain: statische Inhalte vollständig zeigen?" }
-  - { id: "O#18", type: open, status: open, source: "findings.md#O#18", verified: 2026-10-27, title: "CheckConfig und Parameter im CheckedTerm" }
+  - { id: "O#16", type: open, status: resolved, source: "findings.md#O#16", verified: 2026-10-27, resolved_by: "D#39" }
+  - { id: "O#17", type: open, status: resolved, source: "findings.md#O#17", verified: 2026-10-27, resolved_by: "D#41" }
+  - { id: "O#18", type: open, status: resolved, source: "findings.md#O#18", verified: 2026-10-27, resolved_by: "D#40" }
   - { id: "O#19", type: open, status: open, source: "findings.md#O#19", verified: 2026-10-27, title: "Doppelte Auswertung, doppelte JSON-Schlüssel (niedrig)" }
-  - { id: "O#20", type: open, status: open, source: "findings.md#O#20", verified: 2026-10-27, title: "Explain-Sicht statisch, Execute-Sicht aufgelöst" }
-  - { id: "O#21", type: open, status: open, source: "findings.md#O#21", verified: 2026-10-27, title: "Restrisiken nach Review 3 (niedrig)" }
+  - { id: "O#20", type: open, status: resolved, source: "findings.md#O#20", verified: 2026-10-27, resolved_by: "D#42" }
+  - { id: "O#21", type: open, status: resolved, source: "findings.md#O#21", verified: 2026-10-27, resolved_by: "D#43" }
 
 evals:
   - id: eval.1

