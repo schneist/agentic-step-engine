@@ -419,7 +419,7 @@ open:
   - { id: "O#12", type: open, status: resolved, source: "findings.md#O#12", verified: 2026-10-27, resolved_by: "D#24" }
   - { id: "O#13", type: open, status: resolved, source: "findings.md#O#13", verified: 2026-10-27, resolved_by: "D#25" }
   - { id: "O#14", type: open, status: resolved, source: "findings.md#O#14", verified: 2026-10-27, resolved_by: "D#30" }
-  - { id: "O#15", type: open, status: open, source: "findings.md#O#15", verified: 2026-10-27, title: "Java und sbt im WSL bereitstellen", before: step3 }
+  - { id: "O#15", type: open, status: resolved, source: "findings.md#O#15", verified: 2026-10-27, note: "JDK 17, sbt 1.10.7 im WSL" }
 
 evals:
   - id: eval.1

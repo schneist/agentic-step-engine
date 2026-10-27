@@ -181,7 +181,7 @@ VORGEHEN
 0. Review des Gerüsts: README, CLAUDE.md, context.md, architecture.md, findings.md, knowledge/context.yaml, flows/, evals/README.md lesen. Widersprüche oder Lücken melden, nichts umschreiben. Warte auf OK.
 1. Anlegen der sechs Eval-Fixtures mit task.md, envelope.json, check.sh in evals/ (Eval 6 inkl. flows/red-test.json). README nur ergänzen, wo Fixtures Details festlegen. Warte auf OK.
 2. core: Term-ADT (mit MoveFile), Pred, JSON-Codec, decoderFor, handgeschriebenes Schema (D#10), Algebra mit Kontrolloperationen, restrict, ToTerm/fromTerm, DryRun mit CheckedTerm, Approval mit ApprovedTerm, Cost, Explain, structuralFingerprint, termHash (JCS), Flow-Format mit Parameterbindung, Term-Generator und AdversarialFill-Generator. Tests grün. Kein Execute, kein Modell.
-3. core: Execute (Pfad- und Shell-Prüfung zuerst, mit Tests), Record/Replay, AdversarialFill-Gesetz grün, Eval 6 im deterministischen Modus grün. Läuft und wird getestet in WSL (D#29); vorher Java und sbt dort bereitstellen (O#15).
+3. core: Execute (Pfad- und Shell-Prüfung zuerst, mit Tests), Record/Replay, AdversarialFill-Gesetz grün, Eval 6 im deterministischen Modus grün. Läuft und wird getestet in WSL (D#29); Java 17 und sbt 1.10.7 sind dort installiert (O#15).
 4. model + runner mit submit_term, Plan und Fill. Erste Serie (n=10) gegen Eval 1 als M#1, Eval 6 live als M#2.
 5. BestOfN, Eval-Harness über alle sechs Aufgaben.
 Nach jedem Schritt: sbt test grün, context.yaml und findings.md nachgeführt, kurze Zusammenfassung, offene Punkte. Keine Features über diese Liste hinaus ohne Rückfrage.
