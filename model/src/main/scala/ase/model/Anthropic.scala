@@ -72,3 +72,4 @@ object ModelAdapter:
     config.provider match
       case Provider.Anthropic => Anthropic[F](transport, config, check)
       case Provider.Ollama    => Ollama[F](transport, config, check)
+      case Provider.Agy       => Agy[F](transport, config, check)

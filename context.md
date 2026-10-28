@@ -98,7 +98,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **configSha**: SHA-256 der Runner-Konfigurationsdatei; Plan und Lauf müssen dieselbe haben (D#40, D#45).
 - **Runner-Konfiguration**: JSON-Datei mit Modell, Limits, Verschachtelungsgrenze, Plan-Runden, explainDenials und Skripten (D#46).
 - **Serie**: n Live-Läufe einer Eval mit `evals/series.sh`, je in frischer Fixture-Kopie; Grundlage einer M#-Zeile.
-- **Anbieter** (`provider`): Wer beim Plan und Fill antwortet: `anthropic` (Messages API) oder `ollama` (lokales Modell, D#47).
+- **Anbieter** (`provider`): Wer beim Plan und Fill antwortet: `anthropic` (Messages API), `ollama` (lokales Modell, D#47) oder `agy` (Modelle über die Antigravity-CLI, D#54).
 - **Entwicklungslauf**: Ein Lauf mit einem lokalen Modell, um die Kette ohne Kosten zu üben; als Serie ein eigener M#-Eintrag mit Anbieter und Modell.
 - **Lösungsbeispiel**: Eine vollständig gelöste Beispielaufgabe (Plan und Fill) im System-Prompt des lokalen Modells; bewusst eine andere Aufgabe als die Evals (D#49).
 - **think** (Denken vor dem Schema): Ein lokales Modell überlegt erst frei und schreibt danach den Term im Schema; nur die Antwort wird ausgewertet (D#48). Fehlt der Wert, gilt der Standard des Modells; false schaltet das Denken hybrider Modelle ab (D#50).
@@ -306,6 +306,10 @@ Drei Dinge begrenzen einen Befehl: der Unterbefehl (git status statt git), die A
 ### Warum die Regel vor dem Loch am Anfang steht (D#53)
 
 Ein Modell liest die Grundregel eines Abschnitts eher als die Ausnahmen danach. In D#51 stand der Satz hinter den Sonderregeln zum Sichtbereich, und der Plan-Prompt, also die Stelle, an der der Plan entsteht, blieb unverändert. Jetzt steht die Regel als erster Gedanke des Abschnitts und noch einmal dort, wo der Plan geschrieben wird. Der Hinweis auf die leer angelegte Zieldatei kommt aus beiden Probeläufen: Ein statisches WriteFile nach dem Loch scheitert, sobald das Loch die Datei schon geschrieben hat.
+
+### Warum ein dritter Anbieter über die Antigravity-CLI (D#54)
+
+Das lokale Modell war entweder zu langsam (mit Denken) oder zu schwach (ohne), um die Kette sinnvoll zu üben; für Claude fehlt der Schlüssel. agy ist auf dem Rechner angemeldet und bietet starke Modelle, mit derselben Schema-Bindung wie Ollama. Dass agy ein Agent ist, nicht nur ein Modell, ist der Preis: Er bekommt einen eigenen Prompt und könnte lesen. Ein leeres Verzeichnis pro Aufruf und der Plan-Modus halten ihn von Workspace und Änderungen fern; was dann noch abweicht, ist für Entwicklungsläufe hinnehmbar und steht bei jeder Zahl dabei.
 
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 

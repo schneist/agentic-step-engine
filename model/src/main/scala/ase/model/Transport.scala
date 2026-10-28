@@ -41,12 +41,14 @@ final class JdkTransport[F[_]: Sync](endpoint: URI, headers: List[(String, Strin
 
 object JdkTransport:
   /** Transport für den Anbieter der Konfiguration. Anthropic: Schlüssel aus config.apiKeyEnv, fehlt er, ein
-    * typisierter Fehler. Ollama: lokal, ohne Schlüssel.
+    * typisierter Fehler. Ollama: lokal, ohne Schlüssel. Agy: ein Prozess statt HTTP (D#54).
     */
   def open[F[_]: Sync](config: ModelConfig): F[Either[ModelError, Transport[F]]] =
     config.provider match
       case Provider.Ollama =>
         Sync[F].pure(Right(JdkTransport[F](URI.create(config.endpoint), Nil, config.requestTimeout)))
+      case Provider.Agy =>
+        Sync[F].pure(Right(AgyTransport[F](config)))
       case Provider.Anthropic =>
         Sync[F].delay(sys.env.get(config.apiKeyEnv).filter(_.nonEmpty)).map {
           case None => Left(ModelError.MissingApiKey(config.apiKeyEnv))

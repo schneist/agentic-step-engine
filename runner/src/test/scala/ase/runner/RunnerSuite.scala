@@ -77,6 +77,8 @@ class RunnerSuite extends munit.FunSuite:
     assertEquals(RunnerConfig.parse("""{"model":{"provider":"ollama","think":false}}""").map(_.model.think), Right(Some(false)))
     assertEquals(RunnerConfig.parse("""{"model":{"provider":"ollama"}}""").map(_.model.think), Right(None))
     assert(RunnerConfig.parse("""{"model":{"think":"ja"}}""").isLeft)
+    val a = RunnerConfig.parse("""{"model":{"provider":"agy","endpoint":"/mnt/c/agy.exe","workDir":"/mnt/c/tmp"}}""").fold(fail(_), identity)
+    assertEquals((a.model.provider, a.model.model, a.model.endpoint, a.model.workDir), (Provider.Agy, "gemini-3.8-flash-medium", "/mnt/c/agy.exe", "/mnt/c/tmp"))
     val s = RunnerConfig.parse("""{"scripts":["./run-tests.sh"]}""").fold(fail(_), identity)
     assertEquals(s.check.argPolicies, CheckConfig.default.argPolicies :+ ArgPolicy.script("./run-tests.sh"))
     List("run-tests.sh", "./bin/x.sh", "./..", "../x.sh").foreach(bad => assert(RunnerConfig.parse(s"""{"scripts":["$bad"]}""").isLeft, bad))

@@ -2,9 +2,11 @@ package ase.model
 
 import scala.concurrent.duration.*
 
-/** Wer antwortet: die Messages API von Anthropic oder ein lokales Modell über Ollama (D#47). */
+/** Wer antwortet: die Messages API von Anthropic, ein lokales Modell über Ollama (D#47) oder ein Modell über die
+  * Antigravity-CLI agy (D#54).
+  */
 enum Provider:
-  case Anthropic, Ollama
+  case Anthropic, Ollama, Agy
 
 object Provider:
   def parse(s: String): Option[Provider] = values.find(_.toString.equalsIgnoreCase(s))
@@ -12,7 +14,9 @@ object Provider:
 /** Modelladapter (SPEC MODELLADAPTER). Der Runner liest ihn aus seiner Konfigurationsdatei; was hier steht, gehört
   * zu jeder Messung (playbook/evals.md: Anbieter, Modell und Effort stehen in der M#-Zeile). effort gilt nur für
   * Anthropic, contextTokens und think nur für Ollama (think: erst frei denken, dann die Antwort im Schema, D#48;
-  * None sendet das Feld nicht, false schaltet das Denken hybrider Modelle wie qwen3 ab, D#50).
+  * None sendet das Feld nicht, false schaltet das Denken hybrider Modelle wie qwen3 ab, D#50). Bei agy ist endpoint
+  * das Programm und workDir das Verzeichnis, unter dem jeder Aufruf ein eigenes leeres Verzeichnis bekommt
+  * (leer: das temporäre Verzeichnis der JVM, D#54).
   */
 final case class ModelConfig(
     provider: Provider,
@@ -26,7 +30,8 @@ final case class ModelConfig(
     apiKeyEnv: String,
     requestTimeout: FiniteDuration,
     retries: Int,
-    backoff: FiniteDuration
+    backoff: FiniteDuration,
+    workDir: String
 )
 
 object ModelConfig:
@@ -42,7 +47,8 @@ object ModelConfig:
     apiKeyEnv = "ANTHROPIC_API_KEY",
     requestTimeout = 10.minutes,
     retries = 3,
-    backoff = 2.seconds
+    backoff = 2.seconds,
+    workDir = ""
   )
 
   /** Lokal auf der CPU: lange Antwortzeiten, Kontext ausdrücklich groß genug für System-Prompt und Scope. */
@@ -55,9 +61,18 @@ object ModelConfig:
     requestTimeout = 30.minutes
   )
 
+  /** Ein Modell über agy: der Aufruf startet einen Agenten, der eine Weile braucht; kein Schlüssel, agy ist angemeldet. */
+  val agy: ModelConfig = default.copy(
+    provider = Provider.Agy,
+    model = "gemini-3.8-flash-medium",
+    endpoint = "agy",
+    requestTimeout = 10.minutes
+  )
+
   def of(provider: Provider): ModelConfig = provider match
     case Provider.Anthropic => default
     case Provider.Ollama    => ollama
+    case Provider.Agy       => agy
 
   val efforts: Set[String] = Set("low", "medium", "high", "xhigh", "max")
 

@@ -1,0 +1,9 @@
+{
+  "model": {
+    "provider": "agy",
+    "model": "gemini-3.8-flash-medium",
+    "endpoint": "/mnt/c/Users/schne/AppData/Local/agy/bin/agy.exe",
+    "workDir": "/mnt/c/Users/schne/AppData/Local/Temp/ase-agy"
+  },
+  "scripts": ["./run-tests.sh"]
+}

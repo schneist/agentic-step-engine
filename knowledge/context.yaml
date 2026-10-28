@@ -367,6 +367,14 @@ interpreters:
     decided_by: ["D#47", "D#48", "D#49", "D#50"]
     tested_by: [ase.model.OllamaSuite]
     note: "/api/chat mit format = Term-Schema; CallingAdapter teilt Prompts und Wiederholung mit Anthropic; Lösungsbeispiel nur hier"
+  - id: adapter.agy
+    type: adapter
+    status: implemented
+    source: model/src/main/scala/ase/model/Agy.scala#Agy
+    verified: 2026-10-28
+    decided_by: ["D#54"]
+    tested_by: [ase.model.AgySuite]
+    note: "agy --print mit --json-schema, ein Prozess und ein leeres Verzeichnis pro Aufruf (AgyTransport); structured_output ist die Eingabe von submit_term"
   - id: runner.planner
     type: runner
     status: implemented
@@ -517,6 +525,7 @@ decisions:
   - { id: "D#51", type: decision, status: decided, source: "findings.md#D#51", verified: 2026-10-28, title: "Lesen vor dem Loch: Prompt und Ablehnung bei verbotenem Hole", tested_by: [ase.core.CodecSuite, ase.model.AnthropicSuite] }
   - { id: "D#52", type: decision, status: decided, source: "findings.md#D#52", verified: 2026-10-28, title: "requiredPrefixArgs nur bis zum Unterbefehl (Tor 1)", tested_by: [ase.core.ReviewRegressionSuite] }
   - { id: "D#53", type: decision, status: decided, source: "findings.md#D#53", verified: 2026-10-28, title: "Lesen vor dem Loch: Regel nach vorn, Plan- und Fill-Prompt, holeHint", tested_by: [ase.model.AnthropicSuite, ase.core.CodecSuite] }
+  - { id: "D#54", type: decision, status: decided, source: "findings.md#D#54", verified: 2026-10-28, title: "Dritter Anbieter agy (Antigravity-CLI) für Entwicklungsläufe", tested_by: [ase.model.AgySuite, ase.runner.RunnerSuite] }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }
