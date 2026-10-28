@@ -1,7 +1,7 @@
 package ase.runner
 
 import ase.core.*
-import ase.model.{ModelConfig, PlanModel, PlanRequest}
+import ase.model.{ModelConfig, PlanModel, PlanRequest, Provider}
 import cats.Id
 import cats.data.State
 import io.circe.Json
@@ -70,9 +70,18 @@ class RunnerSuite extends munit.FunSuite:
     assert(RunnerConfig.parse("""{"model":{"effort":"turbo"}}""").isLeft)
     val d = RunnerConfig.parse("""{"explainDenials":[{"binary":"git","requiredPrefixArgs":["push"]}]}""").fold(fail(_), identity)
     assertEquals(d.explain.explainDenials, List(AllowedCommand("git", List("push"))))
+    val o = RunnerConfig.parse("""{"model":{"provider":"ollama","maxTokens":4000}}""").fold(fail(_), identity)
+    assertEquals((o.model.provider, o.model.model, o.model.endpoint, o.model.maxTokens), (Provider.Ollama, "qwen3:4b-instruct", "http://127.0.0.1:11434/api/chat", 4000))
+    assert(RunnerConfig.parse("""{"model":{"provider":"openai"}}""").isLeft)
     val s = RunnerConfig.parse("""{"scripts":["./run-tests.sh"]}""").fold(fail(_), identity)
     assertEquals(s.check.argPolicies, CheckConfig.default.argPolicies :+ ArgPolicy.script("./run-tests.sh"))
     List("run-tests.sh", "./bin/x.sh", "./..", "../x.sh").foreach(bad => assert(RunnerConfig.parse(s"""{"scripts":["$bad"]}""").isLeft, bad))
+
+  test("Lauf-Log zählt Aufrufe und Tokens des Plans mit"):
+    val log = RunLog.render(Vector(Event.End(Outcome.Done, 0L)), RunLog.Footer(1, None, planCalls = 2, planTokens = 2500L))
+    assert(log.contains("2 Modellaufrufe"), log)
+    assert(log.contains("1 Ablehnung an Tor 1"), log)
+    assert(log.contains("2.5k Tokens"), log)
 
   test("Befehlszeile"):
     assertEquals(

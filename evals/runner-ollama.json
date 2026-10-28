@@ -1,0 +1,4 @@
+{
+  "model": { "provider": "ollama", "model": "qwen3:4b-instruct" },
+  "scripts": ["./run-tests.sh"]
+}

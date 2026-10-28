@@ -3,7 +3,7 @@ package ase.core
 /** Lauf-Log für Menschen im Format des README (Abschnitt „Was während des Laufs passiert“), aus den Ereignissen. */
 object RunLog:
   /** Was außerhalb von Execute geschieht: Modellaufrufe und Ablehnungen an Tor 1 (Plan) und wo das Record-Log liegt. */
-  final case class Footer(planRejections: Int, recordPath: Option[String], planCalls: Int = 0)
+  final case class Footer(planRejections: Int, recordPath: Option[String], planCalls: Int = 0, planTokens: Long = 0)
 
   private def quote(s: String, max: Int = 50): String =
     val flat = s.replace("\n", "⏎")
@@ -97,7 +97,8 @@ object RunLog:
     // keine doppelten Leerzeilen
     val compact = body.foldLeft(Vector.empty[String])((acc, l) => if l.isEmpty && acc.lastOption.forall(_.isEmpty) then acc else acc :+ l)
     val s = Stats.of(events)
-    val tokens = if s.tokens >= 1000 then f"${s.tokens / 1000.0}%.1fk" else s.tokens.toString
+    val all = footer.planTokens + s.tokens
+    val tokens = if all >= 1000 then f"${all / 1000.0}%.1fk" else all.toString
     val summary = List(
       Some(plural(s.steps, "Schritt", "Schritte")),
       Some(plural(footer.planCalls + s.modelCalls, "Modellaufruf", "Modellaufrufe")),

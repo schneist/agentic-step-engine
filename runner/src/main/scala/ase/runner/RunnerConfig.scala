@@ -1,7 +1,7 @@
 package ase.runner
 
 import ase.core.*
-import ase.model.ModelConfig
+import ase.model.{ModelConfig, Provider}
 import cats.syntax.all.*
 import io.circe.{Json, JsonObject}
 import io.circe.parser
@@ -40,15 +40,22 @@ object RunnerConfig:
       rounds
     )
 
-  private def modelConfig(json: Json, d: ModelConfig): Either[String, ModelConfig] =
+  /** provider bestimmt die Standards der übrigen Felder (D#47). */
+  private def modelConfig(json: Json, fallback: ModelConfig): Either[String, ModelConfig] =
     for
       o <- obj(json, "model")
-      _ <- only(o, "model", "model", "effort", "maxTokens")
+      _ <- only(o, "model", "provider", "model", "effort", "maxTokens", "contextTokens", "endpoint")
+      provider <- o("provider").fold(fallback.provider.asRight[String])(
+        _.asString.flatMap(Provider.parse).toRight(s"provider: einer von ${Provider.values.mkString(", ")}")
+      )
+      d = ModelConfig.of(provider)
       name <- str(o, "model", d.model)
       effort <- str(o, "effort", d.effort)
       _ <- Either.cond(ModelConfig.efforts(effort), (), s"effort „$effort“ ist keiner von ${ModelConfig.efforts.toList.sorted.mkString(", ")}")
       maxTokens <- int(o, "maxTokens", d.maxTokens)
-    yield d.copy(model = name, effort = effort, maxTokens = maxTokens)
+      contextTokens <- int(o, "contextTokens", d.contextTokens)
+      endpoint <- str(o, "endpoint", d.endpoint)
+    yield d.copy(model = name, effort = effort, maxTokens = maxTokens, contextTokens = contextTokens, endpoint = endpoint)
 
   private def limits(json: Json, d: ExecConfig): Either[String, ExecConfig] =
     for

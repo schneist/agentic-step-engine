@@ -20,7 +20,7 @@ Entstanden aus einem Gespräch über die Struktur von Sprachmodellen (Residual S
 
 ## 5. Grenzen von v1
 
-Nur Dateisystem und eine winzige Shell-Allowlist. Ein Modelladapter (Anthropic). Keine Autoren-Oberfläche für menschliche Flows; die werden als JSON geschrieben. Kein Constrained Decoding; die Prüfung passiert nach dem Sampling, nicht darin.
+Nur Dateisystem und eine winzige Shell-Allowlist. Ein Modelladapter (Anthropic) für Messungen, dazu ein lokales Modell über Ollama für Entwicklungsläufe (D#47). Keine Autoren-Oberfläche für menschliche Flows; die werden als JSON geschrieben. Kein Constrained Decoding; die Prüfung passiert nach dem Sampling, nicht darin.
 
 ## 6. Offene Fragen
 
@@ -98,6 +98,8 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **configSha**: SHA-256 der Runner-Konfigurationsdatei; Plan und Lauf müssen dieselbe haben (D#40, D#45).
 - **Runner-Konfiguration**: JSON-Datei mit Modell, Limits, Verschachtelungsgrenze, Plan-Runden, explainDenials und Skripten (D#46).
 - **Serie**: n Live-Läufe einer Eval mit `evals/series.sh`, je in frischer Fixture-Kopie; Grundlage einer M#-Zeile.
+- **Anbieter** (`provider`): Wer beim Plan und Fill antwortet: `anthropic` (Messages API) oder `ollama` (lokales Modell, D#47).
+- **Entwicklungslauf**: Ein Lauf mit einem lokalen Modell, um die Kette ohne Kosten zu üben; als Serie ein eigener M#-Eintrag mit Anbieter und Modell.
 
 ## 8. Warum
 
@@ -274,6 +276,10 @@ Die Freigabe ist ein Mensch, der einen Hash bestätigt (D#11, D#38). Eine Serie 
 ### Warum Skripte in die Konfiguration gehören (D#46)
 
 Welche Programme im Arbeitsverzeichnis laufen dürfen, hängt vom Projekt ab, nicht von der Engine. `./run-tests.sh` ist in Eval 6 und im Release-Flow der Kern des Ablaufs, in einem anderen Projekt gäbe es das Skript nicht. Es steht deshalb in der Runner-Konfiguration, nicht im Code; jedes Skript läuft ohne Argumente und gilt als Workspace-Code (D#12).
+
+### Warum ein lokales Modell als zweiter Anbieter (D#47)
+
+Die Engine soll weiterentwickelt werden können, ohne dass jeder Probelauf Geld kostet oder einen Schlüssel braucht. Ein kleines lokales Modell plant schlechter, aber es übt dieselbe Kette: Plan, Tor 1, Freigabe, Fill, Tor 2, Execute. Gerade die schlechteren Antworten zeigen, ob die Tore und Fehlermeldungen tragen. Ollama bekommt das Term-Schema als Ausgabeformat statt eines Werkzeugs; damit ist jede Antwort syntaktisch ein Term, und was bleibt, ist die Frage nach dem Sinn, die die Tore stellen. Zahlen aus solchen Läufen gelten nur für dieses Modell; die Basis für Claude bleibt eine eigene Messung.
 
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 

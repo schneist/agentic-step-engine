@@ -10,28 +10,28 @@ import java.time.Duration as JDuration
 import scala.concurrent.duration.*
 import scala.util.control.NonFatal
 
-/** Antwort der Messages API, roh. retryAfter aus dem Header `retry-after` (Sekunden). */
+/** Antwort einer Modell-API, roh. retryAfter aus dem Header `retry-after` (Sekunden). */
 final case class HttpReply(status: Int, retryAfter: Option[FiniteDuration], body: String)
 
-/** Der eine HTTP-Aufruf des Adapters. Tests setzen eine Fälschung ein; der echte Transport ist JdkTransport. */
+/** Der eine HTTP-Aufruf eines Adapters. Tests setzen eine Fälschung ein; der echte Transport ist JdkTransport. */
 trait Transport[F[_]]:
   /** Left: keine Antwort (Verbindung, Zeitüberschreitung). */
   def post(body: String): F[Either[String, HttpReply]]
 
-/** java.net.http (Schritt 4: keine weitere Abhängigkeit). Der Schlüssel kommt aus der Umgebung, nie aus einer Datei. */
-final class JdkTransport[F[_]: Sync](endpoint: URI, apiKey: String, apiVersion: String, timeout: FiniteDuration) extends Transport[F]:
+/** java.net.http (Schritt 4: keine weitere Abhängigkeit). headers: was der Anbieter verlangt, bei Anthropic mit dem
+  * Schlüssel aus der Umgebung, nie aus einer Datei.
+  */
+final class JdkTransport[F[_]: Sync](endpoint: URI, headers: List[(String, String)], timeout: FiniteDuration) extends Transport[F]:
   private val client = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(30)).build()
 
   def post(body: String): F[Either[String, HttpReply]] =
     Sync[F].blocking {
-      val request = HttpRequest
+      val builder = HttpRequest
         .newBuilder(endpoint)
         .timeout(JDuration.ofMillis(timeout.toMillis))
         .header("content-type", "application/json")
-        .header("x-api-key", apiKey)
-        .header("anthropic-version", apiVersion)
-        .POST(HttpRequest.BodyPublishers.ofString(body, UTF_8))
-        .build()
+      headers.foreach((k, v) => builder.header(k, v))
+      val request = builder.POST(HttpRequest.BodyPublishers.ofString(body, UTF_8)).build()
       try
         val r = client.send(request, HttpResponse.BodyHandlers.ofString(UTF_8))
         val retryAfter = Option(r.headers().firstValue("retry-after").orElse(null)).flatMap(_.trim.toIntOption).map(_.seconds)
@@ -40,9 +40,16 @@ final class JdkTransport[F[_]: Sync](endpoint: URI, apiKey: String, apiVersion: 
     }
 
 object JdkTransport:
-  /** Der Schlüssel aus ANTHROPIC_API_KEY; fehlt er, ein typisierter Fehler. */
-  def fromEnv[F[_]: Sync](config: ModelConfig): F[Either[ModelError, Transport[F]]] =
-    Sync[F].delay(sys.env.get(config.apiKeyEnv).filter(_.nonEmpty)).map {
-      case None      => Left(ModelError.MissingApiKey(config.apiKeyEnv))
-      case Some(key) => Right(JdkTransport[F](URI.create(config.endpoint), key, config.apiVersion, config.requestTimeout))
-    }
+  /** Transport für den Anbieter der Konfiguration. Anthropic: Schlüssel aus config.apiKeyEnv, fehlt er, ein
+    * typisierter Fehler. Ollama: lokal, ohne Schlüssel.
+    */
+  def open[F[_]: Sync](config: ModelConfig): F[Either[ModelError, Transport[F]]] =
+    config.provider match
+      case Provider.Ollama =>
+        Sync[F].pure(Right(JdkTransport[F](URI.create(config.endpoint), Nil, config.requestTimeout)))
+      case Provider.Anthropic =>
+        Sync[F].delay(sys.env.get(config.apiKeyEnv).filter(_.nonEmpty)).map {
+          case None => Left(ModelError.MissingApiKey(config.apiKeyEnv))
+          case Some(key) =>
+            Right(JdkTransport[F](URI.create(config.endpoint), List("x-api-key" -> key, "anthropic-version" -> config.apiVersion), config.requestTimeout))
+        }

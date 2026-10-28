@@ -359,6 +359,14 @@ interpreters:
     decided_by: ["D#10", "D#44"]
     tested_by: [ase.model.AnthropicSuite, ase.runner.Eval1Suite]
     note: "PlanModel und FillModel; Messages.scala (Anfrage, Antwort), Prompt.scala (System-Prompt, Plan, Fill), Transport.scala (java.net.http)"
+  - id: adapter.ollama
+    type: adapter
+    status: implemented
+    source: model/src/main/scala/ase/model/Ollama.scala#Ollama
+    verified: 2026-10-28
+    decided_by: ["D#47"]
+    tested_by: [ase.model.OllamaSuite]
+    note: "/api/chat mit format = Term-Schema; CallingAdapter teilt Prompts und Wiederholung mit Anthropic"
   - id: runner.planner
     type: runner
     status: implemented
@@ -502,6 +510,7 @@ decisions:
   - { id: "D#44", type: decision, status: decided, source: "findings.md#D#44", verified: 2026-10-28, title: "Modelladapter: ein Aufruf pro Anfrage, Fehlversuch vs. ModelUnavailable, effort high", tested_by: [ase.model.AnthropicSuite] }
   - { id: "D#45", type: decision, status: decided, source: "findings.md#D#45", verified: 2026-10-28, title: "Zweiphasiges CLI mit Plan-Datei", tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite] }
   - { id: "D#46", type: decision, status: decided, source: "findings.md#D#46", verified: 2026-10-28, title: "Runner-Konfiguration als JSON, Skripte konfigurierbar", tested_by: [ase.runner.RunnerSuite] }
+  - { id: "D#47", type: decision, status: decided, source: "findings.md#D#47", verified: 2026-10-28, title: "Ollama als zweiter Anbieter für Entwicklungsläufe", tested_by: [ase.model.OllamaSuite, ase.runner.RunnerSuite] }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }

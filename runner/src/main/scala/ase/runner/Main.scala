@@ -127,8 +127,8 @@ object Main extends IOApp:
   private def planTask(task: Path, root: Envelope, config: RunnerConfig): IO[Option[(CheckedTerm, Planned, String)]] =
     for
       text <- read(task)
-      transport <- JdkTransport.fromEnv[IO](config.model).flatMap(e => IO.fromEither(e.leftMap(ModelUnavailable(_))))
-      model = Anthropic[IO](transport, config.model, config.check)
+      transport <- JdkTransport.open[IO](config.model).flatMap(e => IO.fromEither(e.leftMap(ModelUnavailable(_))))
+      model = ModelAdapter[IO](transport, config.model, config.check)
       planned <- Planner.run[IO](model, text, root, config.check, config.planRounds)
       _ <- IO.println(planned.log.mkString("\n"))
       _ <- IO.println(s"plan      ${planned.calls} Modellaufrufe · ${planned.rejections} Ablehnungen an Tor 1 · ${planned.tokens} Tokens")
@@ -179,13 +179,13 @@ object Main extends IOApp:
   private def runApproved(approved: ApprovedTerm, file: PlanFile, cmd: Command.Run, config: RunnerConfig): IO[ExitCode] =
     val record = cmd.record.getOrElse(Path.of("record", LocalDateTime.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss")) + ".log"))
     for
-      transport <- JdkTransport.fromEnv[IO](config.model)
+      transport <- JdkTransport.open[IO](config.model)
       // ohne Schlüssel läuft ein Term ohne Löcher trotzdem; ein Fill endet dann mit dem Fehler
-      model = transport.fold[FillModel[IO]](e => _ => IO.raiseError(ModelUnavailable(e)), t => Anthropic[IO](t, config.model, config.check))
+      model = transport.fold[FillModel[IO]](e => _ => IO.raiseError(ModelUnavailable(e)), t => ModelAdapter[IO](t, config.model, config.check))
       ask = if cmd.noAsk then AskHandler.nonInteractive[IO] else interactiveAsk
       _ <- IO.println(s"approved  ${approved.termHash.short}  → $record\n")
       result <- Execute.local[IO](approved, cmd.workspace, model, ask, config.exec, Some(record)).flatMap(e => orFail(e.leftMap(_.message)))
-      _ <- IO.println(RunLog.render(result.events, RunLog.Footer(file.rejections, Some(record.toString), file.calls)))
+      _ <- IO.println(RunLog.render(result.events, RunLog.Footer(file.rejections, Some(record.toString), file.calls, file.tokens)))
       _ <- cmd.summary.traverse_(p => IO.blocking(Files.writeString(p, Summary.of(file, approved, result).spaces2 + "\n", UTF_8)))
     yield result.outcome match
       case Outcome.Done       => ExitCode.Success
