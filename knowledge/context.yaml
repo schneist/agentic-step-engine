@@ -552,6 +552,7 @@ open:
   - { id: "O#22", type: open, status: open, source: "findings.md#O#22", verified: 2026-10-28, title: "Argument-Policies nicht in der Runner-Konfiguration" }
   - { id: "O#23", type: open, status: open, source: "findings.md#O#23", verified: 2026-10-28, title: "Plan-Kennzahlen ohne Lauf nicht abgelegt" }
   - { id: "O#24", type: open, status: open, source: "findings.md#O#24", verified: 2026-10-28, title: "Fill sieht eigene Schritte nicht; Schreib-Loch braucht weiten pathPrefix für Sicht" }
+  - { id: "O#25", type: open, status: open, source: "findings.md#O#25", verified: 2026-10-28, title: "Vorschlag Mehrrunden-Fill (zu O#24 a), Entscheidung offen" }
 
 evals:
   - id: eval.1
