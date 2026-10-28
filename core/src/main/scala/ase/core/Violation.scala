@@ -33,6 +33,8 @@ enum Violation:
   def loc: Location
 
   def message: String = this match
+    case OpNotAllowed(_, OpKind.Hole, allowed) =>
+      s"Hole ist hier nicht erlaubt; erlaubt sind: ${Violation.ops(allowed)}. ${Violation.holeHint}"
     case OpNotAllowed(_, op, allowed) =>
       s"$op ist hier nicht erlaubt; erlaubt sind: ${Violation.ops(allowed)}."
     case InvalidPath(_, path, reason) =>
@@ -71,5 +73,11 @@ enum Violation:
   def render: String = s"${loc.show}: $message"
 
 object Violation:
+  /** Ein verbotenes Loch heißt meist: Der Term wollte verarbeiten, was er selbst erst liest (O#24, D#51). */
+  val holeHint: String =
+    "Diese Hülle lässt keine weiteren Löcher zu. Ein Term sieht die Ergebnisse seiner eigenen Schritte nicht; " +
+      "was er erst liest, kann er nicht mehr verarbeiten. Arbeite mit den Ergebnissen, die du schon siehst, " +
+      "und nenne in Done, was fehlt."
+
   private def ops(s: Set[OpKind]): String =
     if s.isEmpty then "nichts" else s.toList.sortBy(_.ordinal).mkString(", ")

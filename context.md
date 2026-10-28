@@ -295,6 +295,10 @@ Denken hilft einem kleinen Modell, ist auf der CPU aber zu langsam für Entwickl
 
 Ollama kennt drei Fälle: Modelle ohne Denken, die das Feld nicht kennen, und hybride Modelle, die ohne Angabe denken. Ein Wahrheitswert mit false als Standard kann das Denken eines hybriden Modells nicht abschalten, weil false dasselbe hieße wie nichts senden. Erst ein fehlender Wert neben true und false trennt "Standard des Modells" von "aus".
 
+### Warum der Prompt das Lesen vor dem Loch verlangt (D#51)
+
+Dass ein Term die Ergebnisse seiner eigenen Schritte nicht sieht, folgt aus D#5, steht im Prompt aber nur für den Plan. Ein Modell, das im Fill liest und dann verarbeiten will, greift zum einzigen Mittel, das die Sprache dafür hat: einem weiteren Loch. In einer Hülle ohne Löcher scheitert das, und die knappe Ablehnung sagte nicht, warum. Ein Modell, das den Grund nicht kennt, wiederholt den Fehler bis zum Versuchslimit. Den Grund dort zu nennen, wo der Fehler entsteht, ist billiger als drei verlorene Versuche. Weil M#1 noch nicht gelaufen ist, wird diese Fassung die Basis.
+
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 
 Was nicht erlaubt ist, ist unendlich. Für den Menschen beruhigend ist aber die Zeile „git push ist nicht dabei“. Welche Befehle für ihn wichtig sind, weiß die Engine nicht; das steht deshalb in der Konfiguration. Steht ein solcher Befehl doch in der Allowlist, ist das eine Warnung wert.

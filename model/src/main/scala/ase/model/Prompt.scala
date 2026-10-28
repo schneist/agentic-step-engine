@@ -46,6 +46,9 @@ object Prompt:
        |umschließenden Seqs, aber nur, wenn deren Pfade unter seinem pathPrefix liegen. Ein Shell-Aufruf ohne
        |Pfadargument zählt dabei als "."; immer sichtbar sind Exit-Codes, Done-Texte früherer Löcher, Ausgaben von
        |Programmen, die Code aus dem Arbeitsverzeichnis ausführen, und ${show(check.pathless)}.
+       |Das gilt auch für den Teilterm eines Lochs: Er sieht die Ergebnisse seiner eigenen Schritte nicht. Was ein Loch
+       |verarbeiten soll, etwa Dateiinhalte oder Treffer von grep, liest der Plan vor dem Loch; das Loch arbeitet dann
+       |mit dem, was es sieht.
        |
        |# Hüllen
        |Envelope(allowedOps, pathPrefix, maxSteps, maxDepth, shellAllowlist). allowedOps aus ReadFile, ListDir,
@@ -120,7 +123,8 @@ object Prompt:
        |# Ergebnisse früherer Schritte, die dieses Loch sieht
        |$scope${errors(r.errors)}
        |
-       |Liefere den Teilterm für dieses Loch, innerhalb seiner Hülle. Beende ihn mit Done; die Zusammenfassung ist das
+       |Liefere den Teilterm für dieses Loch, innerhalb seiner Hülle. Die Ergebnisse seiner eigenen Schritte siehst du
+       |nicht; arbeite mit denen oben. Beende ihn mit Done; die Zusammenfassung ist das
        |Ergebnis des Lochs, das spätere Schritte und der Mensch sehen. Liegt etwas Nötiges außerhalb der Hülle, ändere
        |es nicht, sondern nenne es in der Zusammenfassung.
        |

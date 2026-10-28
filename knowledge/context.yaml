@@ -514,6 +514,7 @@ decisions:
   - { id: "D#48", type: decision, status: decided, source: "findings.md#D#48", verified: 2026-10-28, title: "Lokale Modelle denken vor dem Schema; kleineres Schema", tested_by: [ase.model.OllamaSuite, ase.runner.RunnerSuite] }
   - { id: "D#49", type: decision, status: decided, source: "findings.md#D#49", verified: 2026-10-28, title: "Lösungsbeispiel im System-Prompt, nur für Ollama", tested_by: [ase.model.OllamaSuite] }
   - { id: "D#50", type: decision, status: decided, source: "findings.md#D#50", verified: 2026-10-28, title: "think dreiwertig; qwen3:8b ohne Denken für Entwicklungsläufe", tested_by: [ase.model.OllamaSuite, ase.runner.RunnerSuite] }
+  - { id: "D#51", type: decision, status: decided, source: "findings.md#D#51", verified: 2026-10-28, title: "Lesen vor dem Loch: Prompt und Ablehnung bei verbotenem Hole", tested_by: [ase.core.CodecSuite, ase.model.AnthropicSuite] }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }

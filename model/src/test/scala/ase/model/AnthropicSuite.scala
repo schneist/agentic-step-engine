@@ -87,6 +87,10 @@ class AnthropicSuite extends munit.FunSuite:
     assert(text.contains("Verbleibende Schritte: 2"))
     assert(text.contains("src/a.scala:3: // TODO x"))
     assert(text.contains("abgelehnt: y"))
+    assert(text.contains("Die Ergebnisse seiner eigenen Schritte siehst du\nnicht"), text)
+
+  test("System-Prompt: ein Loch verarbeitet, was der Plan vor ihm liest (D#51)"):
+    assert(Prompt.system(check).contains("liest der Plan vor dem Loch"))
 
   test("System-Prompt nennt jede Argument-Policy"):
     val s = Prompt.system(check)

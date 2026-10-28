@@ -22,6 +22,7 @@ enum DecodeError:
     case MissingField(loc, f)      => s"${loc.show}: Feld „$f“ fehlt."
     case UnknownField(loc, f)      => s"${loc.show}: Feld „$f“ ist nicht vorgesehen."
     case UnknownType(loc, n)       => s"${loc.show}: unbekannter Typ „$n“."
+    case OpNotAllowed(loc, OpKind.Hole) => s"${loc.show}: Hole ist in dieser Hülle nicht erlaubt. ${Violation.holeHint}"
     case OpNotAllowed(loc, op)     => s"${loc.show}: $op ist in dieser Hülle nicht erlaubt."
     case TooDeep(loc)              => s"${loc.show}: zu tief verschachtelt; flache die Struktur ab."
     case OriginNotAllowed(loc)     => s"${loc.show}: origin setzt die Engine, nicht das Modell."

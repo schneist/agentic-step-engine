@@ -13,6 +13,13 @@ class CodecSuite extends munit.FunSuite:
     val result = decode(json("""{"type":"EditFile","path":"src/A.scala","expectedOld":"a","replacement":"b"}"""))
     assertEquals(result, Left(DecodeError.OpNotAllowed(Location.root, OpKind.EditFile)))
 
+  test("verbotenes Loch: Decoder und Tor sagen, warum und was stattdessen (D#51)"):
+    val decode = Codec.decoderFor(readOnly, 5, fill)
+    val result = decode(json("""{"type":"Hole","goal":"x","envelope":{"allowedOps":["ReadFile"],"pathPrefix":"src","maxSteps":1,"maxDepth":0,"shellAllowlist":[]}}"""))
+    assert(result.left.exists(_.message.contains(Violation.holeHint)), result)
+    val v = Violation.OpNotAllowed(Location.root, OpKind.Hole, Set(OpKind.ReadFile))
+    assert(v.message.startsWith("Hole ist hier nicht erlaubt; erlaubt sind: ReadFile.") && v.message.contains(Violation.holeHint), v.message)
+
   test("decoderFor stempelt origin"):
     val decode = Codec.decoderFor(readOnly, 5, fill)
     assertEquals(decode(json("""{"type":"ReadFile","path":"src/A.scala"}""")), Right(Term.ReadFile("src/A.scala", fill)))
