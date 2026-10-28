@@ -557,6 +557,7 @@ open:
   - { id: "O#24", type: open, status: open, source: "findings.md#O#24", verified: 2026-10-28, title: "Fill sieht eigene Schritte nicht; Schreib-Loch braucht weiten pathPrefix für Sicht" }
   - { id: "O#25", type: open, status: resolved, source: "findings.md#O#25", verified: 2026-10-28, resolved_by: "D#55" }
   - { id: "O#26", type: open, status: resolved, source: "findings.md#O#26", verified: 2026-10-28, resolved_by: "D#56" }
+  - { id: "O#27", type: open, status: open, source: "findings.md#O#27", verified: 2026-10-28, title: "Loch 6 im red-test-Flow: maxSteps 1 gegen Done" }
 
 evals:
   - id: eval.1
