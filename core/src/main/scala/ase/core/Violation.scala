@@ -29,6 +29,8 @@ enum Violation:
   case NestingTooDeep(loc: Location, nesting: Int, limit: Int)
   case PredicateNeverTrue(loc: Location, pred: Pred)
   case InvalidRepeat(loc: Location, max: Int)
+  /** Ein Fill, der im schlechtesten Fall keinen Schritt ausführt (D#56). */
+  case EmptyFill(loc: Location)
 
   def loc: Location
 
@@ -69,6 +71,8 @@ enum Violation:
       s"Bedingung „${Pred.show(pred)}“ kann hier nie wahr werden: der Schritt davor liefert kein passendes Ergebnis."
     case InvalidRepeat(_, max) =>
       s"RepeatUntil braucht max ≥ 1, nicht $max."
+    case EmptyFill(_) =>
+      "Der Teilterm tut nichts. Liefere Schritte, oder beende mit Done und nenne darin den Grund."
 
   def render: String = s"${loc.show}: $message"
 

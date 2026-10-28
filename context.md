@@ -316,6 +316,10 @@ Das lokale Modell war entweder zu langsam (mit Denken) oder zu schwach (ohne), u
 
 Der statische Term (D#5) hat einen Preis, den die Probeläufe und das Review offengelegt haben: Ein Loch kann nicht lesen und dann mit dem Gelesenen handeln. Für Pläne lässt sich das umgehen, indem der Plan vor dem Loch liest. Für generische Flows nicht: Welche Datei die Ursache eines roten Tests enthält, weiß der Flow nicht, und ein Compare-and-Swap verlangt den genauen alten Text. Eine Runde mehr im selben Loch löst das, ohne die Sprache zu ändern. Die Freigabe bleibt, was sie war: Der Mensch sieht die Hülle jedes Lochs, und alle Runden zusammen bleiben darin und in seinem Budget. Was sich ändert, sind nur die Modellaufrufe, und die sind gedeckelt.
 
+### Warum ein leerer Fill ein Fehlversuch ist (D#56)
+
+Ein Loch hat ein Ziel. Ein Teilterm ohne einen einzigen Schritt erreicht es nicht und sagt auch nicht, warum; mit D#55 löst er nicht einmal eine weitere Runde aus. Ohne Ablehnung endet das Loch still, und der Fehler zeigt sich erst am fehlenden Ergebnis. Als Fehlversuch bekommt das Modell eine Anweisung und kann es besser machen; will es wirklich nichts tun, sagt es das in Done, und der Mensch liest den Grund als Hinweis des Agenten.
+
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 
 Was nicht erlaubt ist, ist unendlich. Für den Menschen beruhigend ist aber die Zeile „git push ist nicht dabei“. Welche Befehle für ihn wichtig sind, weiß die Engine nicht; das steht deshalb in der Konfiguration. Steht ein solcher Befehl doch in der Allowlist, ist das eine Warnung wert.

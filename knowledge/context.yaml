@@ -528,6 +528,7 @@ decisions:
   - { id: "D#53", type: decision, status: decided, source: "findings.md#D#53", verified: 2026-10-28, title: "Lesen vor dem Loch: Regel nach vorn, Plan- und Fill-Prompt, holeHint", tested_by: [ase.model.AnthropicSuite, ase.core.CodecSuite] }
   - { id: "D#54", type: decision, status: decided, source: "findings.md#D#54", verified: 2026-10-28, title: "Dritter Anbieter agy (Antigravity-CLI) für Entwicklungsläufe", tested_by: [ase.model.AgySuite, ase.runner.RunnerSuite] }
   - { id: "D#55", type: decision, status: decided, source: "findings.md#D#55", verified: 2026-10-28, title: "Mehrrunden-Fill im Loch", tested_by: [ase.core.EngineSuite, ase.model.AnthropicSuite, ase.core.AlgebraSuite] }
+  - { id: "D#56", type: decision, status: decided, source: "findings.md#D#56", verified: 2026-10-28, title: "Leerer Fill ist ein Fehlversuch (Tor 2)", tested_by: [ase.core.EngineSuite, ase.core.LawsSuite] }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }
@@ -555,7 +556,7 @@ open:
   - { id: "O#23", type: open, status: open, source: "findings.md#O#23", verified: 2026-10-28, title: "Plan-Kennzahlen ohne Lauf nicht abgelegt" }
   - { id: "O#24", type: open, status: open, source: "findings.md#O#24", verified: 2026-10-28, title: "Fill sieht eigene Schritte nicht; Schreib-Loch braucht weiten pathPrefix für Sicht" }
   - { id: "O#25", type: open, status: resolved, source: "findings.md#O#25", verified: 2026-10-28, resolved_by: "D#55" }
-  - { id: "O#26", type: open, status: open, source: "findings.md#O#26", verified: 2026-10-28, title: "Leerer Fill ohne Done besteht Tor 2" }
+  - { id: "O#26", type: open, status: resolved, source: "findings.md#O#26", verified: 2026-10-28, resolved_by: "D#56" }
 
 evals:
   - id: eval.1

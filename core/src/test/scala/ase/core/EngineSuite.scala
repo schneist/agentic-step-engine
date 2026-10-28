@@ -197,9 +197,17 @@ class EngineSuite extends munit.ScalaCheckSuite:
     val one = run(t, _ => ModelReply.Answer(submission(Term.ReadFile("src/A.scala", fill)), 1), cfg = config.copy(maxRoundsPerHole = 1))._3
     assertEquals(one.stats.modelCalls, 1)
 
-  test("D#55: keine weitere Runde ohne Schritt oder ohne Restbudget"):
-    val empty = rounds(1 -> Term.Seq(Nil, fill))
-    assertEquals(run(holeTerm(Term.Hole("nichts", src, h)), empty)._3.stats.modelCalls, 1)
+  test("D#56: ein leerer Fill ist ein Fehlversuch mit Handlungsanweisung, nicht das stumme Ende des Lochs"):
+    var requests = Vector.empty[FillRequest]
+    val model = script(("1", 1, Term.Seq(Nil, fill)), ("1", 2, Term.Done("nichts zu tun, weil x", fill)))
+    val (_, _, r) = run(holeTerm(Term.Hole("nichts", src, h)), req => { requests :+= req; model(req) })
+    assertEquals(r.outcome, Outcome.Done)
+    assertEquals(r.events.collect { case e: Event.FillRejected => e.gate }, Vector(Gate.DryRun))
+    assert(requests(1).errors.head.contains("Der Teilterm tut nichts"), requests(1).errors)
+    assertEquals(r.stats.hints, List(StepId(Vector(1)) -> "nichts zu tun, weil x"))
+    assert(DryRun.fill(Term.If(Pred.LastOutputEmpty, Term.Seq(Nil, fill), Term.Seq(Nil, fill), fill), src, check).isLeft)
+
+  test("D#55: keine weitere Runde ohne Restbudget"):
     val tight = holeTerm(Term.Hole("lies", src.copy(maxSteps = 1), h))
     val (_, _, r) = run(tight, rounds(1 -> Term.ReadFile("src/A.scala", fill)))
     assertEquals((r.outcome, r.stats.modelCalls), (Outcome.Done, 1))

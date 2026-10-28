@@ -53,8 +53,12 @@ object CoreLaws extends Laws:
     "gültiger Plan wird angenommen" -> forAll(Gens.validPlan) { (env, t) =>
       DryRun.plan(t, env, CheckConfig.default).isRight
     },
-    "gültiger Fill wird angenommen" -> forAll(Gens.holeEnvelope) { hole =>
-      forAll(Gens.validTerm(hole, hole.maxSteps, 3, Origin.Model("fill-1")))(t => DryRun.fill(t, hole, CheckConfig.default).isRight)
+    "gültiger Fill wird angenommen, ein leerer abgelehnt (D#56)" -> forAll(Gens.holeEnvelope) { hole =>
+      forAll(Gens.validTerm(hole, hole.maxSteps, 3, Origin.Model("fill-1"))) { t =>
+        val r = DryRun.fill(t, hole, CheckConfig.default)
+        if Cost.of(t).worstCaseSteps == 0 then r.left.exists(_.exists { case _: Violation.EmptyFill => true; case _ => false })
+        else r.isRight
+      }
     },
     "jeder Ausbruchsversuch wird mit dem passenden Verstoß abgelehnt" -> forAll(Gens.holeEnvelope) { hole =>
       forAll(AdversarialFill.gen(hole)) { (attack, t) =>
