@@ -299,6 +299,14 @@ Ollama kennt drei Fälle: Modelle ohne Denken, die das Feld nicht kennen, und hy
 
 Dass ein Term die Ergebnisse seiner eigenen Schritte nicht sieht, folgt aus D#5, steht im Prompt aber nur für den Plan. Ein Modell, das im Fill liest und dann verarbeiten will, greift zum einzigen Mittel, das die Sprache dafür hat: einem weiteren Loch. In einer Hülle ohne Löcher scheitert das, und die knappe Ablehnung sagte nicht, warum. Ein Modell, das den Grund nicht kennt, wiederholt den Fehler bis zum Versuchslimit. Den Grund dort zu nennen, wo der Fehler entsteht, ist billiger als drei verlorene Versuche. Weil M#1 noch nicht gelaufen ist, wird diese Fassung die Basis.
 
+### Warum requiredPrefixArgs nur Unterbefehle trägt (D#52)
+
+Drei Dinge begrenzen einen Befehl: der Unterbefehl (git status statt git), die Argument-Policy (welche Flags) und der pathPrefix (welche Pfade). Wenn requiredPrefixArgs auch Flags oder Pfade trägt, überlagern sich zwei dieser Mechanismen, und es entstehen Hüllen, die formal enger, aber unbrauchbar sind: Ein Loch, das nur „grep --include=*.java“ darf, scheitert mit jedem gewöhnlichen grep. Tor 1 soll unlösbare Löcher ablehnen, solange der Plan noch korrigierbar ist, statt drei Fill-Versuche zu verlieren.
+
+### Warum die Regel vor dem Loch am Anfang steht (D#53)
+
+Ein Modell liest die Grundregel eines Abschnitts eher als die Ausnahmen danach. In D#51 stand der Satz hinter den Sonderregeln zum Sichtbereich, und der Plan-Prompt, also die Stelle, an der der Plan entsteht, blieb unverändert. Jetzt steht die Regel als erster Gedanke des Abschnitts und noch einmal dort, wo der Plan geschrieben wird. Der Hinweis auf die leer angelegte Zieldatei kommt aus beiden Probeläufen: Ein statisches WriteFile nach dem Loch scheitert, sobald das Loch die Datei schon geschrieben hat.
+
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 
 Was nicht erlaubt ist, ist unendlich. Für den Menschen beruhigend ist aber die Zeile „git push ist nicht dabei“. Welche Befehle für ihn wichtig sind, weiß die Engine nicht; das steht deshalb in der Konfiguration. Steht ein solcher Befehl doch in der Allowlist, ist das eine Warnung wert.

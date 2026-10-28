@@ -73,11 +73,11 @@ enum Violation:
   def render: String = s"${loc.show}: $message"
 
 object Violation:
-  /** Ein verbotenes Loch heißt meist: Der Term wollte verarbeiten, was er selbst erst liest (O#24, D#51). */
+  /** Ein verbotenes Loch heißt meist: Der Term wollte verarbeiten, was er selbst erst liest (O#24, D#51, D#53). */
   val holeHint: String =
-    "Diese Hülle lässt keine weiteren Löcher zu. Ein Term sieht die Ergebnisse seiner eigenen Schritte nicht; " +
-      "was er erst liest, kann er nicht mehr verarbeiten. Arbeite mit den Ergebnissen, die du schon siehst, " +
-      "und nenne in Done, was fehlt."
+    "Ein Term sieht die Ergebnisse seiner eigenen Schritte nicht; ohne Loch kann er Gelesenes nicht mehr " +
+      "verarbeiten. Lass solche Lese- und Suchschritte weg, arbeite nur mit Ergebnissen, die schon vorliegen, " +
+      "und nenne in Done, was fehlt; schreibe nichts blind."
 
   private def ops(s: Set[OpKind]): String =
     if s.isEmpty then "nichts" else s.toList.sortBy(_.ordinal).mkString(", ")

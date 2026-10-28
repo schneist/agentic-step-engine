@@ -39,10 +39,13 @@ object Attenuation:
   def wellFormed(e: Envelope, loc: Location, config: CheckConfig = CheckConfig.default): List[Violation] =
     val root = RelPath.parse(e.pathPrefix).exists(_.isEmpty)
     val unusable = e.shellAllowlist.toList.sortBy(_.show).flatMap { c =>
-      val policies = config.argPolicies.filter(p =>
-        p.binary == c.binary && (p.prefixArgs.startsWith(c.requiredPrefixArgs) || c.requiredPrefixArgs.startsWith(p.prefixArgs))
-      )
-      if policies.isEmpty then Some(s"„${c.show}“ hat keine Argument-Policy")
+      val sameBinary = config.argPolicies.filter(_.binary == c.binary)
+      // requiredPrefixArgs legt nur den Unterbefehl fest; Flags regelt die Argument-Policy, Pfade der pathPrefix (D#52)
+      val policies = sameBinary.filter(_.prefixArgs.startsWith(c.requiredPrefixArgs))
+      if sameBinary.isEmpty then Some(s"„${c.show}“ hat keine Argument-Policy")
+      else if policies.isEmpty then
+        val commands = sameBinary.map(p => (p.binary :: p.prefixArgs).mkString(" ")).distinct.sorted.mkString(", ")
+        Some(s"„${c.show}“: requiredPrefixArgs legt nur einen Unterbefehl fest, keine Flags, Muster oder Pfade; möglich ist: $commands")
       else if !root && policies.forall(_.positional == Positional.NoArgs) then
         Some(s"„${c.show}“ nimmt keine Pfade und berührt damit das ganze Arbeitsverzeichnis, nicht nur ${e.pathPrefix}")
       else None

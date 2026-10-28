@@ -87,10 +87,14 @@ class AnthropicSuite extends munit.FunSuite:
     assert(text.contains("Verbleibende Schritte: 2"))
     assert(text.contains("src/a.scala:3: // TODO x"))
     assert(text.contains("abgelehnt: y"))
-    assert(text.contains("Die Ergebnisse seiner eigenen Schritte siehst du\nnicht"), text)
+    assert(text.contains("was deine eigenen Schritte lesen, siehst du nicht"), text)
+    assert(text.contains("schreibe nichts blind"), text)
 
-  test("System-Prompt: ein Loch verarbeitet, was der Plan vor ihm liest (D#51)"):
-    assert(Prompt.system(check).contains("liest der Plan vor dem Loch"))
+  test("Lesen vor dem Loch: System- und Plan-Prompt (D#51, D#53)"):
+    assert(Prompt.system(check).contains("stehen deshalb nie im selben Term"))
+    val plan = Prompt.plan(PlanRequest("plan-1", 1, "x", Envelope(Set(OpKind.Hole), ".", 5, 1, Set.empty), 5, Vector.empty))
+    assert(plan.contains("stehen vor dem Loch, das ihr Ergebnis\nverarbeitet"), plan)
+    assert(plan.contains("WriteFile überschreibt nie"), plan)
 
   test("System-Prompt nennt jede Argument-Policy"):
     val s = Prompt.system(check)

@@ -111,6 +111,15 @@ class ReviewRegressionSuite extends munit.FunSuite:
     assert(!illFormed(Envelope(Set(OpKind.Shell), ".", 3, 0, Set(AllowedCommand("sbt", List("test"))))))
     assert(!illFormed(Envelope(Set(OpKind.Shell), "src", 3, 0, Set(AllowedCommand("grep", Nil), AllowedCommand("git", Nil)))))
 
+  test("D#52: requiredPrefixArgs nur bis zum Unterbefehl; Flags, Muster oder Pfade darin machen das Loch unlösbar"):
+    def reasons(c: AllowedCommand) = Attenuation.wellFormed(Envelope(Set(OpKind.Shell), ".", 3, 0, Set(c)), Location.root, TestSupport.config)
+    assert(reasons(AllowedCommand("git", List("log"))).isEmpty)
+    assert(reasons(AllowedCommand("git", Nil)).isEmpty)
+    assert(reasons(AllowedCommand("git", List("log", "--oneline"))).nonEmpty)
+    assert(reasons(AllowedCommand("grep", List("TODO", "src"))).nonEmpty)
+    val r = reasons(AllowedCommand("grep", List("--include=*.java", "--include=*.scala"))).map(_.message)
+    assert(r.exists(m => m.contains("nur einen Unterbefehl") && m.contains("möglich ist: grep")), r)
+
   // N1: einsame Surrogate kollidieren im termHash
   test("N1: einsame Surrogate werden beim Decodieren abgelehnt"):
     val json = parse("""{"type":"ReadFile","path":"a""" + "\\" + """ud800.txt"}""").fold(e => fail(e.message), identity)

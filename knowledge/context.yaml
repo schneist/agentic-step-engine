@@ -515,6 +515,8 @@ decisions:
   - { id: "D#49", type: decision, status: decided, source: "findings.md#D#49", verified: 2026-10-28, title: "Lösungsbeispiel im System-Prompt, nur für Ollama", tested_by: [ase.model.OllamaSuite] }
   - { id: "D#50", type: decision, status: decided, source: "findings.md#D#50", verified: 2026-10-28, title: "think dreiwertig; qwen3:8b ohne Denken für Entwicklungsläufe", tested_by: [ase.model.OllamaSuite, ase.runner.RunnerSuite] }
   - { id: "D#51", type: decision, status: decided, source: "findings.md#D#51", verified: 2026-10-28, title: "Lesen vor dem Loch: Prompt und Ablehnung bei verbotenem Hole", tested_by: [ase.core.CodecSuite, ase.model.AnthropicSuite] }
+  - { id: "D#52", type: decision, status: decided, source: "findings.md#D#52", verified: 2026-10-28, title: "requiredPrefixArgs nur bis zum Unterbefehl (Tor 1)", tested_by: [ase.core.ReviewRegressionSuite] }
+  - { id: "D#53", type: decision, status: decided, source: "findings.md#D#53", verified: 2026-10-28, title: "Lesen vor dem Loch: Regel nach vorn, Plan- und Fill-Prompt, holeHint", tested_by: [ase.model.AnthropicSuite, ase.core.CodecSuite] }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }

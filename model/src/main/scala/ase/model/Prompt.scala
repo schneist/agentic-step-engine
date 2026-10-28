@@ -40,15 +40,15 @@ object Prompt:
        |liefert einen Exit-Code. Ein Prädikat, das nie wahr werden kann (LastExitCode nach ReadFile), wird abgelehnt.
        |
        |# Der Term ist statisch
-       |Keine Variablen, keine Verweise auf Ergebnisse. Während du einen Term schreibst, siehst du die Ergebnisse
-       |seiner Schritte nicht. Brauchst du Inhalte, um zu entscheiden, setze die Schritte, die sie liefern, vor ein
-       |Loch: Beim Füllen sieht ein Loch die Ergebnisse der vorangegangenen Schritte seiner Seq und aller
-       |umschließenden Seqs, aber nur, wenn deren Pfade unter seinem pathPrefix liegen. Ein Shell-Aufruf ohne
-       |Pfadargument zählt dabei als "."; immer sichtbar sind Exit-Codes, Done-Texte früherer Löcher, Ausgaben von
-       |Programmen, die Code aus dem Arbeitsverzeichnis ausführen, und ${show(check.pathless)}.
-       |Das gilt auch für den Teilterm eines Lochs: Er sieht die Ergebnisse seiner eigenen Schritte nicht. Was ein Loch
-       |verarbeiten soll, etwa Dateiinhalte oder Treffer von grep, liest der Plan vor dem Loch; das Loch arbeitet dann
-       |mit dem, was es sieht.
+       |Keine Variablen, keine Verweise auf Ergebnisse. Während du einen Term schreibst, Plan oder Teilterm eines
+       |Lochs, siehst du die Ergebnisse seiner eigenen Schritte nicht. Lesen oder Suchen (ReadFile, ListDir, grep) und
+       |das Verarbeiten des Gelesenen (WriteFile, EditFile, Done) stehen deshalb nie im selben Term; dazwischen liegt
+       |ein Loch. Ein Loch ohne Unterlöcher (maxDepth 0) muss alles, was es verarbeiten soll, schon vor sich gelesen
+       |bekommen.
+       |Beim Füllen sieht ein Loch die Ergebnisse der vorangegangenen Schritte seiner Seq und aller umschließenden
+       |Seqs, aber nur, wenn deren Pfade unter seinem pathPrefix liegen. Ein Shell-Aufruf ohne Pfadargument zählt
+       |dabei als "."; immer sichtbar sind Exit-Codes, Done-Texte früherer Löcher, Ausgaben von Programmen, die Code
+       |aus dem Arbeitsverzeichnis ausführen, und ${show(check.pathless)}.
        |
        |# Hüllen
        |Envelope(allowedOps, pathPrefix, maxSteps, maxDepth, shellAllowlist). allowedOps aus ReadFile, ListDir,
@@ -104,7 +104,9 @@ object Prompt:
        |${envelopeJson(r.root)}
        |
        |Schreibe einen Term, der die Aufgabe löst. Setze feste Schritte, wo du sie schon kennst, und Löcher, wo erst
-       |Daten entscheiden. Ein Mensch gibt den Term einmal frei; danach läuft er ohne Rückfrage. Liegt die Aufgabe
+       |Daten entscheiden. Lese- und Suchschritte, die du schon kennst, stehen vor dem Loch, das ihr Ergebnis
+       |verarbeitet. Lege eine Datei, die ein Loch schreiben soll, nicht vorher leer an: WriteFile überschreibt nie.
+       |Ein Mensch gibt den Term einmal frei; danach läuft er ohne Rückfrage. Liegt die Aufgabe
        |außerhalb der Wurzel-Hülle, ändere nichts an ihr vorbei, sondern frage mit Ask.${errors(r.errors)}
        |
        |Rufe $toolName mit dem Term auf.""".stripMargin
@@ -123,8 +125,9 @@ object Prompt:
        |# Ergebnisse früherer Schritte, die dieses Loch sieht
        |$scope${errors(r.errors)}
        |
-       |Liefere den Teilterm für dieses Loch, innerhalb seiner Hülle. Die Ergebnisse seiner eigenen Schritte siehst du
-       |nicht; arbeite mit denen oben. Beende ihn mit Done; die Zusammenfassung ist das
+       |Liefere den Teilterm für dieses Loch, innerhalb seiner Hülle. Was du schreibst, muss aus den Ergebnissen oben
+       |stammen; was deine eigenen Schritte lesen, siehst du nicht. Fehlt oben etwas Nötiges, schreibe nichts blind,
+       |sondern nenne es in Done. Beende den Teilterm mit Done; die Zusammenfassung ist das
        |Ergebnis des Lochs, das spätere Schritte und der Mensch sehen. Liegt etwas Nötiges außerhalb der Hülle, ändere
        |es nicht, sondern nenne es in der Zusammenfassung.
        |
