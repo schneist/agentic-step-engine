@@ -101,7 +101,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Anbieter** (`provider`): Wer beim Plan und Fill antwortet: `anthropic` (Messages API) oder `ollama` (lokales Modell, D#47).
 - **Entwicklungslauf**: Ein Lauf mit einem lokalen Modell, um die Kette ohne Kosten zu üben; als Serie ein eigener M#-Eintrag mit Anbieter und Modell.
 - **Lösungsbeispiel**: Eine vollständig gelöste Beispielaufgabe (Plan und Fill) im System-Prompt des lokalen Modells; bewusst eine andere Aufgabe als die Evals (D#49).
-- **think** (Denken vor dem Schema): Ein lokales Modell überlegt erst frei und schreibt danach den Term im Schema; nur die Antwort wird ausgewertet (D#48).
+- **think** (Denken vor dem Schema): Ein lokales Modell überlegt erst frei und schreibt danach den Term im Schema; nur die Antwort wird ausgewertet (D#48). Fehlt der Wert, gilt der Standard des Modells; false schaltet das Denken hybrider Modelle ab (D#50).
 
 ## 8. Warum
 
@@ -290,6 +290,10 @@ Eine Ausgabe, die vom ersten Zeichen an im Schema stehen muss, lässt dem Modell
 ### Warum ein Lösungsbeispiel nur für das lokale Modell (D#49)
 
 Denken hilft einem kleinen Modell, ist auf der CPU aber zu langsam für Entwicklungsläufe. Ein Beispiel zeigt das Muster, das ein Plan braucht, ohne dass das Modell es herleiten muss: erst die Daten lesen, dann ein Loch, das sie sieht, keine Datei zweimal. Es löst bewusst eine andere Aufgabe als die Evals, sonst misst ein Lauf nur, ob das Modell abschreiben kann. Claude bekommt das Beispiel nicht: Jede Änderung an seinem Prompt bräuchte eine eigene Messung, und M#1 soll die Basis für den Prompt sein, wie er ist.
+
+### Warum think drei Werte hat (D#50)
+
+Ollama kennt drei Fälle: Modelle ohne Denken, die das Feld nicht kennen, und hybride Modelle, die ohne Angabe denken. Ein Wahrheitswert mit false als Standard kann das Denken eines hybriden Modells nicht abschalten, weil false dasselbe hieße wie nichts senden. Erst ein fehlender Wert neben true und false trennt "Standard des Modells" von "aus".
 
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 

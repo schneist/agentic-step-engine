@@ -54,7 +54,7 @@ object RunnerConfig:
       _ <- Either.cond(ModelConfig.efforts(effort), (), s"effort „$effort“ ist keiner von ${ModelConfig.efforts.toList.sorted.mkString(", ")}")
       maxTokens <- int(o, "maxTokens", d.maxTokens)
       contextTokens <- int(o, "contextTokens", d.contextTokens)
-      think <- o("think").fold(d.think.asRight[String])(_.asBoolean.toRight("think: erwartet true oder false"))
+      think <- o("think").fold(d.think.asRight[String])(_.asBoolean.map(Some(_)).toRight("think: erwartet true oder false"))
       endpoint <- str(o, "endpoint", d.endpoint)
     yield d.copy(model = name, effort = effort, maxTokens = maxTokens, contextTokens = contextTokens, think = think, endpoint = endpoint)
 

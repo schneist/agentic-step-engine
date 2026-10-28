@@ -53,9 +53,9 @@ object Ollama:
        |Später, beim Füllen des Lochs (VERSION enthielt 1.4.0):
        |${submission(exampleFill)}""".stripMargin
 
-  /** think nur, wenn eingeschaltet: Modelle ohne Denken kennen das Feld nicht. */
+  /** think nur, wenn gesetzt: Modelle ohne Denken kennen das Feld nicht; hybride denken ohne false (D#50). */
   def request(config: ModelConfig, system: String, nestingLimit: Int, user: String): Json =
-    val thinking = if config.think then Json.obj("think" -> Json.True) else Json.obj()
+    val thinking = config.think.fold(Json.obj())(t => Json.obj("think" -> Json.fromBoolean(t)))
     thinking deepMerge Json.obj(
       "model" -> Json.fromString(config.model),
       "stream" -> Json.False,

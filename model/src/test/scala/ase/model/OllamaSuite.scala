@@ -36,7 +36,8 @@ class OllamaSuite extends munit.FunSuite:
     assert(c.downField("messages").downN(0).downField("content").as[String].exists(_.startsWith("SYS")))
     assertEquals(c.downField("messages").downN(1).downField("content").as[String], Right("hallo"))
     assert(c.downField("think").focus.isEmpty)
-    assertEquals(Ollama.request(config.copy(think = true), "SYS", 4, "x").hcursor.downField("think").as[Boolean], Right(true))
+    assertEquals(Ollama.request(config.copy(think = Some(true)), "SYS", 4, "x").hcursor.downField("think").as[Boolean], Right(true))
+    assertEquals(Ollama.request(config.copy(think = Some(false)), "SYS", 4, "x").hcursor.downField("think").as[Boolean], Right(false))
 
   test("Antwort: Inhalt ist die Eingabe von submit_term; Tokens aus prompt_eval_count und eval_count"):
     Ollama.reply(chat(submission)) match
