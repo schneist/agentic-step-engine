@@ -568,6 +568,7 @@ open:
   - { id: "O#25", type: open, status: resolved, source: "findings.md#O#25", verified: 2026-10-28, resolved_by: "D#55" }
   - { id: "O#26", type: open, status: resolved, source: "findings.md#O#26", verified: 2026-10-28, resolved_by: "D#56" }
   - { id: "O#27", type: open, status: resolved, source: "findings.md#O#27", verified: 2026-10-28, resolved_by: "D#57" }
+  - { id: "O#28", type: open, status: open, source: "findings.md#O#28", verified: 2026-10-28, title: "Lochhüllen in Modellplänen weiter als nötig (EditFile unter .)" }
 
 evals:
   - id: eval.1
@@ -577,7 +578,7 @@ evals:
     verified: 2026-10-27
     title: todos
     note: Fixture kompiliert; check.sh gegen Lösung und Fehllösung geprüft
-    measurements: ["M#3"]
+    measurements: ["M#3", "M#4"]
   - id: eval.2
     type: eval
     status: implemented
@@ -613,7 +614,8 @@ evals:
     verified: 2026-10-27
     title: red-test (Integration, deterministisch und live)
     relates_to: [flows.red-test]
-    note: Fixture und check.sh fertig; Skript-Modell entsteht in Schritt 3
+    note: Fixture und check.sh fertig; Skript-Modell in Eval6Suite
+    measurements: ["M#5"]
   - id: eval.lib
     type: eval
     status: implemented
