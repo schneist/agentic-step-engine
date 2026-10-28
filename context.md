@@ -328,6 +328,10 @@ Der Fill-Prompt verlangt, ein Loch mit Done zu beenden, und seit D#55 löst ein 
 
 Die Basis soll Claude messen, und bis ein API-Schlüssel da ist, gibt es Claude nur über das Abo. Antworten von Hand einzutragen wäre zu mühsam, und eine Sitzung, die die Lösungen kennt, wäre als Modell wertlos. claude --print in einem leeren Verzeichnis kennt nichts als den Prompt. Anders als agy lässt es den eigenen System-Prompt ganz ersetzen, Werkzeuge und Einstellungen abschalten; was bleibt, ist der Weg über strukturierte Ausgabe statt über ein Werkzeug. Das reicht für eine gute Vorhersage der Basis, nicht für die Basis selbst.
 
+### Warum eine Antwort ohne Term ihren Text zeigt (D#59)
+
+Mit Gemini Flash scheiterten Eval 3 und 4 daran, dass agy mehrfach SUCCESS ohne Term meldete. Was stattdessen kam, wusste niemand: Der Adapter warf den Freitext weg, das Record-Log hatte nur die allgemeine Ablehnung, und das Modell bekam dieselbe Rückmeldung, egal was es falsch gemacht hatte. Ein Fehler, den man nicht sieht, lässt sich nicht beheben. Der Anfang des Texts in der Ablehnung macht ihn im Log sichtbar und gibt dem Modell eine Rückmeldung, die sich auf seine Antwort bezieht. Die Regel selbst ändert sich nicht: Ohne Term bleibt es ein Fehlversuch.
+
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 
 Was nicht erlaubt ist, ist unendlich. Für den Menschen beruhigend ist aber die Zeile „git push ist nicht dabei“. Welche Befehle für ihn wichtig sind, weiß die Engine nicht; das steht deshalb in der Konfiguration. Steht ein solcher Befehl doch in der Allowlist, ist das eine Warnung wert.

@@ -373,9 +373,9 @@ interpreters:
     status: implemented
     source: model/src/main/scala/ase/model/Agy.scala#Agy
     verified: 2026-10-28
-    decided_by: ["D#54"]
+    decided_by: ["D#54", "D#59"]
     tested_by: [ase.model.AgySuite]
-    note: "agy --print mit --json-schema, ein Prozess und ein leeres Verzeichnis pro Aufruf (AgyTransport); structured_output ist die Eingabe von submit_term"
+    note: "agy --print mit --json-schema, ein Prozess und ein leeres Verzeichnis pro Aufruf (AgyTransport); structured_output ist die Eingabe von submit_term; ohne structured_output nennt der Fehlversuch den Anfang von response (D#59). Konfigurationen evals/runner-agy.json (Flash) und evals/runner-agy-argon.json (Argon)"
   - id: adapter.claudeCode
     type: adapter
     status: implemented
@@ -539,6 +539,7 @@ decisions:
   - { id: "D#56", type: decision, status: decided, source: "findings.md#D#56", verified: 2026-10-28, title: "Leerer Fill ist ein Fehlversuch (Tor 2)", tested_by: [ase.core.EngineSuite, ase.core.LawsSuite] }
   - { id: "D#57", type: decision, status: decided, source: "findings.md#D#57", verified: 2026-10-28, title: "Bericht-Loch im red-test-Flow mit 2 Schritten", tested_by: [ase.core.FlowSuite, ase.core.ExplainSuite, ase.core.Eval6Suite] }
   - { id: "D#58", type: decision, status: decided, source: "findings.md#D#58", verified: 2026-10-28, title: "Vierter Anbieter claudecode (claude --print, Abo)", tested_by: [ase.model.ClaudeCodeSuite, ase.model.AgySuite] }
+  - { id: "D#59", type: decision, status: decided, source: "findings.md#D#59", verified: 2026-10-28, title: "agy: Fehlversuch ohne Term nennt den Anfang des Freitexts", tested_by: [ase.model.AgySuite] }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }

@@ -33,6 +33,14 @@ object Agy:
     "schema" -> Schema.termSchema(nestingLimit)
   )
 
+  /** Ein Fehlversuch ohne structured_output nennt den Anfang des Freitexts (response), damit Record-Log und Modell sehen,
+    * was statt des Terms kam.
+    */
+  private[model] def noSchema(response: String): String =
+    val text = response.trim.replaceAll("\\s+", " ")
+    val quoted = if text.isEmpty then "" else s" Deine Antwort begann mit: „${text.take(300)}${if text.length > 300 then "…" else ""}“"
+    s"Keine Antwort im Schema; antworte mit der Eingabe von $toolName.$quoted"
+
   /** Ausgabe von agy --output-format json. status SUCCESS mit structured_output: eine Antwort; ohne: ein Fehlversuch.
     * Jeder andere status (Anmeldung, Kontingent) ist kein Fehler des Modells und endet als ModelUnavailable.
     */
@@ -48,7 +56,7 @@ object Agy:
           case Some("SUCCESS") =>
             Right(o("structured_output").filterNot(_.isNull) match
               case Some(answer) => ModelReply.Answer(answer.noSpaces, tokens)
-              case None         => ModelReply.Failed(s"Keine Antwort im Schema; antworte mit der Eingabe von $toolName.", tokens)
+              case None         => ModelReply.Failed(noSchema(o("response").flatMap(_.asString).getOrElse("")), tokens)
             )
           case status =>
             val detail = o("error").flatMap(_.asString).getOrElse("")

@@ -16,10 +16,10 @@ class AgySuite extends munit.FunSuite:
   private val root = Envelope(Set(OpKind.ReadFile, OpKind.Hole), ".", 10, 1, Set.empty)
   private val term = Term.Seq(List(Term.ReadFile("a.txt", h), Term.Done("fertig", h)), h)
 
-  private def output(status: String, structured: Option[Json], error: String = ""): String = Json.obj(
+  private def output(status: String, structured: Option[Json], error: String = "", response: String = ""): String = Json.obj(
     "conversation_id" -> Json.fromString("c1"),
     "status" -> Json.fromString(status),
-    "response" -> Json.fromString(""),
+    "response" -> Json.fromString(response),
     "error" -> Json.fromString(error),
     "structured_output" -> structured.getOrElse(Json.Null),
     "usage" -> Json.obj("input_tokens" -> Json.fromInt(7800), "output_tokens" -> Json.fromInt(200), "total_tokens" -> Json.fromInt(8000))
@@ -47,7 +47,11 @@ class AgySuite extends munit.FunSuite:
       case other => fail(other.toString)
 
   test("Ohne structured_output ein Fehlversuch; ein anderer status ist kein Modellfehler"):
-    assert(Agy.reply(output("SUCCESS", None)).exists { case ModelReply.Failed(r, 8000L) => r.contains("Keine Antwort im Schema"); case _ => false })
+    assert(Agy.reply(output("SUCCESS", None)).exists { case ModelReply.Failed(r, 8000L) => r.endsWith("submit_term."); case _ => false })
+    Agy.reply(output("SUCCESS", None, response = "Ich lese\n zuerst die Datei " + "x" * 400)) match
+      case Right(ModelReply.Failed(r, _)) =>
+        assert(r.contains("Keine Antwort im Schema") && r.contains("„Ich lese zuerst die Datei x") && r.endsWith("…“"), r)
+      case other => fail(other.toString)
     Agy.reply(output("ERROR", None, "authentication failed or timed out")) match
       case Left(ModelError.Status(_, "agy", d)) => assert(d.contains("ERROR") && d.contains("authentication"), d)
       case other                                 => fail(other.toString)
