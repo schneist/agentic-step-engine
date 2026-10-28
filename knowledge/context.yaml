@@ -398,7 +398,7 @@ interpreters:
     source: evals/series.sh
     verified: 2026-10-28
     decided_by: ["D#45", "D#46"]
-    note: "Serie für M#; Standard-Konfiguration evals/runner.json"
+    note: "Serie für M#; Standard-Konfiguration evals/runner.json; --reference zählt Pläne mit dem Fingerprint eines Referenzflows (ase plan druckt fingerprint); Zusammenfassung im Format der M#-Zeile"
 
 invariants:
   - id: inv.nothingUnchecked

@@ -5,5 +5,6 @@
     "endpoint": "/mnt/c/Users/schne/AppData/Local/agy/bin/agy.exe",
     "workDir": "/mnt/c/Users/schne/AppData/Local/Temp/ase-agy"
   },
+  "limits": { "shellTimeoutSeconds": 600 },
   "scripts": ["./run-tests.sh"]
 }

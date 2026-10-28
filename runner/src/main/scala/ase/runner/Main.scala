@@ -120,8 +120,10 @@ object Main extends IOApp:
         case None => IO.pure(ExitCode(3))
         case Some((checked, planned, source)) =>
           val file = PlanFile(source, sha, checked.rootEnvelope, checked.params, checked.term, planned.calls, planned.rejections, planned.unusable, planned.tokens)
+          // fingerprint: Struktur ohne origin (D#19), für den Vergleich mit einem Referenzflow (playbook/evals.md)
           IO.blocking(Files.writeString(cmd.out, PlanFile.encode(file).spaces2 + "\n", UTF_8)) >>
-            IO.println(Explain.render(checked, config.explain)).as(ExitCode.Success)
+            IO.println(Explain.render(checked, config.explain)) >>
+            IO.println(s"fingerprint ${Fingerprint.of(checked.term).hex}").as(ExitCode.Success)
     yield code
 
   private def planTask(task: Path, root: Envelope, config: RunnerConfig): IO[Option[(CheckedTerm, Planned, String)]] =

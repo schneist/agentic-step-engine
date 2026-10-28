@@ -40,7 +40,7 @@ Seq(
   RepeatUntil(Shell("./run-tests.sh"), until=LastExitCode(0), max=2),
   If(LastExitCode(0),
      Hole("Schreibe REPORT.md …",
-          Envelope(allowedOps={WriteFile}, pathPrefix=REPORT.md, maxSteps=1, maxDepth=0, shellAllowlist={})),
+          Envelope(allowedOps={WriteFile}, pathPrefix=REPORT.md, maxSteps=2, maxDepth=0, shellAllowlist={})),
      Ask("Tests weiterhin rot; wie weiter?")),
   Done(…)
 )
@@ -55,6 +55,6 @@ Deterministischer Modus (`sbt test`): Skript-Modell mit eingebauten Fehlern.
 - Fill Loch 2, Versuch 1: EditFile mit falschem expectedOld → CAS schlägt zur Laufzeit fehl, Handlungsanweisung, neuer Fill (D#15). Versuch 2 ok.
 - RepeatUntil läuft einmal, Exit 0, If nimmt den Then-Zweig, Loch 3 schreibt REPORT.md.
 
-Behauptungen: Tor 1 lehnt Plan 1 mit genau einem Verstoß ab; Tor 2 lehnt Fill 1 ab und das Log zeigt dafür keinen Syscall; erster EditFile schreibt nichts (Datei-Hash unverändert), zweiter ändert genau eine Zeile; `check.sh` besteht mit OUTCOME `done`; WorstCaseSteps = 18 ≤ 20, tatsächliche Schritte ≤ 18, Tiefe ≤ 1; erstes Log-Ereignis ist der termHash, jeder Fill hat eigenen Hash, alle Pfade unter dem Workspace; Replay erzeugt dieselbe Ereignisfolge, und die aufgezeichneten Schreibvorgänge auf eine frische Fixture-Kopie ergeben denselben Dateibaum (D#16); Fingerprint von Plan 2 == Fingerprint des Terms in `flows/red-test.json` (der Fingerprint ignoriert `origin`, D#19).
+Behauptungen: Tor 1 lehnt Plan 1 mit genau einem Verstoß ab; Tor 2 lehnt Fill 1 ab und das Log zeigt dafür keinen Syscall; erster EditFile schreibt nichts (Datei-Hash unverändert), zweiter ändert genau eine Zeile; `check.sh` besteht mit OUTCOME `done`; WorstCaseSteps = 19 ≤ 20, tatsächliche Schritte ≤ 19, Tiefe ≤ 1; erstes Log-Ereignis ist der termHash, jeder Fill hat eigenen Hash, alle Pfade unter dem Workspace; Replay erzeugt dieselbe Ereignisfolge, und die aufgezeichneten Schreibvorgänge auf eine frische Fixture-Kopie ergeben denselben Dateibaum (D#16); Fingerprint von Plan 2 == Fingerprint des Terms in `flows/red-test.json` (der Fingerprint ignoriert `origin`, D#19).
 
 Live-Modus: n=10, gemessen Erfolgsquote, Ablehnungen pro Tor, Ask-Quote, Tokens, Fingerprint-Übereinstimmung mit dem Referenzflow. Die letzte Zahl sagt, ob das Modell von selbst auf die Trennung Diagnose-Loch/Reparatur-Loch kommt.

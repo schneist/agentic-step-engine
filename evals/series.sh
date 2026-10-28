@@ -1,21 +1,31 @@
 #!/usr/bin/env bash
 # Eine Messserie nach playbook/evals.md: n Live-Läufe einer Eval, jeder in einer frischen Kopie des Fixtures.
 # Aufruf (unter Linux, D#29; ANTHROPIC_API_KEY gesetzt):
-#   evals/series.sh <eval-verzeichnis> <n> <ausgabe-verzeichnis> [--config runner.json]
+#   evals/series.sh <eval-verzeichnis> <n> <ausgabe-verzeichnis> [--config runner.json] [--reference flow.json]
 # Pro Lauf: ase plan, Freigabe des gezeigten Hashes, ase run --no-ask, check.sh. Ergebnis: <ausgabe>/runs.tsv und
-# eine Zusammenfassung auf stdout. Die Ausgabe gehört nach record/ (nicht im Repo).
+# eine Zusammenfassung auf stdout, im Format der M#-Zeile. --reference: Referenzflow; gezählt wird, wie viele Pläne
+# dessen Fingerprint haben (playbook/evals.md). Die Ausgabe gehört nach record/ (nicht im Repo).
 set -euo pipefail
 
-[ $# -ge 3 ] || { echo "Aufruf: $0 <eval-verzeichnis> <n> <ausgabe-verzeichnis> [--config datei]" >&2; exit 1; }
+usage="Aufruf: $0 <eval-verzeichnis> <n> <ausgabe-verzeichnis> [--config datei] [--reference flow.json]"
+[ $# -ge 3 ] || { echo "$usage" >&2; exit 1; }
 repo=$(cd "$(dirname "$0")/.." && pwd)
 eval_dir=$(cd "$1" && pwd)
 n=$2
 mkdir -p "$3"
 out=$(cd "$3" && pwd)
 shift 3
+abs() { echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"; }
 # Standard: evals/runner.json (Skripte wie ./run-tests.sh, D#46)
 config=(--config "$repo/evals/runner.json")
-[ "${1:-}" = --config ] && config=(--config "$(cd "$(dirname "$2")" && pwd)/$(basename "$2")")
+reference=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --config) config=(--config "$(abs "$2")"); shift 2 ;;
+    --reference) reference=$(abs "$2"); shift 2 ;;
+    *) echo "$usage" >&2; exit 1 ;;
+  esac
+done
 
 # Nur gegen einen sauberen Stand messen (playbook/evals.md).
 if [ -n "$(git -C "$repo" status --porcelain)" ] && [ "${ALLOW_DIRTY:-}" != 1 ]; then
@@ -29,6 +39,14 @@ ase() { java -cp "$cp" ase.runner.Main "$@"; }
 
 num() { sed -n "s/^  \"$1\" : \([0-9]*\).*/\1/p" "$2" 2>/dev/null | head -1; }
 str() { sed -n "s/^  \"$1\" : \"\(.*\)\".*/\1/p" "$2" 2>/dev/null | head -1; }
+
+# Fingerprint des Referenzflows: ase plan --flow ruft kein Modell
+ref_fp=""
+if [ -n "$reference" ]; then
+  ase plan --flow "$reference" --envelope "$eval_dir/envelope.json" --out "$out/reference-plan.json" "${config[@]}" > "$out/reference.txt" 2>&1
+  ref_fp=$(sed -n 's/^fingerprint \([0-9a-f]*\)$/\1/p' "$out/reference.txt" | cut -c1-12)
+  [ -n "$ref_fp" ] || { echo "Referenzflow ohne Fingerprint, siehe $out/reference.txt" >&2; exit 1; }
+fi
 
 printf 'lauf\toutcome\tcheck\tschritte\tplan\tfill\trunden\ttor1\ttor2\tohne_term\task\ttokens\tplan_fingerprint\n' > "$out/runs.tsv"
 for i in $(seq 1 "$n"); do
@@ -64,5 +82,11 @@ for i in $(seq 1 "$n"); do
   rm -rf "$tmp"
 done
 
-ok=$(awk -F'\t' 'NR > 1 && $3 == "ok"' "$out/runs.tsv" | wc -l)
-echo "Eval $(basename "$eval_dir") · Commit $commit · n=$n · Erfolg $ok/$n · Details in $out/runs.tsv"
+# Zusammenfassung im Format der M#-Zeile (playbook/evals.md); Modell aus der Konfiguration ergänzen
+summary=$(awk -F'\t' -v ref="$ref_fp" -v n="$n" '
+  NR > 1 { ok += ($3 == "ok"); t1 += $8; t2 += $9; ask += ($11 == "true"); tok += $12; same += (ref != "" && $13 == ref) }
+  END {
+    r = ref == "" ? "–" : same "/" n
+    printf "n=%d · Erfolg %d/%d · Tor1 %d · Tor2 %d · Ask %d · Tokens ø %.1fk · Referenz-Fingerprint %s", n, ok, n, t1, t2, ask, tok / n / 1000, r
+  }' "$out/runs.tsv")
+echo "Eval $(basename "$eval_dir") · Commit $commit · $summary · Details in $out/runs.tsv"
