@@ -555,6 +555,7 @@ open:
   - { id: "O#23", type: open, status: open, source: "findings.md#O#23", verified: 2026-10-28, title: "Plan-Kennzahlen ohne Lauf nicht abgelegt" }
   - { id: "O#24", type: open, status: open, source: "findings.md#O#24", verified: 2026-10-28, title: "Fill sieht eigene Schritte nicht; Schreib-Loch braucht weiten pathPrefix für Sicht" }
   - { id: "O#25", type: open, status: resolved, source: "findings.md#O#25", verified: 2026-10-28, resolved_by: "D#55" }
+  - { id: "O#26", type: open, status: open, source: "findings.md#O#26", verified: 2026-10-28, title: "Leerer Fill ohne Done besteht Tor 2" }
 
 evals:
   - id: eval.1
@@ -564,6 +565,7 @@ evals:
     verified: 2026-10-27
     title: todos
     note: Fixture kompiliert; check.sh gegen Lösung und Fehllösung geprüft
+    measurements: ["M#3"]
   - id: eval.2
     type: eval
     status: implemented
