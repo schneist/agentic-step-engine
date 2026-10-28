@@ -91,6 +91,13 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Ausschnitt** (`Excerpt`): Gekürzte Ausgabe für das Modell: erste und letzte Zeilen, Gesamtzahl, Hinweis.
 - **Golden-Test**: Ein Test, der eine Ausgabe Zeichen für Zeichen mit einer festgehaltenen vergleicht (Explain für red-test).
 - **CAS** (Compare-and-Swap): `EditFile` ersetzt nur, wenn `expectedOld` genau einmal vorkommt.
+- **Modelladapter** (`Anthropic`): Plan (`PlanModel`) und Fill (`FillModel`) über die Messages API, ein Aufruf pro Anfrage, ein Werkzeug submit_term (D#44).
+- **Fehlversuch**: Eine Antwort des Modells ohne brauchbaren Term (kein submit_term, abgeschnitten, abgelehnt); zählt gegen die Versuche. Gegenstück: **ModelUnavailable**, ein Fehler des Adapters, der den Lauf beendet (D#44).
+- **Effort**: Wie gründlich das Modell denkt (low bis max); steht in der Runner-Konfiguration und in jeder M#-Zeile.
+- **Plan-Datei**: Was `ase plan` ablegt und `ase run` liest: Term mit origin, Hülle, Parameter, configSha, Kosten des Plans. Kein CheckedTerm; `ase run` prüft neu (D#45).
+- **configSha**: SHA-256 der Runner-Konfigurationsdatei; Plan und Lauf müssen dieselbe haben (D#40, D#45).
+- **Runner-Konfiguration**: JSON-Datei mit Modell, Limits, Verschachtelungsgrenze, Plan-Runden, explainDenials und Skripten (D#46).
+- **Serie**: n Live-Läufe einer Eval mit `evals/series.sh`, je in frischer Fixture-Kopie; Grundlage einer M#-Zeile.
 
 ## 8. Warum
 
@@ -255,6 +262,18 @@ Explain kennt nur die Pfade im Term, Execute die aufgelösten; ein Symlink kann 
 ### Warum bekannte Grenzen bleiben (D#43)
 
 Die verbleibenden Lücken (Zeitfenster zwischen Prüfung und Syscall, Lesen über vorhandene Hardlinks, Kindprozesse nach dem Ende, Replay ohne Schreibvorgänge der Kindprozesse) brauchen entweder Workspace-Code, den der Mensch ohnehin freigibt (D#12), oder Mittel des Betriebssystems wie Namespaces oder einen Container. Das wäre ein eigenes Vorhaben. Sie stehen hier, damit niemand mehr Sicherheit annimmt, als es gibt.
+
+### Warum der Modelladapter kein Gespräch führt (D#44)
+
+Jeder Plan und jeder Fill ist ein einzelner Aufruf. Die Engine kennt ein Loch als Ziel, Hülle und sichtbare Ergebnisse; mehr braucht das Modell nicht, und mehr soll es auch nicht sehen (D#9). Ein Gesprächsverlauf würde Ergebnisse früherer Löcher durch die Hintertür weitertragen und die Messung von Reihenfolge und Länge abhängig machen. Was ein Versuch falsch gemacht hat, steht deshalb als Text in der nächsten Anfrage, beim Plan zusammen mit dem abgelehnten Term, weil das Modell ihn sonst nicht mehr kennt. Zwei Arten von Fehlern werden getrennt: Liefert das Modell keinen brauchbaren Term, ist das ein Fehlversuch, und es bekommt eine neue Chance. Ist die API nicht erreichbar oder der Schlüssel falsch, hat das Modell nichts falsch gemacht; der Lauf endet, statt Versuche zu verbrauchen, die in der Messung als Modellfehler erschienen. Aus demselben Grund gibt es keinen Ersatz durch ein anderes Modell: Eine M#-Zeile nennt genau ein Modell und einen Effort.
+
+### Warum Planen und Ausführen zwei Befehle sind (D#45)
+
+Die Freigabe ist ein Mensch, der einen Hash bestätigt (D#11, D#38). Eine Serie von zehn Läufen hat keinen Menschen davor. Ein Schalter „alles freigeben“ im Runner wäre genau der Weg vorbei an der Freigabe, den die Typen verhindern sollen. Stattdessen legt `ase plan` den geprüften Term ab und zeigt Explain, und `ase run` nimmt nur den Hash, den man ihm gibt. Das Serien-Skript liest ihn aus der Explain-Ausgabe, wie ein Mensch es täte. `ase run` vertraut der Datei nicht: Es prüft neu, prüft die Hülle der Datei gegen die eigene und lehnt ab, wenn die Konfiguration eine andere ist als beim Plan.
+
+### Warum Skripte in die Konfiguration gehören (D#46)
+
+Welche Programme im Arbeitsverzeichnis laufen dürfen, hängt vom Projekt ab, nicht von der Engine. `./run-tests.sh` ist in Eval 6 und im Release-Flow der Kern des Ablaufs, in einem anderen Projekt gäbe es das Skript nicht. Es steht deshalb in der Runner-Konfiguration, nicht im Code; jedes Skript läuft ohne Argumente und gilt als Workspace-Code (D#12).
 
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 

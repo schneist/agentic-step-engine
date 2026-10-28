@@ -24,13 +24,25 @@ lazy val core = project
 
 lazy val model = project
   .in(file("model"))
-  .dependsOn(core)
-  .settings(name := "ase-model")
+  .dependsOn(core % "compile->compile;test->test")
+  .settings(
+    name := "ase-model",
+    scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked"),
+    libraryDependencies += "org.scalameta" %% "munit" % "1.0.3" % Test
+  )
 
 lazy val runner = project
   .in(file("runner"))
-  .dependsOn(core, model)
-  .settings(name := "ase-runner")
+  .dependsOn(core % "compile->compile;test->test", model % "compile->compile;test->test")
+  .settings(
+    name := "ase-runner",
+    scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked"),
+    Compile / mainClass := Some("ase.runner.Main"),
+    run / fork := true,
+    run / connectInput := true,
+    Test / fork := true,
+    libraryDependencies += "org.scalameta" %% "munit" % "1.0.3" % Test
+  )
 
 lazy val root = project
   .in(file("."))

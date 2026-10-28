@@ -135,4 +135,4 @@ Sechs Aufgaben mit bekanntem Ergebnis in [evals/](evals/README.md), gemessen üb
 
 ## Status
 
-Schritt 3 fertig: `core` prüft, erklärt, gibt frei, führt unter Linux aus (Execute), zeichnet auf und spielt ab (Record/Replay); Eval 6 läuft deterministisch. Noch kein Modelladapter und kein Runner (Schritt 4). Siehe [SPEC.md](SPEC.md), Abschnitt Vorgehen.
+Schritt 4 im Code fertig: Modelladapter (`model`, Messages API mit submit_term) und Runner (`runner`, `ase plan` und `ase run`, zweiphasig). Eval 1 läuft im Test durch die ganze Kette mit gefälschter API. Offen sind die ersten Live-Messungen M#1 (Eval 1) und M#2 (Eval 6) mit `evals/series.sh`. Siehe [SPEC.md](SPEC.md), Abschnitt Vorgehen.

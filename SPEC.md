@@ -183,7 +183,7 @@ VORGEHEN
 1. Anlegen der sechs Eval-Fixtures mit task.md, envelope.json, check.sh in evals/ (Eval 6 inkl. flows/red-test.json). README nur ergänzen, wo Fixtures Details festlegen. Warte auf OK.
 2. core: Term-ADT (mit MoveFile), Pred, JSON-Codec, decoderFor, handgeschriebenes Schema (D#10), Algebra mit Kontrolloperationen, restrict, ToTerm/fromTerm, DryRun mit CheckedTerm, Approval mit ApprovedTerm, Cost, Explain, structuralFingerprint, termHash (JCS), Flow-Format mit Parameterbindung, Term-Generator und AdversarialFill-Generator. Tests grün. Kein Execute, kein Modell.
 3. core: Execute (Pfad- und Shell-Prüfung zuerst, mit Tests), Record/Replay, AdversarialFill-Gesetz grün, Eval 6 im deterministischen Modus grün. Läuft und wird getestet in WSL (D#29); Java 17 und sbt 1.10.7 sind dort installiert (O#15). · erledigt 2026-10-27 (D#32–D#38), zwei Reviews eingearbeitet.
-4. model + runner mit submit_term, Plan und Fill. Erste Serie (n=10) gegen Eval 1 als M#1, Eval 6 live als M#2.
+4. model + runner mit submit_term, Plan und Fill. Erste Serie (n=10) gegen Eval 1 als M#1, Eval 6 live als M#2. · Code 2026-10-28 (D#44–D#46); M#1 und M#2 offen.
 5. BestOfN, Eval-Harness über alle sechs Aufgaben.
 Nach jedem Schritt: sbt test grün, context.yaml und findings.md nachgeführt, kurze Zusammenfassung, offene Punkte. Keine Features über diese Liste hinaus ohne Rückfrage.
 

@@ -331,7 +331,8 @@ interpreters:
     type: interpreter
     status: implemented
     source: core/src/main/scala/ase/core/RunLog.scala#RunLog
-    verified: 2026-10-27
+    verified: 2026-10-28
+    note: "Footer zählt Plan-Aufrufe mit (D#45)"
   - id: type.event
     type: type
     status: implemented
@@ -350,6 +351,37 @@ interpreters:
     source: core/src/main/scala/ase/core/Marshal.scala#Marshal
     verified: 2026-10-27
     note: Fehler als Handlungsanweisung, Ausschnitt statt ganzer Ausgabe
+  - id: adapter.anthropic
+    type: adapter
+    status: implemented
+    source: model/src/main/scala/ase/model/Anthropic.scala#Anthropic
+    verified: 2026-10-28
+    decided_by: ["D#10", "D#44"]
+    tested_by: [ase.model.AnthropicSuite, ase.runner.Eval1Suite]
+    note: "PlanModel und FillModel; Messages.scala (Anfrage, Antwort), Prompt.scala (System-Prompt, Plan, Fill), Transport.scala (java.net.http)"
+  - id: runner.planner
+    type: runner
+    status: implemented
+    source: runner/src/main/scala/ase/runner/Planner.scala#Planner.run
+    verified: 2026-10-28
+    decided_by: ["D#45"]
+    tested_by: [ase.runner.RunnerSuite]
+    note: Plan-Schleife mit Tor 1, höchstens planRounds
+  - id: runner.cli
+    type: runner
+    status: implemented
+    source: runner/src/main/scala/ase/runner/Main.scala#Main
+    verified: 2026-10-28
+    decided_by: ["D#45", "D#46"]
+    tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite]
+    note: "ase plan / ase run; PlanFile.scala, RunnerConfig.scala, Summary"
+  - id: runner.series
+    type: runner
+    status: implemented
+    source: evals/series.sh
+    verified: 2026-10-28
+    decided_by: ["D#45", "D#46"]
+    note: "Serie für M#; Standard-Konfiguration evals/runner.json"
 
 invariants:
   - id: inv.nothingUnchecked
@@ -467,6 +499,9 @@ decisions:
   - { id: "D#41", type: decision, status: decided, source: "findings.md#D#41", verified: 2026-10-27, title: "Explain zeigt statische Inhalte vollständig als Block", tested_by: [ase.core.ReviewRegressionSuite] }
   - { id: "D#42", type: decision, status: decided, source: "findings.md#D#42", verified: 2026-10-27, title: "Explain: Sicht als Obergrenze (kann … sehen)", tested_by: [ase.core.ExplainSuite] }
   - { id: "D#43", type: decision, status: decided, source: "findings.md#D#43", verified: 2026-10-27, title: "Bekannte Grenzen akzeptiert (TOCTOU, Hardlink-Lesen, Kindprozesse, Replay)" }
+  - { id: "D#44", type: decision, status: decided, source: "findings.md#D#44", verified: 2026-10-28, title: "Modelladapter: ein Aufruf pro Anfrage, Fehlversuch vs. ModelUnavailable, effort high", tested_by: [ase.model.AnthropicSuite] }
+  - { id: "D#45", type: decision, status: decided, source: "findings.md#D#45", verified: 2026-10-28, title: "Zweiphasiges CLI mit Plan-Datei", tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite] }
+  - { id: "D#46", type: decision, status: decided, source: "findings.md#D#46", verified: 2026-10-28, title: "Runner-Konfiguration als JSON, Skripte konfigurierbar", tested_by: [ase.runner.RunnerSuite] }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }
@@ -490,6 +525,9 @@ open:
   - { id: "O#19", type: open, status: open, source: "findings.md#O#19", verified: 2026-10-27, title: "Doppelte Auswertung, doppelte JSON-Schlüssel (niedrig)" }
   - { id: "O#20", type: open, status: resolved, source: "findings.md#O#20", verified: 2026-10-27, resolved_by: "D#42" }
   - { id: "O#21", type: open, status: resolved, source: "findings.md#O#21", verified: 2026-10-27, resolved_by: "D#43" }
+  - { id: "O#22", type: open, status: open, source: "findings.md#O#22", verified: 2026-10-28, title: "Argument-Policies nicht in der Runner-Konfiguration" }
+  - { id: "O#23", type: open, status: open, source: "findings.md#O#23", verified: 2026-10-28, title: "Plan-Kennzahlen ohne Lauf nicht abgelegt" }
+  - { id: "O#24", type: open, status: open, source: "findings.md#O#24", verified: 2026-10-28, title: "Fill sieht eigene Schritte nicht; Schreib-Loch braucht weiten pathPrefix für Sicht" }
 
 evals:
   - id: eval.1
