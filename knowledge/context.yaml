@@ -569,6 +569,7 @@ open:
   - { id: "O#26", type: open, status: resolved, source: "findings.md#O#26", verified: 2026-10-28, resolved_by: "D#56" }
   - { id: "O#27", type: open, status: resolved, source: "findings.md#O#27", verified: 2026-10-28, resolved_by: "D#57" }
   - { id: "O#28", type: open, status: open, source: "findings.md#O#28", verified: 2026-10-28, title: "Lochhüllen in Modellplänen weiter als nötig (EditFile unter .)" }
+  - { id: "O#29", type: open, status: open, source: "findings.md#O#29", verified: 2026-10-28, title: "Verzeichnistiefe kostet je Ebene eine Runde (ListDir nicht rekursiv)" }
 
 evals:
   - id: eval.1
