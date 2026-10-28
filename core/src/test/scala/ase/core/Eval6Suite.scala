@@ -69,7 +69,8 @@ class Eval6Suite extends munit.FunSuite:
     ),
     ("4", 1) -> Term.Seq(List(Term.EditFile(greeter, "s\"Hallo, $name!\"", "s\"Hello, $name!\"", m), Term.Done("behoben", m)), m),
     ("4", 2) -> Term.Seq(List(Term.EditFile(greeter, "s\"Helo, $name!\"", "s\"Hello, $name!\"", m), Term.Done("src/Greeter.scala:2 „Helo“ → „Hello“", m)), m),
-    ("6", 1) -> Term.WriteFile("REPORT.md", report, m)
+    // mit 2 Schritten Budget endet der Bericht mit Done; ohne Done folgte eine weitere Runde (D#55, O#27)
+    ("6", 1) -> Term.Seq(List(Term.WriteFile("REPORT.md", report, m), Term.Done("Bericht geschrieben", m)), m)
   )
 
   test("Eval 6: Tor 1, Freigabe, Tor 2, CAS-Fehler, Bericht, Replay, check.sh"):
@@ -91,7 +92,7 @@ class Eval6Suite extends munit.FunSuite:
       val p2 = decode(plan2, 2).fold(e => fail(e.message), identity)
       assertEquals(Fingerprint.of(p2), Fingerprint.of(flow.term))
       val checked = DryRun.plan(p2, root, check).fold(v => fail(v.toList.map(_.render).mkString("\n")), identity)
-      assertEquals(checked.worstCaseSteps, 18L)
+      assertEquals(checked.worstCaseSteps, 19L)
       assert(checked.worstCaseSteps <= root.maxSteps)
       assertEquals(checked.depth, 1)
 
@@ -134,8 +135,9 @@ class Eval6Suite extends munit.FunSuite:
 
       // Schritte, Tiefe
       val stats = result.stats
-      assert(stats.steps <= 18L, stats.steps)
-      assertEquals(stats.steps, 14L)
+      assert(stats.steps <= 19L, stats.steps)
+      // 15: das Bericht-Loch endet jetzt mit Done (O#27)
+      assertEquals(stats.steps, 15L)
       assertEquals(stats.modelCalls, 5)
       assert(events.collect { case Event.Hole(at, _, _) => at.level }.forall(_ == 0))
       assertEquals(stats.changedFiles.sorted, List("REPORT.md", greeter))
@@ -166,7 +168,7 @@ class Eval6Suite extends munit.FunSuite:
       assert(runLog.contains("   dryrun rejected  "), runLog)
       assert(runLog.contains("→ an Modell:"), runLog)
       assert(runLog.contains("Hinweis des Agenten (Loch 3): Tippfehler in src/Greeter.scala:2"), runLog)
-      assert(runLog.contains("14 Schritte · 5 Modellaufrufe · 1 Ablehnung an Tor 1 · 1 Ablehnung an Tor 2"), runLog)
+      assert(runLog.contains("15 Schritte · 5 Modellaufrufe · 1 Ablehnung an Tor 1 · 1 Ablehnung an Tor 2"), runLog)
       assert(runLog.contains(s"record/eval6.log · approved ${approved.termHash.short}"), runLog)
 
       // Prüfvertrag (D#17)

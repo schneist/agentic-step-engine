@@ -1,5 +1,5 @@
 {
-  "description": "Referenzflow für Eval 6. Hülle gleich evals/6-red-test/envelope.json. Worst case 18 Schritte (D#14), Tiefe 1.",
+  "description": "Referenzflow für Eval 6. Hülle gleich evals/6-red-test/envelope.json. Worst case 19 Schritte (D#14), Tiefe 1.",
   "params": {},
   "envelope": {
     "allowedOps": ["ReadFile", "ListDir", "WriteFile", "EditFile", "Shell", "Ask", "Hole"],
@@ -59,7 +59,7 @@
           "envelope": {
             "allowedOps": ["WriteFile"],
             "pathPrefix": "REPORT.md",
-            "maxSteps": 1,
+            "maxSteps": 2,
             "maxDepth": 0,
             "shellAllowlist": []
           }

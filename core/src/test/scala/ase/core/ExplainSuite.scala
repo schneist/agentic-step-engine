@@ -9,7 +9,7 @@ class ExplainSuite extends munit.FunSuite:
     val c = checked(f.term, f.envelope)
     assertNoDiff(
       Explain.render(c),
-      s"""dryrun    ok  (worst case 18 steps, depth 1)
+      s"""dryrun    ok  (worst case 19 steps, depth 1)
          |explain   ${c.termHash.short}
          |hash      ${c.termHash.hex}
          |
@@ -25,7 +25,7 @@ class ExplainSuite extends munit.FunSuite:
          |5    führt aus: ./run-tests.sh (führt Workspace-Code aus)
          |   wenn Exit-Code 0:
          |6    Hier entscheidet der Agent: „Schreibe REPORT.md: Ursache, betroffene Datei, Änderung. Grundlage sin…“ (gekürzt, 111 Zeichen)
-         |     darf WriteFile · unter REPORT.md · max 1 Schritt · Tiefe 0
+         |     darf WriteFile · unter REPORT.md · max 2 Schritte · Tiefe 0
          |     kann Ergebnisse von Schritt 1, 3, 4, 5 sehen
          |   sonst:
          |7    fragt: „Tests weiterhin rot; wie weiter?“

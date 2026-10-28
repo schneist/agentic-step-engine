@@ -46,7 +46,7 @@ Seq(
 )
 ```
 
-WorstCaseSteps nach D#14: 1 + 1 + (1+6) + (1+3) + 2·1 + max(1+1, 1) + 1 = 18. Tiefe 1. Der Bericht ist ein drittes Loch, weil ein fester Text die Ursache nicht kennen kann (O#5). Sein Scope (D#9) enthält die Done-Zusammenfassungen der beiden Löcher davor und die Ausgaben von run-tests.sh, nicht die gelesenen Dateien unter `src/`.
+WorstCaseSteps nach D#14: 1 + 1 + (1+6) + (1+3) + 2·1 + max(1+2, 1) + 1 = 19 (Bericht-Loch mit 2 Schritten: WriteFile und Done, O#27). Tiefe 1. Der Bericht ist ein drittes Loch, weil ein fester Text die Ursache nicht kennen kann (O#5). Sein Scope (D#9) enthält die Done-Zusammenfassungen der beiden Löcher davor und die Ausgaben von run-tests.sh, nicht die gelesenen Dateien unter `src/`.
 
 Deterministischer Modus (`sbt test`): Skript-Modell mit eingebauten Fehlern.
 - Plan 1 setzt Loch 1 mit `maxDepth = 1` (= Wurzel) → Tor 1 lehnt ab (Attenuation: maxDepth nicht strikt kleiner). Plan 2 = Referenzflow → CheckedTerm.

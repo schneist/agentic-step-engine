@@ -9,10 +9,10 @@ class FlowSuite extends munit.FunSuite:
     .toOption
     .get
 
-  test("red-test: geprüft gegen die Hülle von Eval 6, schlechtester Fall 18, Tiefe 1"):
+  test("red-test: geprüft gegen die Hülle von Eval 6, schlechtester Fall 19, Tiefe 1"):
     val f = Flow.bind(flow("red-test.json"), Map.empty, eval6Root).fold(e => fail(e.toString), identity)
     val checked = DryRun.plan(f.term, f.envelope, TestSupport.config).fold(v => fail(v.toList.map(_.render).mkString("\n")), identity)
-    assertEquals(checked.worstCaseSteps, 18L)
+    assertEquals(checked.worstCaseSteps, 19L)
     assertEquals(checked.depth, 1)
 
   test("Eval 6, Plan 1: Loch 1 mit maxDepth der Wurzel scheitert mit genau einem Verstoß"):

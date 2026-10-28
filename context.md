@@ -320,6 +320,10 @@ Der statische Term (D#5) hat einen Preis, den die Probeläufe und das Review off
 
 Ein Loch hat ein Ziel. Ein Teilterm ohne einen einzigen Schritt erreicht es nicht und sagt auch nicht, warum; mit D#55 löst er nicht einmal eine weitere Runde aus. Ohne Ablehnung endet das Loch still, und der Fehler zeigt sich erst am fehlenden Ergebnis. Als Fehlversuch bekommt das Modell eine Anweisung und kann es besser machen; will es wirklich nichts tun, sagt es das in Done, und der Mensch liest den Grund als Hinweis des Agenten.
 
+### Warum das Bericht-Loch zwei Schritte bekommt (D#57)
+
+Der Fill-Prompt verlangt, ein Loch mit Done zu beenden, und seit D#55 löst ein Fill ohne Done eine weitere Runde aus. Ein Budget von einem Schritt widerspricht beidem: Das Modell muss entweder auf Done verzichten oder einen Versuch verlieren. Einen Schritt mehr zu erlauben ändert nichts an dem, was das Loch darf (nur WriteFile unter REPORT.md), und passt den Flow an die Regeln an, statt die Regeln für einen Flow aufzuweichen.
+
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 
 Was nicht erlaubt ist, ist unendlich. Für den Menschen beruhigend ist aber die Zeile „git push ist nicht dabei“. Welche Befehle für ihn wichtig sind, weiß die Engine nicht; das steht deshalb in der Konfiguration. Steht ein solcher Befehl doch in der Allowlist, ist das eine Warnung wert.

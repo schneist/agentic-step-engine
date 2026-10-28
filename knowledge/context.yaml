@@ -529,6 +529,7 @@ decisions:
   - { id: "D#54", type: decision, status: decided, source: "findings.md#D#54", verified: 2026-10-28, title: "Dritter Anbieter agy (Antigravity-CLI) für Entwicklungsläufe", tested_by: [ase.model.AgySuite, ase.runner.RunnerSuite] }
   - { id: "D#55", type: decision, status: decided, source: "findings.md#D#55", verified: 2026-10-28, title: "Mehrrunden-Fill im Loch", tested_by: [ase.core.EngineSuite, ase.model.AnthropicSuite, ase.core.AlgebraSuite] }
   - { id: "D#56", type: decision, status: decided, source: "findings.md#D#56", verified: 2026-10-28, title: "Leerer Fill ist ein Fehlversuch (Tor 2)", tested_by: [ase.core.EngineSuite, ase.core.LawsSuite] }
+  - { id: "D#57", type: decision, status: decided, source: "findings.md#D#57", verified: 2026-10-28, title: "Bericht-Loch im red-test-Flow mit 2 Schritten", tested_by: [ase.core.FlowSuite, ase.core.ExplainSuite, ase.core.Eval6Suite] }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }
@@ -557,7 +558,7 @@ open:
   - { id: "O#24", type: open, status: open, source: "findings.md#O#24", verified: 2026-10-28, title: "Fill sieht eigene Schritte nicht; Schreib-Loch braucht weiten pathPrefix für Sicht" }
   - { id: "O#25", type: open, status: resolved, source: "findings.md#O#25", verified: 2026-10-28, resolved_by: "D#55" }
   - { id: "O#26", type: open, status: resolved, source: "findings.md#O#26", verified: 2026-10-28, resolved_by: "D#56" }
-  - { id: "O#27", type: open, status: open, source: "findings.md#O#27", verified: 2026-10-28, title: "Loch 6 im red-test-Flow: maxSteps 1 gegen Done" }
+  - { id: "O#27", type: open, status: resolved, source: "findings.md#O#27", verified: 2026-10-28, resolved_by: "D#57" }
 
 evals:
   - id: eval.1
@@ -624,7 +625,7 @@ flows:
     status: implemented
     source: flows/red-test.json
     verified: 2026-10-27
-    note: Referenzflow für Eval 6; Flow-Wrapper ohne params (D#22); worst case 18, Tiefe 1
+    note: Referenzflow für Eval 6; Flow-Wrapper ohne params (D#22); worst case 19, Tiefe 1 (Bericht-Loch 2 Schritte, D#57)
 
 references:
   - id: ref.kiselyov
