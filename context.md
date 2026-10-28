@@ -98,7 +98,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **configSha**: SHA-256 der Runner-Konfigurationsdatei; Plan und Lauf müssen dieselbe haben (D#40, D#45).
 - **Runner-Konfiguration**: JSON-Datei mit Modell, Limits, Verschachtelungsgrenze, Plan-Runden, explainDenials und Skripten (D#46).
 - **Serie**: n Live-Läufe einer Eval mit `evals/series.sh`, je in frischer Fixture-Kopie; Grundlage einer M#-Zeile.
-- **Anbieter** (`provider`): Wer beim Plan und Fill antwortet: `anthropic` (Messages API), `ollama` (lokales Modell, D#47) oder `agy` (Modelle über die Antigravity-CLI, D#54).
+- **Anbieter** (`provider`): Wer beim Plan und Fill antwortet: `anthropic` (Messages API), `ollama` (lokales Modell, D#47), `agy` (Modelle über die Antigravity-CLI, D#54) oder `claudecode` (Claude über `claude --print` mit dem Abo, D#58).
 - **Entwicklungslauf**: Ein Lauf mit einem lokalen Modell, um die Kette ohne Kosten zu üben; als Serie ein eigener M#-Eintrag mit Anbieter und Modell.
 - **Lösungsbeispiel**: Eine vollständig gelöste Beispielaufgabe (Plan und Fill) im System-Prompt des lokalen Modells; bewusst eine andere Aufgabe als die Evals (D#49).
 - **think** (Denken vor dem Schema): Ein lokales Modell überlegt erst frei und schreibt danach den Term im Schema; nur die Antwort wird ausgewertet (D#48). Fehlt der Wert, gilt der Standard des Modells; false schaltet das Denken hybrider Modelle ab (D#50).
@@ -323,6 +323,10 @@ Ein Loch hat ein Ziel. Ein Teilterm ohne einen einzigen Schritt erreicht es nich
 ### Warum das Bericht-Loch zwei Schritte bekommt (D#57)
 
 Der Fill-Prompt verlangt, ein Loch mit Done zu beenden, und seit D#55 löst ein Fill ohne Done eine weitere Runde aus. Ein Budget von einem Schritt widerspricht beidem: Das Modell muss entweder auf Done verzichten oder einen Versuch verlieren. Einen Schritt mehr zu erlauben ändert nichts an dem, was das Loch darf (nur WriteFile unter REPORT.md), und passt den Flow an die Regeln an, statt die Regeln für einen Flow aufzuweichen.
+
+### Warum Claude auch über die Kommandozeile von Claude Code (D#58)
+
+Die Basis soll Claude messen, und bis ein API-Schlüssel da ist, gibt es Claude nur über das Abo. Antworten von Hand einzutragen wäre zu mühsam, und eine Sitzung, die die Lösungen kennt, wäre als Modell wertlos. claude --print in einem leeren Verzeichnis kennt nichts als den Prompt. Anders als agy lässt es den eigenen System-Prompt ganz ersetzen, Werkzeuge und Einstellungen abschalten; was bleibt, ist der Weg über strukturierte Ausgabe statt über ein Werkzeug. Das reicht für eine gute Vorhersage der Basis, nicht für die Basis selbst.
 
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 

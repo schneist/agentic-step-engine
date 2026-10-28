@@ -77,7 +77,7 @@ class AgySuite extends munit.FunSuite:
     val agy = fakeAgy(
       bin,
       """test -f schema.json || exit 3
-        |test "$(ls | grep -v -e schema.json -e out.json -e err.txt)" = "" || exit 4
+        |test "$(ls | grep -v -e schema.json -e stdin.txt -e out.json -e err.txt)" = "" || exit 4
         |printf '{"status":"SUCCESS","structured_output":{"term":{"type":"Done","summary":"%s"}},"usage":{"total_tokens":42}}' "$4"
         |""".stripMargin
     )

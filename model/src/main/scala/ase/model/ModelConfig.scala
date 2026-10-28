@@ -2,21 +2,21 @@ package ase.model
 
 import scala.concurrent.duration.*
 
-/** Wer antwortet: die Messages API von Anthropic, ein lokales Modell über Ollama (D#47) oder ein Modell über die
-  * Antigravity-CLI agy (D#54).
+/** Wer antwortet: die Messages API von Anthropic, ein lokales Modell über Ollama (D#47), ein Modell über die
+  * Antigravity-CLI agy (D#54) oder Claude über die Kommandozeile von Claude Code (claudecode, D#58).
   */
 enum Provider:
-  case Anthropic, Ollama, Agy
+  case Anthropic, Ollama, Agy, ClaudeCode
 
 object Provider:
   def parse(s: String): Option[Provider] = values.find(_.toString.equalsIgnoreCase(s))
 
 /** Modelladapter (SPEC MODELLADAPTER). Der Runner liest ihn aus seiner Konfigurationsdatei; was hier steht, gehört
-  * zu jeder Messung (playbook/evals.md: Anbieter, Modell und Effort stehen in der M#-Zeile). effort gilt nur für
-  * Anthropic, contextTokens und think nur für Ollama (think: erst frei denken, dann die Antwort im Schema, D#48;
-  * None sendet das Feld nicht, false schaltet das Denken hybrider Modelle wie qwen3 ab, D#50). Bei agy ist endpoint
-  * das Programm und workDir das Verzeichnis, unter dem jeder Aufruf ein eigenes leeres Verzeichnis bekommt
-  * (leer: das temporäre Verzeichnis der JVM, D#54).
+  * zu jeder Messung (playbook/evals.md: Anbieter, Modell und Effort stehen in der M#-Zeile). effort gilt für
+  * Anthropic und ClaudeCode, contextTokens und think nur für Ollama (think: erst frei denken, dann die Antwort im
+  * Schema, D#48; None sendet das Feld nicht, false schaltet das Denken hybrider Modelle wie qwen3 ab, D#50). Bei agy
+  * und ClaudeCode ist endpoint das Programm und workDir das Verzeichnis, unter dem jeder Aufruf ein eigenes leeres
+  * Verzeichnis bekommt (leer: das temporäre Verzeichnis der JVM, D#54, D#58).
   */
 final case class ModelConfig(
     provider: Provider,
@@ -69,10 +69,14 @@ object ModelConfig:
     requestTimeout = 10.minutes
   )
 
+  /** Claude über claude --print mit der Anmeldung des Abos; endpoint ist das Programm. */
+  val claudeCode: ModelConfig = default.copy(provider = Provider.ClaudeCode, endpoint = "claude")
+
   def of(provider: Provider): ModelConfig = provider match
     case Provider.Anthropic => default
     case Provider.Ollama    => ollama
     case Provider.Agy       => agy
+    case Provider.ClaudeCode => claudeCode
 
   val efforts: Set[String] = Set("low", "medium", "high", "xhigh", "max")
 
