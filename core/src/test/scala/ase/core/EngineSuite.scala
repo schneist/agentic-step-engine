@@ -159,3 +159,51 @@ class EngineSuite extends munit.ScalaCheckSuite:
       assert(r.events.last.isInstanceOf[Event.End])
       true
     }
+
+  // ---------- Mehrrunden-Fill (D#55)
+
+  /** Antworten je Runde; Versuche spielen hier keine Rolle. */
+  private def rounds(answers: (Int, Term)*): FillRequest => ModelReply = r =>
+    answers.collectFirst { case (n, t) if n == r.round => ModelReply.Answer(submission(t), 100) }
+      .getOrElse(ModelReply.Failed("keine Antwort im Skript", 0))
+
+  test("D#55: Fill ohne Done liest, die nächste Runde sieht das Gelesene und ändert per CAS"):
+    val t = holeTerm(Term.Hole("ändere", src, h))
+    var requests = Vector.empty[FillRequest]
+    val model = rounds(
+      1 -> Term.ReadFile("src/A.scala", fill),
+      2 -> Term.Seq(List(Term.EditFile("src/A.scala", "val a = 1", "val a = 2", fill), Term.Done("a ist jetzt 2", fill)), fill)
+    )
+    val (approved, fs, r) = run(t, req => { requests :+= req; model(req) })
+    assertEquals(r.outcome, Outcome.Done)
+    assertEquals(fs("src/A.scala"), "val a = 2\n")
+    assertEquals(requests.map(q => (q.round, q.maxRounds, q.attempt, q.remainingSteps)), Vector((1, 3, 1, 4), (2, 3, 1, 3)))
+    assert(requests(1).scope.exists(l => l.label == "read src/A.scala" && l.text.contains("val a = 1")), requests(1).scope)
+    assertEquals(r.events.collect { case Event.HoleRound(at, n) => (at.show, n) }, Vector("1" -> 2))
+    assertEquals(r.stats.hints, List(StepId(Vector(1)) -> "a ist jetzt 2"))
+    assertEquals(Replay.verify(approved, r.events, config).map(_.events), Right(r.events))
+    val reread = RecordLog.parse(RecordLog.render(r.events)).fold(e => fail(e.message), identity)
+    assertEquals(reread, r.events)
+    assert(RunLog.render(r.events, RunLog.Footer(0, None)).contains("round  Runde 2: der Fill davor endete ohne Done"))
+
+  test("D#55: höchstens maxRoundsPerHole Runden; danach endet das Loch ohne Zusammenfassung"):
+    val t = holeTerm(Term.Hole("lies", src.copy(maxSteps = 10), h), Term.ReadFile("README.md", h))
+    var requests = Vector.empty[FillRequest]
+    val (_, _, r) = run(t, req => { requests :+= req; ModelReply.Answer(submission(Term.ReadFile("src/A.scala", fill)), 1) })
+    assertEquals(r.outcome, Outcome.Done)
+    assertEquals(requests.map(_.round), Vector(1, 2, 3))
+    assertEquals(r.events.collect { case Event.HoleRound(_, n) => n }, Vector(2, 3))
+    assertEquals(r.stats.hints, Nil)
+    val one = run(t, _ => ModelReply.Answer(submission(Term.ReadFile("src/A.scala", fill)), 1), cfg = config.copy(maxRoundsPerHole = 1))._3
+    assertEquals(one.stats.modelCalls, 1)
+
+  test("D#55: keine weitere Runde ohne Schritt oder ohne Restbudget"):
+    val empty = rounds(1 -> Term.Seq(Nil, fill))
+    assertEquals(run(holeTerm(Term.Hole("nichts", src, h)), empty)._3.stats.modelCalls, 1)
+    val tight = holeTerm(Term.Hole("lies", src.copy(maxSteps = 1), h))
+    val (_, _, r) = run(tight, rounds(1 -> Term.ReadFile("src/A.scala", fill)))
+    assertEquals((r.outcome, r.stats.modelCalls), (Outcome.Done, 1))
+
+  test("D#55: Kosten zählen Runden mal Versuche je Loch"):
+    assertEquals(Cost.of(holeTerm(Term.Hole("x", src, h))).worstCaseModelCalls, 9L)
+    assertEquals(Cost.of(holeTerm(Term.Hole("x", src, h)), CostConfig(3, 4000, roundsPerHole = 1)).worstCaseModelCalls, 3L)

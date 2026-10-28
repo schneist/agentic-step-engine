@@ -311,8 +311,9 @@ interpreters:
     type: interpreter
     status: implemented
     source: core/src/main/scala/ase/core/Engine.scala#Engine
-    verified: 2026-10-27
-    note: private[core]; Fill → decoderFor → DryRun.fill → restrict; zählt Schritte und Budgets selbst
+    verified: 2026-10-28
+    decided_by: ["D#55"]
+    note: private[core]; Fill → decoderFor → DryRun.fill → restrict; zählt Schritte und Budgets selbst; Fill ohne Done mit Schritten → weitere Runde (HoleRound)
   - id: int.localTools
     type: interpreter
     status: implemented
@@ -526,6 +527,7 @@ decisions:
   - { id: "D#52", type: decision, status: decided, source: "findings.md#D#52", verified: 2026-10-28, title: "requiredPrefixArgs nur bis zum Unterbefehl (Tor 1)", tested_by: [ase.core.ReviewRegressionSuite] }
   - { id: "D#53", type: decision, status: decided, source: "findings.md#D#53", verified: 2026-10-28, title: "Lesen vor dem Loch: Regel nach vorn, Plan- und Fill-Prompt, holeHint", tested_by: [ase.model.AnthropicSuite, ase.core.CodecSuite] }
   - { id: "D#54", type: decision, status: decided, source: "findings.md#D#54", verified: 2026-10-28, title: "Dritter Anbieter agy (Antigravity-CLI) für Entwicklungsläufe", tested_by: [ase.model.AgySuite, ase.runner.RunnerSuite] }
+  - { id: "D#55", type: decision, status: decided, source: "findings.md#D#55", verified: 2026-10-28, title: "Mehrrunden-Fill im Loch", tested_by: [ase.core.EngineSuite, ase.model.AnthropicSuite, ase.core.AlgebraSuite] }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }
@@ -552,7 +554,7 @@ open:
   - { id: "O#22", type: open, status: open, source: "findings.md#O#22", verified: 2026-10-28, title: "Argument-Policies nicht in der Runner-Konfiguration" }
   - { id: "O#23", type: open, status: open, source: "findings.md#O#23", verified: 2026-10-28, title: "Plan-Kennzahlen ohne Lauf nicht abgelegt" }
   - { id: "O#24", type: open, status: open, source: "findings.md#O#24", verified: 2026-10-28, title: "Fill sieht eigene Schritte nicht; Schreib-Loch braucht weiten pathPrefix für Sicht" }
-  - { id: "O#25", type: open, status: open, source: "findings.md#O#25", verified: 2026-10-28, title: "Vorschlag Mehrrunden-Fill (zu O#24 a), Entscheidung offen" }
+  - { id: "O#25", type: open, status: resolved, source: "findings.md#O#25", verified: 2026-10-28, resolved_by: "D#55" }
 
 evals:
   - id: eval.1

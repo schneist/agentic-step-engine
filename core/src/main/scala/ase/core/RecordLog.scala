@@ -15,8 +15,11 @@ enum RecordError:
   * Von Hand wie der Term-Codec (D#26); Terme darin mit origin.
   */
 object RecordLog:
-  /** 2: End trägt die Schrittzahl der Engine, Io trägt Art und Pfad statt des Ausnahmetextes (Review 3). */
-  val Version = 2
+  /** 2: End trägt die Schrittzahl der Engine, Io trägt Art und Pfad statt des Ausnahmetextes (Review 3).
+    * 3: HoleRound (D#55). Ein Log der Version 2 ist ein gültiges Log der Version 3 ohne Runden und bleibt lesbar.
+    */
+  val Version = 3
+  private val Readable = Set(2, 3)
 
   /** Verschachtelungsgrenze beim Lesen eingebetteter Terme; großzügig, das Log schreibt die Engine selbst. */
   private val LogNesting = 64
@@ -37,7 +40,7 @@ object RecordLog:
     for
       json <- parser.parse(text).leftMap(e => RecordError.InvalidLine(lineNo, e.message))
       v <- json.hcursor.get[Int]("v").leftMap(e => RecordError.InvalidLine(lineNo, "Versionsfeld v fehlt"))
-      _ <- Either.cond(v == Version, (), RecordError.UnsupportedVersion(lineNo, v))
+      _ <- Either.cond(Readable(v), (), RecordError.UnsupportedVersion(lineNo, v))
       e <- decode(json).leftMap(RecordError.InvalidLine(lineNo, _))
     yield e
 
@@ -79,6 +82,7 @@ object RecordLog:
         )
       case Event.FillFailed(at, attempt, error, toModel) =>
         obj("FillFailed", "at" -> s(at.show), "attempt" -> Json.fromInt(attempt), "error" -> encodeError(error), "toModel" -> s(toModel))
+      case Event.HoleRound(at, round)  => obj("HoleRound", "at" -> s(at.show), "round" -> Json.fromInt(round))
       case Event.HoleDone(at, summary) => obj("HoleDone", "at" -> s(at.show), "summary" -> s(summary))
       case Event.Asked(at, q, answer) =>
         obj("Asked", "at" -> s(at.show), "question" -> s(q), "answer" -> answer.fold(Json.Null)(s))
@@ -207,6 +211,7 @@ object RecordLog:
         ).mapN(Event.FillAccepted(_, _, _, _, _, _))
       case "FillFailed" =>
         (at(c), get[Int](c, "attempt"), decodeError(c.downField("error")), get[String](c, "toModel")).mapN(Event.FillFailed(_, _, _, _))
+      case "HoleRound" => (at(c), get[Int](c, "round")).mapN(Event.HoleRound(_, _))
       case "HoleDone" => (at(c), get[String](c, "summary")).mapN(Event.HoleDone(_, _))
       case "Asked"    => (at(c), get[String](c, "question"), get[Option[String]](c, "answer")).mapN(Event.Asked(_, _, _))
       case "Finished" => (at(c), get[String](c, "summary")).mapN(Event.Finished(_, _))

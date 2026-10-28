@@ -83,6 +83,8 @@ object RunLog:
         Vector(line(i, "fill", s"→ ${brief(term)}   hash ${hash.short}"), line(i, "dryrun", s"ok ($worst steps ≤ $budget)"))
       case Event.FillFailed(at, _, _, toModel) =>
         Vector(inner(at) + " " * 7 + s"→ an Modell: ${quote(toModel, 160)}")
+      case Event.HoleRound(at, round) =>
+        Vector(line(inner(at), "round", s"Runde $round: der Fill davor endete ohne Done, seine Ergebnisse gehen mit"))
       case Event.HoleDone(_, _) => Vector("")
       case Event.Asked(at, q, answer) =>
         Vector(line(lead(at), "ask", s"${quote(q, 80)}  → ${answer.fold("keine Antwort")(a => quote(a, 80))}"))

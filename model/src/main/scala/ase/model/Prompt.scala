@@ -42,9 +42,9 @@ object Prompt:
        |# Der Term ist statisch
        |Keine Variablen, keine Verweise auf Ergebnisse. Während du einen Term schreibst, Plan oder Teilterm eines
        |Lochs, siehst du die Ergebnisse seiner eigenen Schritte nicht. Lesen oder Suchen (ReadFile, ListDir, grep) und
-       |das Verarbeiten des Gelesenen (WriteFile, EditFile, Done) stehen deshalb nie im selben Term; dazwischen liegt
-       |ein Loch. Ein Loch ohne Unterlöcher (maxDepth 0) muss alles, was es verarbeiten soll, schon vor sich gelesen
-       |bekommen.
+       |das Verarbeiten des Gelesenen (WriteFile, EditFile, Done) stehen deshalb nie im selben Term. Im Plan liegt
+       |dazwischen ein Loch. Im Teilterm eines Lochs beendest du nach dem Lesen ohne Done; dann füllst du dasselbe Loch
+       |in einer weiteren Runde und siehst die Ergebnisse, solange Runden und Schritte des Lochs reichen.
        |Beim Füllen sieht ein Loch die Ergebnisse der vorangegangenen Schritte seiner Seq und aller umschließenden
        |Seqs, aber nur, wenn deren Pfade unter seinem pathPrefix liegen. Ein Shell-Aufruf ohne Pfadargument zählt
        |dabei als "."; immer sichtbar sind Exit-Codes, Done-Texte früherer Löcher, Ausgaben von Programmen, die Code
@@ -115,19 +115,25 @@ object Prompt:
     val scope =
       if r.scope.isEmpty then "(keine)"
       else r.scope.map(l => s"## Schritt ${l.at}: ${l.label}\n${l.text}").mkString("\n\n")
-    s"""# Loch ${r.at}
+    val last = r.round >= r.maxRounds
+    val rounds =
+      if last then "Dies ist die letzte Runde: Fehlt oben etwas Nötiges, schreibe nichts blind, sondern nenne es in Done."
+      else
+        "Fehlt oben etwas Nötiges, lies es und beende den Teilterm ohne Done: Dann folgt eine weitere Runde, die die\n" +
+          "Ergebnisse sieht."
+    s"""# Loch ${r.at}, Runde ${r.round} von ${r.maxRounds}
        |Ziel: ${r.goal}
        |
        |# Hülle dieses Lochs
        |${envelopeJson(r.envelope)}
-       |Verbleibende Schritte: ${r.remainingSteps}
+       |Verbleibende Schritte (für alle Runden zusammen): ${r.remainingSteps}
        |
        |# Ergebnisse früherer Schritte, die dieses Loch sieht
        |$scope${errors(r.errors)}
        |
        |Liefere den Teilterm für dieses Loch, innerhalb seiner Hülle. Was du schreibst, muss aus den Ergebnissen oben
-       |stammen; was deine eigenen Schritte lesen, siehst du nicht. Fehlt oben etwas Nötiges, schreibe nichts blind,
-       |sondern nenne es in Done. Beende den Teilterm mit Done; die Zusammenfassung ist das
+       |stammen; was deine eigenen Schritte lesen, siehst du erst in der nächsten Runde. $rounds
+       |Mit Done endet das Loch; die Zusammenfassung ist das
        |Ergebnis des Lochs, das spätere Schritte und der Mensch sehen. Liegt etwas Nötiges außerhalb der Hülle, ändere
        |es nicht, sondern nenne es in der Zusammenfassung.
        |

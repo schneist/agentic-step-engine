@@ -62,16 +62,18 @@ object RunnerConfig:
   private def limits(json: Json, d: ExecConfig): Either[String, ExecConfig] =
     for
       o <- obj(json, "limits")
-      _ <- only(o, "limits", "attemptsPerFill", "maxTotalSteps", "maxModelCalls", "maxDurationSeconds", "maxBytesPerStep", "shellTimeoutSeconds")
+      _ <- only(o, "limits", "attemptsPerFill", "roundsPerHole", "maxTotalSteps", "maxModelCalls", "maxDurationSeconds", "maxBytesPerStep", "shellTimeoutSeconds")
       attempts <- int(o, "attemptsPerFill", d.attemptsPerFill)
+      rounds <- int(o, "roundsPerHole", d.maxRoundsPerHole)
       steps <- int(o, "maxTotalSteps", d.maxTotalSteps)
       calls <- int(o, "maxModelCalls", d.maxModelCalls)
       duration <- int(o, "maxDurationSeconds", d.maxDuration.toSeconds.toInt)
       bytes <- int(o, "maxBytesPerStep", d.maxBytesPerStep)
       shell <- int(o, "shellTimeoutSeconds", d.shellTimeout.toSeconds.toInt)
-      _ <- Either.cond(List(attempts, steps, calls, duration, bytes, shell).forall(_ >= 1), (), "Limits müssen mindestens 1 sein")
+      _ <- Either.cond(List(attempts, rounds, steps, calls, duration, bytes, shell).forall(_ >= 1), (), "Limits müssen mindestens 1 sein")
     yield d.copy(
       attemptsPerFill = attempts,
+      maxRoundsPerHole = rounds,
       maxTotalSteps = steps,
       maxModelCalls = calls,
       maxDuration = duration.seconds,

@@ -30,7 +30,7 @@ ase() { java -cp "$cp" ase.runner.Main "$@"; }
 num() { sed -n "s/^  \"$1\" : \([0-9]*\).*/\1/p" "$2" 2>/dev/null | head -1; }
 str() { sed -n "s/^  \"$1\" : \"\(.*\)\".*/\1/p" "$2" 2>/dev/null | head -1; }
 
-printf 'lauf\toutcome\tcheck\tschritte\tplan\tfill\ttor1\ttor2\tohne_term\task\ttokens\tplan_fingerprint\n' > "$out/runs.tsv"
+printf 'lauf\toutcome\tcheck\tschritte\tplan\tfill\trunden\ttor1\ttor2\tohne_term\task\ttokens\tplan_fingerprint\n' > "$out/runs.tsv"
 for i in $(seq 1 "$n"); do
   run="$out/run-$i"
   mkdir -p "$run"
@@ -56,8 +56,8 @@ for i in $(seq 1 "$n"); do
   set -e
 
   s="$run/summary.json"
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$i" "$outcome" "$check" \
-    "$(num steps "$s")" "$(num planCalls "$s")" "$(num fillCalls "$s")" "$(num gate1Rejections "$s")" \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$i" "$outcome" "$check" \
+    "$(num steps "$s")" "$(num planCalls "$s")" "$(num fillCalls "$s")" "$(num holeRounds "$s")" "$(num gate1Rejections "$s")" \
     "$(num gate2Rejections "$s")" "$(num unusableAnswers "$s")" "$(sed -n 's/^  "asked" : \(.*\),/\1/p' "$s" 2>/dev/null)" \
     "$(num tokens "$s")" "$(str planFingerprint "$s" | cut -c1-12)" >> "$out/runs.tsv"
   echo "Lauf $i: $outcome, check $check"

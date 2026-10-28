@@ -136,6 +136,8 @@ enum Event:
   case FillRejected(at: StepId, attempt: Int, gate: Gate, term: Option[Term], reasons: List[String], toModel: String)
   case FillAccepted(at: StepId, attempt: Int, hash: TermHash, worstCase: Long, budget: Int, term: Term)
   case FillFailed(at: StepId, attempt: Int, error: ToolError, toModel: String)
+  /** Ein Fill endete ohne Done, mit Schritten und Restbudget: das Loch wird erneut gefüllt (D#55). */
+  case HoleRound(at: StepId, round: Int)
   case HoleDone(at: StepId, summary: String)
   case Asked(at: StepId, question: String, answer: Option[String])
   case Finished(at: StepId, summary: String)

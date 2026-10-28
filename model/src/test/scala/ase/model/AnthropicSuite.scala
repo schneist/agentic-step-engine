@@ -84,11 +84,14 @@ class AnthropicSuite extends munit.FunSuite:
     val text = Prompt.fill(FillRequest("fill-1", "2", 2, "Schreibe TODO.md", env, 2, 5, Vector(ScopeLine("1", "shell grep", "src/a.scala:3: // TODO x")), Vector("abgelehnt: y")))
     assert(text.contains("Ziel: Schreibe TODO.md"))
     assert(text.contains(Codec.envelope(env).spaces2))
-    assert(text.contains("Verbleibende Schritte: 2"))
+    assert(text.contains("Verbleibende Schritte (für alle Runden zusammen): 2"))
     assert(text.contains("src/a.scala:3: // TODO x"))
     assert(text.contains("abgelehnt: y"))
-    assert(text.contains("was deine eigenen Schritte lesen, siehst du nicht"), text)
-    assert(text.contains("schreibe nichts blind"), text)
+    assert(text.contains("was deine eigenen Schritte lesen, siehst du erst in der nächsten Runde"), text)
+    // eine Runde: das ist die letzte
+    assert(text.contains("letzte Runde") && text.contains("schreibe nichts blind"), text)
+    val first = Prompt.fill(FillRequest("fill-1", "2", 1, "x", env, 2, 5, Vector.empty, Vector.empty, 1, 3))
+    assert(first.contains("# Loch 2, Runde 1 von 3") && first.contains("beende den Teilterm ohne Done"), first)
 
   test("Lesen vor dem Loch: System- und Plan-Prompt (D#51, D#53)"):
     assert(Prompt.system(check).contains("stehen deshalb nie im selben Term"))

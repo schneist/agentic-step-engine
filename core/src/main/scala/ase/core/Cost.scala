@@ -3,8 +3,10 @@
 /** Schätzung ohne Ausführung; vollständig, weil der Term statisch ist. */
 final case class Cost(worstCaseSteps: Long, worstCaseModelCalls: Long, tokenEstimate: Long)
 
-/** attemptsPerFill: Versuche pro Loch (SPEC: 3). tokensPerFill: grobe Größe eines Fill-Aufrufs. */
-final case class CostConfig(attemptsPerFill: Int, tokensPerFill: Int)
+/** attemptsPerFill: Versuche je Runde (SPEC: 3). roundsPerHole: Runden je Loch (D#55). tokensPerFill: grobe Größe eines
+  * Fill-Aufrufs.
+  */
+final case class CostConfig(attemptsPerFill: Int, tokensPerFill: Int, roundsPerHole: Int = 3)
 
 object CostConfig:
   val default: CostConfig = CostConfig(attemptsPerFill = 3, tokensPerFill = 4000)
@@ -27,11 +29,8 @@ object Cost:
     def ask(question: String, origin: Origin): Cost = leaf(question)
     def done(summary: String, origin: Origin): Cost = leaf(summary)
     def think(goal: String, envelope: Envelope, origin: Origin): Cost =
-      Cost(
-        Steps.add(1L, math.max(envelope.maxSteps, 0).toLong),
-        config.attemptsPerFill.toLong,
-        tokens(goal) + config.attemptsPerFill.toLong * config.tokensPerFill
-      )
+      val calls = config.attemptsPerFill.toLong * config.roundsPerHole
+      Cost(Steps.add(1L, math.max(envelope.maxSteps, 0).toLong), calls, tokens(goal) + calls * config.tokensPerFill)
     def seq(steps: List[Cost], origin: Origin): Cost =
       steps.foldLeft(Cost(0, 0, 0))((a, b) =>
         Cost(

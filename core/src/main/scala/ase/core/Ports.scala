@@ -6,10 +6,12 @@ import cats.syntax.all.*
 import scala.concurrent.duration.*
 
 /** Konfiguration von Execute: harte Limits (SPEC RUNNER) und Kürzung (MARSHALLING). Der Runner liest sie aus einer
-  * Datei. Die Prüfkonfiguration kommt aus dem CheckedTerm (D#40).
+  * Datei. Die Prüfkonfiguration kommt aus dem CheckedTerm (D#40). maxRoundsPerHole: wie oft ein Loch nach einem Fill
+  * ohne Done erneut gefüllt wird, mit den Ergebnissen der Runden davor (D#55); attemptsPerFill gilt je Runde.
   */
 final case class ExecConfig(
     attemptsPerFill: Int,
+    maxRoundsPerHole: Int,
     maxTotalSteps: Int,
     maxModelCalls: Int,
     maxDuration: FiniteDuration,
@@ -25,6 +27,7 @@ final case class ExecConfig(
 object ExecConfig:
   val default: ExecConfig = ExecConfig(
     attemptsPerFill = 3,
+    maxRoundsPerHole = 3,
     maxTotalSteps = 200,
     maxModelCalls = 30,
     maxDuration = 30.minutes,
@@ -41,7 +44,9 @@ object ExecConfig:
 final case class ScopeLine(at: String, label: String, text: String)
 
 /** Was das Modell für ein Loch bekommt: Ziel, Hülle, Restbudget, Kontext nach Scope.visible (D#9, D#30) und die
-  * Handlungsanweisungen der bisherigen Versuche (D#15). Die Antwort ist die Eingabe von submit_term.
+  * Handlungsanweisungen der bisherigen Versuche (D#15). Die Antwort ist die Eingabe von submit_term. round von
+  * maxRounds: die wievielte Runde dieses Lochs (D#55); ab Runde 2 steht im Kontext auch, was die Runden davor gelesen
+  * haben.
   */
 final case class FillRequest(
     callId: String,
@@ -52,7 +57,9 @@ final case class FillRequest(
     remainingSteps: Int,
     nestingLimit: Int,
     scope: Vector[ScopeLine],
-    errors: Vector[String]
+    errors: Vector[String],
+    round: Int = 1,
+    maxRounds: Int = 1
 )
 
 /** Werkzeuge am Rand: Dateisystem und Prozesse. Prüft Pfade und Befehle zur Laufzeit gegen die Hülle. */

@@ -156,7 +156,7 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
           case None =>
             emit(s0, Event.Hole(at, goal, env)).flatMap { s =>
               val h = HoleCall(at, s.calls + 1, goal, env, s.scope)
-              attempt(ctx, h)(1, Vector.empty, false, s.copy(calls = h.call))
+              attempt(ctx, h)(1, 1, Vector.empty, false, s.copy(calls = h.call))
             }
     (n + 1, run)
 
@@ -167,12 +167,14 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
       ScopeLine(e.at.show, e.label, text)
     }
 
-  /** Versuch k für den Aufruf h. counted: der Schritt des Lochs ist für diesen Aufruf schon gezählt. */
-  private def attempt(ctx: Ctx, h: HoleCall)(k: Int, errors: Vector[String], counted: Boolean, s: State): Res =
+  /** Versuch k in Runde round für den Aufruf h. counted: der Schritt des Lochs ist für diesen Aufruf schon gezählt.
+    * Versuche zählen je Runde; das Schrittbudget gilt für alle Runden zusammen (D#55).
+    */
+  private def attempt(ctx: Ctx, h: HoleCall)(round: Int, k: Int, errors: Vector[String], counted: Boolean, s: State): Res =
     val env = h.env
     val remaining = env.maxSteps - s.used.getOrElse(h.call, 0)
     def next(s1: State, toModel: String, countedNow: Boolean): Res =
-      attempt(ctx, h)(k + 1, errors :+ toModel, countedNow, s1)
+      attempt(ctx, h)(round, k + 1, errors :+ toModel, countedNow, s1)
 
     if k > config.attemptsPerFill then halt(s, aborted(AbortReason.AttemptsExhausted(h.at, config.attemptsPerFill)))
     else if remaining <= 0 then halt(s, aborted(AbortReason.BudgetExhausted(h.at, env.maxSteps)))
@@ -184,7 +186,8 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
           val callId = s"fill-${s.modelCalls + 1}"
           // laufende Nummer des Fills an dieser Position, über Versuche und Durchläufe hinweg (StepId)
           val fillNo = s.fills.getOrElse(h.at, 0) + 1
-          val request = FillRequest(callId, h.at.show, k, h.goal, env, remaining, check.nestingLimit, scopeLines(s.scope, env), errors)
+          val request =
+            FillRequest(callId, h.at.show, k, h.goal, env, remaining, check.nestingLimit, scopeLines(s.scope, env), errors, round, config.maxRoundsPerHole)
           ports.model.fill(request).flatMap { reply =>
             val sCalled = s.copy(modelCalls = s.modelCalls + 1, fills = s.fills.updated(h.at, fillNo))
             emit(sCalled, Event.Fill(h.at, k, callId, reply)).flatMap { s1 =>
@@ -203,7 +206,7 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
                         case Right(cf) if cf.worstCaseSteps < 0 || cf.worstCaseSteps > remaining =>
                           val v = Violation.StepBudgetExceeded(Location.root, cf.worstCaseSteps, remaining)
                           reject(Gate.DryRun, Some(term), List(Marshal(v)))
-                        case Right(cf) => accepted(ctx, h, k, fillNo, errors, counted, remaining, cf, s1)
+                        case Right(cf) => accepted(ctx, h, round, k, fillNo, errors, counted, remaining, cf, s1)
             }
           }
       }
@@ -211,6 +214,7 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
   private def accepted(
       ctx: Ctx,
       h: HoleCall,
+      round: Int,
       k: Int,
       fillNo: Int,
       errors: Vector[String],
@@ -229,12 +233,18 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
         emit(s, Event.HoleDone(h.at, summary)).map(s5 =>
           (s5.copy(last = r, scope = h.outer :+ Entry(h.at, s"Ergebnis von Loch ${h.at.show}", Nil, r)), Right(r))
         )
+      // Ein Fill ohne Done, der etwas getan hat, bekommt eine weitere Runde, solange Runden und Budget reichen; sie
+      // sieht die Ergebnisse dieser Runde im Scope (D#55). Ohne Schritt gäbe es nichts Neues zu sehen.
+      def again(s4: State): Boolean =
+        round < config.maxRoundsPerHole && s4.steps > s3.steps && s4.used.getOrElse(h.call, 0) < h.env.maxSteps
       program(inner, s3.copy(last = StepResult(None, None))).flatMap {
+        case (s4, Right(_)) if again(s4) =>
+          emit(s4, Event.HoleRound(h.at, round + 1)).flatMap(s5 => attempt(ctx, h)(round + 1, 1, Vector.empty, true, s5))
         case (s4, Right(_))                        => finish(s4, "")
         case (s4, Left(Stop.Finished(summary)))    => finish(s4, summary)
         case (s4, Left(Stop.Failed(failedAt, err))) =>
           val toModel = Marshal.failure(failedAt, err)
-          emit(s4, Event.FillFailed(h.at, k, err, toModel)).flatMap(s5 => attempt(ctx, h)(k + 1, errors :+ toModel, true, s5))
+          emit(s4, Event.FillFailed(h.at, k, err, toModel)).flatMap(s5 => attempt(ctx, h)(round, k + 1, errors :+ toModel, true, s5))
         case halted => F.pure(halted)
       }
     }

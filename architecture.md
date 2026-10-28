@@ -116,3 +116,9 @@ Umkehrkosten: hoch. Engine, Replay, Tests und der Adapter hängen an den Port-Si
 Alternativen: (a) feste Teil-Traits pro erlaubter Teilmenge (ReadOnlyAlg …). (b) `decoderFor(envelope)` plus `restrict(alg, envelope)` zur Laufzeit.
 Gewählt: b. Fills kommen als JSON, der Compiler sieht sie nie; 2⁸ Teilmengen sind keine Traits. Die Sperre liegt trotzdem in der Struktur: Was der Decoder nicht annimmt, gibt es nicht.
 Umkehrkosten: niedrig. Beide Funktionen sind lokal.
+
+## D#55 Mehrrunden-Fill im Loch
+
+Alternativen: (a) Nichts ändern; Pläne und Flows lesen vor dem Loch (D#51, D#53). (b) Ergebnisse eines Lochs bleiben für spätere Geschwister-Löcher sichtbar. (c) Ein Fill ohne Done führt zu einer weiteren Runde desselben Lochs, die die Ergebnisse der Runden davor sieht.
+Gewählt: c. a geht für generische Flows nicht, wenn die Datei vorher unbekannt ist (Eval 6, Release-Flow); b heilt nicht, dass ein Loch lesen und dann per Compare-and-Swap ändern muss. c ändert weder Sprache noch Hüllen noch Freigabe: Jede Runde geht durch Decoder und Tor 2, alle Runden teilen das Budget des Lochs. Innerhalb der freigegebenen Hülle ist das eine begrenzte Per-Schritt-Schleife (vgl. D#1 a), der Plan bleibt statisch prüfbar.
+Umkehrkosten: mittel. Engine, Record-Log (Version 3), Replay, Cost, Fill-Prompt und die Messbasis ab M#1 hängen daran.

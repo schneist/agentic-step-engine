@@ -57,4 +57,5 @@ class AlgebraSuite extends munit.FunSuite:
     )
     val c = Cost.of(t)
     assertEquals(c.worstCaseSteps, 1L + 6 + 2)
-    assertEquals(c.worstCaseModelCalls, 3L)
+    // drei Versuche je Runde, drei Runden (D#55)
+    assertEquals(c.worstCaseModelCalls, 9L)

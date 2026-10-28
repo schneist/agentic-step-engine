@@ -102,6 +102,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Entwicklungslauf**: Ein Lauf mit einem lokalen Modell, um die Kette ohne Kosten zu üben; als Serie ein eigener M#-Eintrag mit Anbieter und Modell.
 - **Lösungsbeispiel**: Eine vollständig gelöste Beispielaufgabe (Plan und Fill) im System-Prompt des lokalen Modells; bewusst eine andere Aufgabe als die Evals (D#49).
 - **think** (Denken vor dem Schema): Ein lokales Modell überlegt erst frei und schreibt danach den Term im Schema; nur die Antwort wird ausgewertet (D#48). Fehlt der Wert, gilt der Standard des Modells; false schaltet das Denken hybrider Modelle ab (D#50).
+- **Runde** (Mehrrunden-Fill): Ein Fill ohne Done, der Schritte ausgeführt hat, führt zu einer weiteren Runde desselben Lochs, die deren Ergebnisse sieht; höchstens `maxRoundsPerHole`, alle Runden teilen das Schrittbudget des Lochs (D#55).
 
 ## 8. Warum
 
@@ -310,6 +311,10 @@ Ein Modell liest die Grundregel eines Abschnitts eher als die Ausnahmen danach. 
 ### Warum ein dritter Anbieter über die Antigravity-CLI (D#54)
 
 Das lokale Modell war entweder zu langsam (mit Denken) oder zu schwach (ohne), um die Kette sinnvoll zu üben; für Claude fehlt der Schlüssel. agy ist auf dem Rechner angemeldet und bietet starke Modelle, mit derselben Schema-Bindung wie Ollama. Dass agy ein Agent ist, nicht nur ein Modell, ist der Preis: Er bekommt einen eigenen Prompt und könnte lesen. Ein leeres Verzeichnis pro Aufruf und der Plan-Modus halten ihn von Workspace und Änderungen fern; was dann noch abweicht, ist für Entwicklungsläufe hinnehmbar und steht bei jeder Zahl dabei.
+
+### Warum ein Loch in Runden arbeiten darf (D#55)
+
+Der statische Term (D#5) hat einen Preis, den die Probeläufe und das Review offengelegt haben: Ein Loch kann nicht lesen und dann mit dem Gelesenen handeln. Für Pläne lässt sich das umgehen, indem der Plan vor dem Loch liest. Für generische Flows nicht: Welche Datei die Ursache eines roten Tests enthält, weiß der Flow nicht, und ein Compare-and-Swap verlangt den genauen alten Text. Eine Runde mehr im selben Loch löst das, ohne die Sprache zu ändern. Die Freigabe bleibt, was sie war: Der Mensch sieht die Hülle jedes Lochs, und alle Runden zusammen bleiben darin und in seinem Budget. Was sich ändert, sind nur die Modellaufrufe, und die sind gedeckelt.
 
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 
