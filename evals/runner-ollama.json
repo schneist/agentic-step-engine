@@ -1,5 +1,5 @@
 {
-  "model": { "provider": "ollama", "model": "qwen3:4b", "think": true, "maxTokens": 16000, "contextTokens": 16384 },
+  "model": { "provider": "ollama", "model": "qwen3:4b-instruct", "maxTokens": 8000, "contextTokens": 16384 },
   "nestingLimit": 3,
   "scripts": ["./run-tests.sh"]
 }

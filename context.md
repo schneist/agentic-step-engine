@@ -100,6 +100,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Serie**: n Live-Läufe einer Eval mit `evals/series.sh`, je in frischer Fixture-Kopie; Grundlage einer M#-Zeile.
 - **Anbieter** (`provider`): Wer beim Plan und Fill antwortet: `anthropic` (Messages API) oder `ollama` (lokales Modell, D#47).
 - **Entwicklungslauf**: Ein Lauf mit einem lokalen Modell, um die Kette ohne Kosten zu üben; als Serie ein eigener M#-Eintrag mit Anbieter und Modell.
+- **Lösungsbeispiel**: Eine vollständig gelöste Beispielaufgabe (Plan und Fill) im System-Prompt des lokalen Modells; bewusst eine andere Aufgabe als die Evals (D#49).
 - **think** (Denken vor dem Schema): Ein lokales Modell überlegt erst frei und schreibt danach den Term im Schema; nur die Antwort wird ausgewertet (D#48).
 
 ## 8. Warum
@@ -285,6 +286,10 @@ Die Engine soll weiterentwickelt werden können, ohne dass jeder Probelauf Geld 
 ### Warum ein kleines Modell erst denkt (D#48)
 
 Eine Ausgabe, die vom ersten Zeichen an im Schema stehen muss, lässt dem Modell keinen Platz zum Überlegen. Große Modelle denken vor dem Werkzeugaufruf ohnehin; ein kleines Modell ohne Denken schreibt den Plan Token für Token und gerät leicht in eine Schleife, die das Schema nicht verhindert, weil sie gültig ist. Mit think überlegt das Modell frei und schreibt erst danach den Term im Schema. Ein kleineres Schema (Verschachtelungsgrenze 3) lässt weniger Wege offen, auf denen es sich verlaufen kann.
+
+### Warum ein Lösungsbeispiel nur für das lokale Modell (D#49)
+
+Denken hilft einem kleinen Modell, ist auf der CPU aber zu langsam für Entwicklungsläufe. Ein Beispiel zeigt das Muster, das ein Plan braucht, ohne dass das Modell es herleiten muss: erst die Daten lesen, dann ein Loch, das sie sieht, keine Datei zweimal. Es löst bewusst eine andere Aufgabe als die Evals, sonst misst ein Lauf nur, ob das Modell abschreiben kann. Claude bekommt das Beispiel nicht: Jede Änderung an seinem Prompt bräuchte eine eigene Messung, und M#1 soll die Basis für den Prompt sein, wie er ist.
 
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 

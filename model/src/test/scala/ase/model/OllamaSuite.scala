@@ -65,6 +65,12 @@ class OllamaSuite extends munit.FunSuite:
     )
     assert(r.exists(_.isInstanceOf[ModelReply.Answer]), r)
 
+  test("Lösungsbeispiel im System-Prompt besteht Tor 1 und Tor 2"):
+    assert(DryRun.plan(Ollama.examplePlan, Ollama.exampleRoot, check).isRight)
+    assert(DryRun.fill(Ollama.exampleFill, Ollama.exampleHole, check).isRight)
+    val sys = Ollama.request(config, "SYS", 4, "x").hcursor.downField("messages").downN(0).downField("content").as[String]
+    assert(sys.exists(s => s.contains("# Beispiel") && s.contains("\"VERSION\"")), sys)
+
   test("Fabrik: Anbieter aus der Konfiguration"):
     val t: Transport[IO] = _ => IO.pure(Left("nie"))
     assert(ModelAdapter[IO](t, config, check).isInstanceOf[Ollama[IO]])

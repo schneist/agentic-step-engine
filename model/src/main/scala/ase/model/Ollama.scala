@@ -20,6 +20,39 @@ object Ollama:
   private val noTool =
     s"\n\nHier gibt es kein Werkzeug: Deine ganze Antwort ist die Eingabe von ${Prompt.toolName}, ein JSON-Objekt {\"term\": …}."
 
+  private val h = Origin.Human
+
+  /** Lösungsbeispiel zu einer anderen Aufgabe als die Evals (D#49): Daten lesen, dann ein Loch, das sie sieht. */
+  private[model] val exampleRoot = Envelope(Set(OpKind.ReadFile, OpKind.WriteFile, OpKind.Hole), ".", 10, 1, Set.empty)
+  private[model] val exampleHole = Envelope(Set(OpKind.WriteFile), ".", 2, 0, Set.empty)
+  private[model] val examplePlan = Term.Seq(
+    List(
+      Term.ReadFile("VERSION", h),
+      Term.Hole("Lege CHANGELOG.md mit einer Überschrift für die Version aus VERSION an.", exampleHole, h),
+      Term.Done("CHANGELOG.md angelegt.", h)
+    ),
+    h
+  )
+  private[model] val exampleFill = Term.Seq(
+    List(Term.WriteFile("CHANGELOG.md", "# 1.4.0\n", h), Term.Done("CHANGELOG.md mit Version 1.4.0 angelegt.", h)),
+    h
+  )
+
+  private def submission(t: Term): String = Json.obj("term" -> Codec.term(t, withOrigin = false)).noSpaces
+
+  private val example =
+    s"""
+       |
+       |# Beispiel (eine andere Aufgabe)
+       |Aufgabe: Lege CHANGELOG.md mit einer Überschrift für die Version an, die in VERSION steht.
+       |Wurzel-Hülle: ReadFile, WriteFile, Hole; pathPrefix "."; maxSteps 10; maxDepth 1.
+       |Plan:
+       |${submission(examplePlan)}
+       |Das Loch sieht den Inhalt von VERSION, weil ReadFile in derselben Seq vor ihm steht und VERSION unter seinem
+       |pathPrefix liegt. Jede Datei wird einmal gelesen; was danach zu tun ist, entscheidet das Loch.
+       |Später, beim Füllen des Lochs (VERSION enthielt 1.4.0):
+       |${submission(exampleFill)}""".stripMargin
+
   /** think nur, wenn eingeschaltet: Modelle ohne Denken kennen das Feld nicht. */
   def request(config: ModelConfig, system: String, nestingLimit: Int, user: String): Json =
     val thinking = if config.think then Json.obj("think" -> Json.True) else Json.obj()
@@ -32,7 +65,7 @@ object Ollama:
         "num_predict" -> Json.fromInt(config.maxTokens)
       ),
       "messages" -> Json.arr(
-        Json.obj("role" -> Json.fromString("system"), "content" -> Json.fromString(system + noTool)),
+        Json.obj("role" -> Json.fromString("system"), "content" -> Json.fromString(system + noTool + example)),
         Json.obj("role" -> Json.fromString("user"), "content" -> Json.fromString(user))
       )
     )
