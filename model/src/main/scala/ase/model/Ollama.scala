@@ -20,8 +20,10 @@ object Ollama:
   private val noTool =
     s"\n\nHier gibt es kein Werkzeug: Deine ganze Antwort ist die Eingabe von ${Prompt.toolName}, ein JSON-Objekt {\"term\": …}."
 
+  /** think nur, wenn eingeschaltet: Modelle ohne Denken kennen das Feld nicht. */
   def request(config: ModelConfig, system: String, nestingLimit: Int, user: String): Json =
-    Json.obj(
+    val thinking = if config.think then Json.obj("think" -> Json.True) else Json.obj()
+    thinking deepMerge Json.obj(
       "model" -> Json.fromString(config.model),
       "stream" -> Json.False,
       "format" -> Schema.termSchema(nestingLimit),
@@ -35,7 +37,9 @@ object Ollama:
       )
     )
 
-  /** done_reason "length": abgeschnitten, ein Fehlversuch wie max_tokens bei Anthropic. */
+  /** Mit think steht das Denken in message.thinking und zählt in eval_count; ausgewertet wird nur content (D#48).
+    * done_reason "length": abgeschnitten, ein Fehlversuch wie max_tokens bei Anthropic.
+    */
   def reply(body: String): Either[ModelError, ModelReply] =
     for
       o <- parser.parse(body).left.map(e => ModelError.UnreadableResponse(e.message)).flatMap(_.asObject.toRight(ModelError.UnreadableResponse("kein Objekt")))

@@ -73,6 +73,8 @@ class RunnerSuite extends munit.FunSuite:
     val o = RunnerConfig.parse("""{"model":{"provider":"ollama","maxTokens":4000}}""").fold(fail(_), identity)
     assertEquals((o.model.provider, o.model.model, o.model.endpoint, o.model.maxTokens), (Provider.Ollama, "qwen3:4b-instruct", "http://127.0.0.1:11434/api/chat", 4000))
     assert(RunnerConfig.parse("""{"model":{"provider":"openai"}}""").isLeft)
+    assertEquals(RunnerConfig.parse("""{"model":{"provider":"ollama","think":true}}""").map(_.model.think), Right(true))
+    assert(RunnerConfig.parse("""{"model":{"think":"ja"}}""").isLeft)
     val s = RunnerConfig.parse("""{"scripts":["./run-tests.sh"]}""").fold(fail(_), identity)
     assertEquals(s.check.argPolicies, CheckConfig.default.argPolicies :+ ArgPolicy.script("./run-tests.sh"))
     List("run-tests.sh", "./bin/x.sh", "./..", "../x.sh").foreach(bad => assert(RunnerConfig.parse(s"""{"scripts":["$bad"]}""").isLeft, bad))

@@ -100,6 +100,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Serie**: n Live-Läufe einer Eval mit `evals/series.sh`, je in frischer Fixture-Kopie; Grundlage einer M#-Zeile.
 - **Anbieter** (`provider`): Wer beim Plan und Fill antwortet: `anthropic` (Messages API) oder `ollama` (lokales Modell, D#47).
 - **Entwicklungslauf**: Ein Lauf mit einem lokalen Modell, um die Kette ohne Kosten zu üben; als Serie ein eigener M#-Eintrag mit Anbieter und Modell.
+- **think** (Denken vor dem Schema): Ein lokales Modell überlegt erst frei und schreibt danach den Term im Schema; nur die Antwort wird ausgewertet (D#48).
 
 ## 8. Warum
 
@@ -280,6 +281,10 @@ Welche Programme im Arbeitsverzeichnis laufen dürfen, hängt vom Projekt ab, ni
 ### Warum ein lokales Modell als zweiter Anbieter (D#47)
 
 Die Engine soll weiterentwickelt werden können, ohne dass jeder Probelauf Geld kostet oder einen Schlüssel braucht. Ein kleines lokales Modell plant schlechter, aber es übt dieselbe Kette: Plan, Tor 1, Freigabe, Fill, Tor 2, Execute. Gerade die schlechteren Antworten zeigen, ob die Tore und Fehlermeldungen tragen. Ollama bekommt das Term-Schema als Ausgabeformat statt eines Werkzeugs; damit ist jede Antwort syntaktisch ein Term, und was bleibt, ist die Frage nach dem Sinn, die die Tore stellen. Zahlen aus solchen Läufen gelten nur für dieses Modell; die Basis für Claude bleibt eine eigene Messung.
+
+### Warum ein kleines Modell erst denkt (D#48)
+
+Eine Ausgabe, die vom ersten Zeichen an im Schema stehen muss, lässt dem Modell keinen Platz zum Überlegen. Große Modelle denken vor dem Werkzeugaufruf ohnehin; ein kleines Modell ohne Denken schreibt den Plan Token für Token und gerät leicht in eine Schleife, die das Schema nicht verhindert, weil sie gültig ist. Mit think überlegt das Modell frei und schreibt erst danach den Term im Schema. Ein kleineres Schema (Verschachtelungsgrenze 3) lässt weniger Wege offen, auf denen es sich verlaufen kann.
 
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 

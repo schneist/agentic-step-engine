@@ -11,7 +11,7 @@ object Provider:
 
 /** Modelladapter (SPEC MODELLADAPTER). Der Runner liest ihn aus seiner Konfigurationsdatei; was hier steht, gehört
   * zu jeder Messung (playbook/evals.md: Anbieter, Modell und Effort stehen in der M#-Zeile). effort gilt nur für
-  * Anthropic, contextTokens nur für Ollama.
+  * Anthropic, contextTokens und think nur für Ollama (think: erst frei denken, dann die Antwort im Schema, D#48).
   */
 final case class ModelConfig(
     provider: Provider,
@@ -19,6 +19,7 @@ final case class ModelConfig(
     effort: String,
     maxTokens: Int,
     contextTokens: Int,
+    think: Boolean,
     endpoint: String,
     apiVersion: String,
     apiKeyEnv: String,
@@ -34,6 +35,7 @@ object ModelConfig:
     effort = "high",
     maxTokens = 16000,
     contextTokens = 0,
+    think = false,
     endpoint = "https://api.anthropic.com/v1/messages",
     apiVersion = "2026-10-21",
     apiKeyEnv = "ANTHROPIC_API_KEY",
