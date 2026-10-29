@@ -70,12 +70,14 @@ trait Tools[F[_]]:
 trait FillModel[F[_]]:
   def fill(request: FillRequest): F[ModelReply]
 
-/** Der Mensch bei Ask: eine Antwort, oder keine (nicht interaktiv; der Lauf endet mit ask). */
+/** Der Mensch bei Ask: eine Antwort, oder keine (nicht interaktiv; der Lauf endet mit ask). last: das Ergebnis des
+  * Schritts davor, damit der Mensch sieht, worauf sich die Frage bezieht (D#73, wie Prädikate D#20).
+  */
 trait AskHandler[F[_]]:
-  def ask(question: String): F[Option[String]]
+  def ask(question: String, last: StepResult): F[Option[String]]
 
 object AskHandler:
-  def nonInteractive[F[_]: Applicative]: AskHandler[F] = _ => Option.empty[String].pure[F]
+  def nonInteractive[F[_]: Applicative]: AskHandler[F] = (_, _) => Option.empty[String].pure[F]
 
 /** Zeitlimit. position: Zahl der bisher geschriebenen Ereignisse; Replay beantwortet die Frage daraus. */
 trait Clock[F[_]]:

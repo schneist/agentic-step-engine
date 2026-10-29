@@ -376,6 +376,10 @@ Mit dem Fingerprint als Maß waren sich drei Pläne oft nicht einig, obwohl jede
 
 Die Regel aus D#62 sollte verhindern, dass ein Agentenschritt ein Skript ändert, das danach läuft. Das Modell wandte sie überall an und teilte auch dort, wo kein Code läuft, in Eval 1 in jedem Plan. Das kostete fast die Hälfte mehr Tokens, ohne dort etwas sicherer zu machen. Die Regel nennt jetzt ihre Bedingung.
 
+### Warum Ask das Ergebnis davor zeigt (D#73)
+
+Eine Frage zur Laufzeit ist nur so gut wie das, was der Mensch beim Antworten weiß. Im festen Teil des Plans gibt es keine Variablen, also kann die Frage selbst keine Zahlen aus dem Lauf enthalten; der Plan kann aber direkt davor lesen, was der Mensch sehen soll. Das Lauf-Log zeigt Ausgaben bewusst nicht, weil es kurz bleiben soll. Also zeigt die Frage selbst das Ergebnis davor, nach derselben Regel, nach der Prädikate das letzte Ergebnis lesen. Ohne das hätte die Freigabe einer Steueraktion wie „Deckel auf 200 h setzen“ nur die Parameter gesehen, nicht den Stand, auf den sie reagiert.
+
 ### Warum Skripte in Unterverzeichnissen liegen dürfen (D#72)
 
 Die Beschränkung auf `./name` sollte Skripte einfach halten, schützte aber nichts: Ein Pfad wie `./ase/cfd/deckel_setzen.sh` wird genauso geprüft wie jeder andere Pfad im Term, und Explain markiert ihn genauso als Workspace-Code. In einem Repository mit tausend Dateien im Wurzelverzeichnis gehören Steuerskripte in einen eigenen Ordner, neben die Flows, die sie aufrufen.

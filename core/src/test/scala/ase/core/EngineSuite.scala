@@ -215,3 +215,13 @@ class EngineSuite extends munit.ScalaCheckSuite:
   test("D#55: Kosten zählen Runden mal Versuche je Loch"):
     assertEquals(Cost.of(holeTerm(Term.Hole("x", src, h))).worstCaseModelCalls, 9L)
     assertEquals(Cost.of(holeTerm(Term.Hole("x", src, h)), CostConfig(3, 4000, roundsPerHole = 1)).worstCaseModelCalls, 3L)
+
+  test("Ask bekommt das Ergebnis des Schritts davor, damit der Mensch sieht, worauf sich die Frage bezieht (D#73)"):
+    val approved = approve(Term.Seq(List(Term.ReadFile("README.md", h), Term.Ask("weiter?", h)), h), root, check)
+    var seen = Option.empty[StepResult]
+    val p = ports(fakeTools(check.argPolicies), _ => ModelReply.Failed("x", 0), _ => None).copy(ask = (_, last) =>
+      seen = Some(last)
+      cats.Applicative[W].pure(Some("ja"))
+    )
+    Execute.run[W](approved, p, config).runA(files).value
+    assertEquals(seen.flatMap(_.output), Some("# x\n"))

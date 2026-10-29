@@ -86,7 +86,7 @@ object ExecSupport:
     Ports(
       tools,
       r => cats.Applicative[F].pure(model(r)),
-      q => cats.Applicative[F].pure(ask(q)),
+      (q, _) => cats.Applicative[F].pure(ask(q)),
       Clock.never[F],
       Recorder.none[F]
     )

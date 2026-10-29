@@ -572,6 +572,7 @@ decisions:
   - { id: "D#65", type: decision, status: decided, source: "findings.md#D#65", verified: 2026-10-29, title: "BestOfN stimmt über die Form ab", measured_by: [eval.1, eval.6], tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite] }
   - { id: "D#66", type: decision, status: decided, source: "findings.md#D#66", verified: 2026-10-29, title: "Teilungsregel nur bei ausgeführtem Code", measured_by: [eval.1, eval.6] }
   - { id: "D#67", type: decision, status: decided, source: "findings.md#D#67", verified: 2026-10-29, title: "Messbasis über Claude Code (M#6 bis M#11)" }
+  - { id: "D#73", type: decision, status: decided, source: "findings.md#D#73", verified: 2026-10-29, title: "Ask zeigt das Ergebnis des Schritts davor", tested_by: [core.EngineSuite, runner.RunnerSuite] }
   - { id: "D#72", type: decision, status: decided, source: "findings.md#D#72", verified: 2026-10-29, title: "scripts auch in Unterverzeichnissen", tested_by: [runner.RunnerSuite] }
   - { id: "D#71", type: decision, status: decided, source: "findings.md#D#71", verified: 2026-10-29, title: "Explain zeigt Ziel und Frage vollständig, umbrochen statt gekürzt", tested_by: [core.ExplainSuite, core.ReviewRegressionSuite] }
   - { id: "D#70", type: decision, status: decided, source: "findings.md#D#70", verified: 2026-10-29, title: "Begriff Agentenschritt statt Loch in Doku und Lauf-Log; Code und Prompt bleiben" }

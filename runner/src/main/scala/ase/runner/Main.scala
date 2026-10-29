@@ -227,8 +227,27 @@ object Main extends IOApp:
       case Outcome.Ask(_)     => ExitCode(2)
       case Outcome.Aborted(_) => ExitCode(3)
 
-  private val interactiveAsk: AskHandler[IO] = q =>
-    IO.print(s"\nask  $q\n> ") >> IO.readLine.map(a => Option(a).map(_.trim).filter(_.nonEmpty))
+  private val interactiveAsk: AskHandler[IO] = (q, last) =>
+    IO.print(AskContext.render(last) + s"\nask  $q\n> ") >> IO.readLine.map(a => Option(a).map(_.trim).filter(_.nonEmpty))
+
+/** Was der Mensch vor einer Frage sieht: das Ergebnis des Schritts davor (D#73). Steuerzeichen sichtbar wie im
+  * Explain; lange Ausgaben mit Anfang und Ende, die Mitte ausgelassen.
+  */
+object AskContext:
+  val HeadLines = 20
+  val TailLines = 60
+
+  def render(last: StepResult): String =
+    val code = last.exitCode.map(c => s" (Exit-Code $c)").getOrElse("")
+    last.output.filter(_.nonEmpty) match
+      case None if last.exitCode.isEmpty => ""
+      case None                          => s"\nErgebnis des Schritts davor$code: keine Ausgabe\n"
+      case Some(out) =>
+        val lines = out.linesIterator.toVector
+        val shown =
+          if lines.size <= HeadLines + TailLines then lines
+          else (lines.take(HeadLines) :+ s"… ${lines.size - HeadLines - TailLines} Zeilen ausgelassen …") ++ lines.takeRight(TailLines)
+        s"\nErgebnis des Schritts davor$code, ${lines.size} Zeilen:\n" + shown.map(l => "  │ " + Text.visible(l)).mkString("\n") + "\n"
 
 /** Kennzahlen eines Laufs für Serien (playbook/evals.md): Plan und Ausführung zusammen. */
 object Summary:

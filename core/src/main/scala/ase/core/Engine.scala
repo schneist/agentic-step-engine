@@ -277,7 +277,7 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
             timeUp(s0).flatMap {
               case Some(stop) => halt(s0, stop)
               case None =>
-                ports.ask.ask(question).flatMap { answer =>
+                ports.ask.ask(question, s0.last).flatMap { answer =>
                   emit(count(ctx, s0), Event.Asked(at, question, answer)).map { s =>
                     answer match
                       case Some(a) =>

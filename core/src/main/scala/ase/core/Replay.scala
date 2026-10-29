@@ -78,7 +78,7 @@ object Replay:
           case (id, _) :: _                                 => Left(ReplayError.Unexpected(request.callId, id))
           case Nil                                          => Left(ReplayError.Exhausted(request.callId))
       }
-    val ask: AskHandler[R] = question =>
+    val ask: AskHandler[R] = (question, _) =>
       StateT { cur =>
         cur.asks match
           case (q, answer) :: rest if q == question => Right((cur.copy(asks = rest), answer))

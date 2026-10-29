@@ -180,3 +180,12 @@ class RunnerSuite extends munit.FunSuite:
       case Right(r: Command.Run) => assertEquals((r.approve, r.noAsk), (Some("ab"), true))
       case other                 => fail(other.toString)
     assert(Cli.parse(List("run", "--plan", "p", "--envelope", "e", "--workspace", "w", "--force", "x")).isLeft)
+
+  test("Ask zeigt das Ergebnis davor: Exit-Code, Zeilen im Rahmen, Steuerzeichen sichtbar, lange Ausgaben gekürzt (D#73)"):
+    assertEquals(AskContext.render(StepResult(None, None)), "")
+    assert(AskContext.render(StepResult(Some(0), None)).contains("Exit-Code 0): keine Ausgabe"))
+    val out = AskContext.render(StepResult(Some(1), Some("a\nb\u001b[2K\n")))
+    assert(out.contains("(Exit-Code 1), 2 Zeilen:\n  │ a\n  │ b\\u001b[2K"), out)
+    val lang = AskContext.render(StepResult(None, Some((1 to 200).map(i => s"z$i").mkString("\n"))))
+    assert(lang.contains("  │ z20\n  │ … 120 Zeilen ausgelassen …\n  │ z141"), lang)
+    assert(lang.contains("  │ z200") && !lang.contains("  │ z21\n"), lang)

@@ -251,7 +251,7 @@ Term ::= ReadFile(path) | ListDir(path)                -- ListDir samt Unterverz
 Pred ::= FileExists(path) | LastExitCode(code) | LastOutputContains(text) | LastOutputEmpty | Not(p) | And(p, q)
 ```
 
-Die Sprache hat keine Fortsetzungen, Lambdas oder Variablen. Alles, was den Inhalt eines Ergebnisses verarbeiten muss, ist ein Agentenschritt. Jeder Knoten trägt `origin: Human | Model(callId)`, und Flows und Modellpläne werden gleich behandelt. Wer prüft oder erklärt, sieht beide Zweige von `If` und `RepeatUntil`; nur die Ausführung wählt. `Ask` kann auch mitten im Lauf eine Frage stellen.
+Die Sprache hat keine Fortsetzungen, Lambdas oder Variablen. Alles, was den Inhalt eines Ergebnisses verarbeiten muss, ist ein Agentenschritt. Jeder Knoten trägt `origin: Human | Model(callId)`, und Flows und Modellpläne werden gleich behandelt. Wer prüft oder erklärt, sieht beide Zweige von `If` und `RepeatUntil`; nur die Ausführung wählt. `Ask` kann auch mitten im Lauf eine Frage stellen; vor der Frage zeigt `ase run` das Ergebnis des Schritts direkt davor, damit klar ist, worauf sie sich bezieht.
 
 ### Einordnung
 
