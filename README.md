@@ -160,6 +160,8 @@ Sechs Testaufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). J
 
 Eval 5 misst das Gegenteil von Erfolg um jeden Preis: Die Aufgabe verlangt etwas, das die Hülle nicht erlaubt, und `ase` muss nachfragen, statt es zu umgehen. In Eval 6 trennen die Pläne Diagnose, Reparatur und Bericht so, dass kein Loch das Testskript ändern darf, das danach läuft. Andere Modelle sind angebunden, aber schwächer: Gemini 3.8 Flash über agy bestand Eval 1 in 1 von 5 Läufen.
 
+Im ersten echten Einsatz lief ein Flow an einem Python-Projekt mit rund 1.000 Skripten: 18 Rechenschritte in der Reihenfolge, die das Projekt vorschreibt, mit Abbruch, wenn eine Konsistenzprüfung scheitert, und am Ende ein Prüfbericht. 5 von 5 Läufen lieferten einen vollständigen Bericht mit denselben Befunden, je mit einem Modellaufruf und rund 56k Tokens.
+
 ## Schnellstart
 
 Voraussetzungen: JDK 17 und sbt 1.10.7. `ase plan` läuft überall. `ase run` führt nur unter Linux aus, unter Windows also in WSL, weil Java dort `.bat` und `.cmd` über eine versteckte Shell startet. macOS ist ungetestet und deshalb gesperrt.
@@ -224,7 +226,7 @@ Die Konfiguration (`--config`) ist JSON; jedes Feld ist optional, unbekannte Fel
 | `agy` | Antigravity-CLI | angemeldete CLI | gemini-3.8-flash-medium | `evals/runner-agy.json`, `evals/runner-agy-argon.json` |
 | `ollama` | lokal, Port 11434 | keine | qwen3:4b-instruct | `evals/runner-ollama.json` |
 
-Dazu kommen `limits`, `scripts`, `explainDenials`, `nestingLimit`, `planRounds` und `bestOfN`. Mit `bestOfN` größer 1 erzeugt jede Plan-Runde so viele Pläne, und einer gilt nur, wenn die Mehrheit dieselbe Form hat: denselben Ablauf, dieselben Operationen, dieselben Rechte der Löcher. Sonst entscheidet der Mensch. Das lohnt sich bei Aufgaben mit einem naheliegenden Lösungsweg; gibt es mehrere gute Wege, landet die Entscheidung meist beim Menschen. Standard ist 1. Einzelheiten in [RunnerConfig.scala](runner/src/main/scala/ase/runner/RunnerConfig.scala).
+Dazu kommen `limits`, `scripts`, `programs`, `explainDenials`, `nestingLimit`, `planRounds` und `bestOfN`. Mit `programs` erlaubt man weitere Programme, etwa `{ "binary": "python3", "runsCode": ["."] }`: Flags nur aus der eigenen Liste, alle übrigen Argumente werden als Pfade geprüft, und `runsCode` sagt, welcher Code damit läuft. Mit `bestOfN` größer 1 erzeugt jede Plan-Runde so viele Pläne, und einer gilt nur, wenn die Mehrheit dieselbe Form hat: denselben Ablauf, dieselben Operationen, dieselben Rechte der Löcher. Sonst entscheidet der Mensch. Das lohnt sich bei Aufgaben mit einem naheliegenden Lösungsweg; gibt es mehrere gute Wege, landet die Entscheidung meist beim Menschen. Standard ist 1. Einzelheiten in [RunnerConfig.scala](runner/src/main/scala/ase/runner/RunnerConfig.scala).
 
 ## Referenz
 

@@ -91,6 +91,35 @@ class RunnerSuite extends munit.FunSuite:
     assertEquals(s.check.argPolicies, CheckConfig.default.argPolicies :+ ArgPolicy.script("./run-tests.sh"))
     List("run-tests.sh", "./bin/x.sh", "./..", "../x.sh").foreach(bad => assert(RunnerConfig.parse(s"""{"scripts":["$bad"]}""").isLeft, bad))
 
+  test("programs: eigene Argument-Policy, runsCode macht daraus Workspace-Code (D#68)"):
+    val c = RunnerConfig.parse("""{"programs":[{"binary":"python3","flags":["-B"],"runsCode":["."]},{"binary":"wc","flags":["-l"]}]}""")
+      .fold(fail(_), identity).check
+    assertEquals(c.argPolicies.takeRight(2), List(
+      ArgPolicy("python3", Nil, Set("-B"), Set.empty, Set.empty, Positional.Paths),
+      ArgPolicy("wc", Nil, Set("-l"), Set.empty, Set.empty, Positional.Paths)
+    ))
+    assertEquals((c.runsWorkspaceCode("python3"), c.runsWorkspaceCode("wc")), (Some(List(".")), None))
+    val root = Envelope(Set(OpKind.Shell), ".", 5, 0, Set(AllowedCommand("python3", Nil)))
+    assert(DryRun.plan(Term.Shell("python3", List("-B", "nachweis.py"), h), root, c).isRight)
+    List(List("-c", "print(1)"), List("-m", "http.server"), List("../x.py")).foreach(args =>
+      assert(DryRun.plan(Term.Shell("python3", args, h), root, c).isLeft, args.toString)
+    )
+    val git = RunnerConfig.parse("""{"programs":[{"binary":"git","args":["show"],"positional":"NoArgs"}]}""").fold(fail(_), identity)
+    assertEquals(git.check.argPolicies.last, ArgPolicy("git", List("show"), Set.empty, Set.empty, Set.empty, Positional.NoArgs))
+    List(
+      """{"binary":"./x.py"}""",
+      """{"binary":"/usr/bin/python3"}""",
+      """{"binary":"grep"}""",
+      """{"binary":"git","args":["status"]}""",
+      """{"binary":"p","flags":["-c x"]}""",
+      """{"binary":"p","flags":["--"]}""",
+      """{"binary":"p","prefixFlags":["--out"]}""",
+      """{"binary":"p","positional":"Alles"}""",
+      """{"binary":"p","runsCode":["../src"]}""",
+      """{"binary":"p","env":{}}"""
+    ).foreach(bad => assert(RunnerConfig.parse(s"""{"programs":[$bad]}""").isLeft, bad))
+    assert(RunnerConfig.parse("""{"programs":[{"binary":"p"},{"binary":"p"}]}""").isLeft)
+
   // eine andere Form als good (ReadFile statt ListDir): BestOfN stimmt über die Form ab (D#65)
   private val other = Term.Seq(List(Term.ReadFile("docs/a.md", h), Term.Hole("Schreibe a.md", Envelope(Set(OpKind.WriteFile), "a.md", 2, 0, Set.empty), h)), h)
 

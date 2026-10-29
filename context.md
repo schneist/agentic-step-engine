@@ -112,6 +112,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Rekursives ListDir**: ListDir liefert das ganze Verzeichnis samt Unterverzeichnissen, Ebene für Ebene, höchstens 2000 Einträge; Symlinks und .git werden gezeigt, aber nicht betreten (D#61).
 
 - **Form** (`BestOfN.shape`): Ein Term, reduziert auf Kontrollfluss, Operationsarten, Programmnamen, Prädikatarten und die erlaubten Operationen seiner Löcher; gröber als der Fingerprint. Darüber stimmt BestOfN ab (D#65).
+- **programs**: Feld der Runner-Konfiguration für weitere Programme, je mit Argument-Policy und `runsCode`, den Pfaden, deren Code es ausführt (D#68).
 - **Messbasis**: Die Serien, gegen die eine Änderung an Algebra, Hüllen oder Werkzeugbeschreibungen gemessen wird; seit D#67 M#6 bis M#11 über Claude Code.
 
 ## 8. Warum
@@ -369,6 +370,10 @@ Mit dem Fingerprint als Maß waren sich drei Pläne oft nicht einig, obwohl jede
 ### Warum die Teilungsregel nur bei ausgeführtem Code gilt (D#66)
 
 Die Regel aus D#62 sollte verhindern, dass ein Loch ein Skript ändert, das danach läuft. Das Modell wandte sie überall an und teilte auch dort, wo kein Code läuft, in Eval 1 in jedem Plan. Das kostete fast die Hälfte mehr Tokens, ohne dort etwas sicherer zu machen. Die Regel nennt jetzt ihre Bedingung.
+
+### Warum Programme in die Konfiguration gehören (D#68)
+
+Welche Programme ein Repository braucht, weiß nur das Repository: hier `sbt test`, dort `python3`. Eine fest eingebaute Liste zwingt jeden neuen Einsatz zu einer Änderung in core, also zu einem neuen Build, nur um ein Programm zu erlauben. Die Policy bleibt so streng wie die eingebauten: Flags nur aus einer Allowlist, alle übrigen Argumente als Pfade geprüft. Dass ein doppelter Eintrag ein Fehler ist, hat einen Grund: Sonst könnte eine Konfiguration die Policy von `git status` still durch eine weitere ersetzen. `runsCode` muss ausdrücklich gesetzt werden, weil nur der Mensch weiß, ob ein Programm Code aus dem Arbeitsverzeichnis ausführt; ohne die Angabe fehlte im Explain die Markierung und der Code-Hinweis.
 
 ### Warum Claude Code die Messbasis ist (D#67)
 

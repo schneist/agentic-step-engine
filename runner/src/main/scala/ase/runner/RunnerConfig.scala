@@ -9,9 +9,9 @@ import io.circe.parser
 import scala.concurrent.duration.*
 
 /** Runner-Konfiguration (SPEC RUNNER): Modell, harte Limits, Verschachtelungsgrenze, Plan-Runden, explainDenials und
-  * Skripte im Arbeitsverzeichnis (scripts, D#46). bestOfN: Pläne je Runde, über deren Fingerprints abgestimmt wird
-  * (BestOfN, D#63); 1 heißt ohne Abstimmung. Jedes Feld ist optional (sonst der Standard), unbekannte Felder sind
-  * Fehler. Die übrigen Argument-Policies, workspaceCode und pathless bleiben die Standards aus core (O#22).
+  * Skripte im Arbeitsverzeichnis (scripts, D#46). programs: weitere Programme mit Argument-Policy und den Pfaden,
+  * deren Code sie ausführen (D#68). bestOfN: Pläne je Runde, über deren Form abgestimmt wird (BestOfN, D#63); 1 heißt
+  * ohne Abstimmung. Jedes Feld ist optional (sonst der Standard), unbekannte Felder sind Fehler.
   */
 final case class RunnerConfig(model: ModelConfig, exec: ExecConfig, check: CheckConfig, explain: ExplainConfig, planRounds: Int, bestOfN: Int = 1)
 
@@ -25,19 +25,26 @@ object RunnerConfig:
     val d = default
     for
       o <- obj(json, "Konfiguration")
-      _ <- only(o, "Konfiguration", "model", "limits", "nestingLimit", "planRounds", "bestOfN", "explainDenials", "scripts")
-      m <- o("model").fold(d.model.asRight[String])(modelConfig(_, d.model))
+      _ <- only(o, "Konfiguration", "model", "limits", "nestingLimit", "planRounds", "bestOfN", "explainDenials", "scripts", "programs")
+      m <-o("model").fold(d.model.asRight[String])(modelConfig(_, d.model))
       e <- o("limits").fold(d.exec.asRight[String])(limits(_, d.exec))
       nesting <- int(o, "nestingLimit", d.check.nestingLimit)
       rounds <- int(o, "planRounds", d.planRounds)
       bestOf <- int(o, "bestOfN", d.bestOfN)
       scripts <- o("scripts").fold(List.empty[String].asRight[String])(scriptList)
+      programs <- o("programs").fold(List.empty[Program].asRight[String])(programList(_, d.check.argPolicies))
       denials <- o("explainDenials").fold(d.explain.explainDenials.asRight[String])(commands)
       _ <- Either.cond(nesting >= 1 && rounds >= 1 && bestOf >= 1, (), "nestingLimit, planRounds und bestOfN müssen mindestens 1 sein")
     yield RunnerConfig(
       m,
       e,
-      d.check.copy(nestingLimit = nesting, argPolicies = d.check.argPolicies ++ scripts.map(ArgPolicy.script)),
+      d.check.copy(
+        nestingLimit = nesting,
+        argPolicies = d.check.argPolicies ++ scripts.map(ArgPolicy.script) ++ programs.map(_.policy),
+        workspaceCode = programs.foldLeft(d.check.workspaceCode)((m, p) =>
+          if p.runsCode.isEmpty then m else m.updated(p.policy.binary, (m.getOrElse(p.policy.binary, Nil) ++ p.runsCode).distinct)
+        )
+      ),
       ExplainConfig(denials),
       rounds,
       bestOf
@@ -92,6 +99,50 @@ object RunnerConfig:
       j.asString.filter(s => s.startsWith("./") && RelPath.parse(s.drop(2)).exists(_.size == 1))
         .toRight(s"scripts: „${j.noSpaces}“ ist kein Skript der Form ./name")
     ))
+
+  /** Ein Programm aus programs (D#68): seine Argument-Policy und die Pfade, deren Code es ausführt (leer: keinen). */
+  private final case class Program(policy: ArgPolicy, runsCode: List[String])
+
+  private val Name = "^[A-Za-z0-9][A-Za-z0-9._+-]*$".r
+  private val Flag = "^--?[A-Za-z0-9][A-Za-z0-9-]*$".r
+  private val PrefixFlag = "^--?[A-Za-z0-9][A-Za-z0-9-]*=$".r
+
+  /** Programme nur als Name, den LocalTools im bereinigten PATH sucht; Flags nur als einzelne Flags. Ein Programm mit
+    * denselben Pflicht-Argumenten wie ein vorhandenes ist ein Fehler, damit keine Policy still eine andere ersetzt.
+    */
+  private def programList(json: Json, existing: List[ArgPolicy]): Either[String, List[Program]] =
+    json.asArray.toRight("programs: erwartet eine Liste").flatMap(_.toList.traverse(program)).flatMap { ps =>
+      val keys = existing.map(p => (p.binary, p.prefixArgs)) ++ ps.map(p => (p.policy.binary, p.policy.prefixArgs))
+      keys.diff(keys.distinct).headOption
+        .map((b, args) => s"programs: „${(b :: args).mkString(" ")}“ hat schon eine Argument-Policy")
+        .toLeft(ps)
+    }
+
+  private def program(json: Json): Either[String, Program] =
+    for
+      o <- obj(json, "programs")
+      _ <- only(o, "programs", "binary", "args", "flags", "valuedFlags", "prefixFlags", "positional", "runsCode")
+      binary <- o("binary").flatMap(_.asString).filter(Name.matches).toRight("programs: binary muss ein Programmname ohne Pfad sein")
+      at = s"programs: $binary"
+      args <- strings(o, "args", at)
+      _ <- args.find(a => !Name.matches(a)).map(a => s"$at: args „$a“ ist kein Unterbefehl").toLeft(())
+      flags <- strings(o, "flags", at)
+      valued <- strings(o, "valuedFlags", at)
+      prefix <- strings(o, "prefixFlags", at)
+      _ <- (flags ++ valued).find(f => !Flag.matches(f)).map(f => s"$at: „$f“ ist kein einzelnes Flag").toLeft(())
+      _ <- prefix.find(f => !PrefixFlag.matches(f)).map(f => s"$at: „$f“ ist kein Präfix-Flag der Form --name=").toLeft(())
+      positional <- o("positional").fold(Positional.Paths.asRight[String])(j =>
+        j.asString.flatMap(s => Positional.values.find(_.toString == s))
+          .toRight(s"$at: positional ist einer von ${Positional.values.mkString(", ")}")
+      )
+      runsCode <- strings(o, "runsCode", at)
+      _ <- runsCode.find(p => RelPath.parse(p).isLeft).map(p => s"$at: runsCode „$p“ ist kein Pfad im Arbeitsverzeichnis").toLeft(())
+    yield Program(ArgPolicy(binary, args, flags.toSet, valued.toSet, prefix.toSet, positional), runsCode)
+
+  private def strings(o: JsonObject, name: String, at: String): Either[String, List[String]] =
+    o(name).fold(List.empty[String].asRight[String])(
+      _.asArray.flatMap(_.toList.traverse(_.asString)).toRight(s"$at: $name erwartet eine Liste von Texten")
+    )
 
   private def commands(json: Json): Either[String, List[AllowedCommand]] =
     json.asArray.toRight("explainDenials: erwartet eine Liste").flatMap(

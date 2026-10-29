@@ -102,6 +102,7 @@ INTERPRETER (alle über AgentAlg)
     git diff    --stat --name-only                     Pfade nach --
     git log     --oneline -n                           Revisionsbereich, Pfade nach --
     sbt test    keine                                  keine
+  Weitere Programme stehen in der Runner-Konfiguration unter programs, mit derselben Art Policy und runsCode, den Pfaden, deren Code sie ausführen (D#68).
   Ohne Pfadargument berührt ein Aufruf das Arbeitsverzeichnis "." (D#27); kombinierte Kurz-Flags (-rn) sind erlaubt, wenn jedes einzelne erlaubt ist.
   Das AdversarialFill-Gesetz gilt für Syscalls der Engine, nicht für Kindprozesse erlaubter Programme.
   ListDir (D#61): breitenweise über eine Warteschlange, je Verzeichnis nach Namen sortiert, Einträge als Pfade unter dem angefragten Pfad, Verzeichnisse mit "/"; Symlinks gezeigt, nicht verfolgt; Verzeichnisse namens .git gezeigt, nicht betreten; höchstens 2000 Einträge, dann ein Hinweis. touched ist das angefragte Verzeichnis.

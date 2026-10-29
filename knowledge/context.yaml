@@ -410,7 +410,7 @@ interpreters:
     verified: 2026-10-29
     decided_by: ["D#45", "D#46", "D#63", "D#64"]
     tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite]
-    note: "ase plan / ase run; PlanFile.scala (Version 2, liest 1), RunnerConfig.scala (bestOfN), Summary, PlanSummary (ase plan --summary); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
+    note: "ase plan / ase run; PlanFile.scala (Version 2, liest 1), RunnerConfig.scala (bestOfN, programs D#68), Summary, PlanSummary (ase plan --summary); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
   - id: runner.launcher
     type: runner
     status: implemented
@@ -572,6 +572,7 @@ decisions:
   - { id: "D#65", type: decision, status: decided, source: "findings.md#D#65", verified: 2026-10-29, title: "BestOfN stimmt über die Form ab", measured_by: [eval.1, eval.6], tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite] }
   - { id: "D#66", type: decision, status: decided, source: "findings.md#D#66", verified: 2026-10-29, title: "Teilungsregel nur bei ausgeführtem Code", measured_by: [eval.1, eval.6] }
   - { id: "D#67", type: decision, status: decided, source: "findings.md#D#67", verified: 2026-10-29, title: "Messbasis über Claude Code (M#6 bis M#11)" }
+  - { id: "D#68", type: decision, status: decided, source: "findings.md#D#68", verified: 2026-10-29, title: "Programme mit Argument-Policy und runsCode in der Runner-Konfiguration", tested_by: [runner.RunnerSuite], measured_by: ["M#16"] }
   - { id: "D#64", type: decision, status: decided, source: "findings.md#D#64", verified: 2026-10-29, title: "Plan-Kennzahlen ohne Lauf, Harness, Exit 3 für abgelehnte Flows", tested_by: [ase.runner.RunnerSuite] }
 
 open:
@@ -596,7 +597,7 @@ open:
   - { id: "O#19", type: open, status: open, source: "findings.md#O#19", verified: 2026-10-27, title: "Doppelte Auswertung, doppelte JSON-Schlüssel (niedrig)" }
   - { id: "O#20", type: open, status: resolved, source: "findings.md#O#20", verified: 2026-10-27, resolved_by: "D#42" }
   - { id: "O#21", type: open, status: resolved, source: "findings.md#O#21", verified: 2026-10-27, resolved_by: "D#43" }
-  - { id: "O#22", type: open, status: open, source: "findings.md#O#22", verified: 2026-10-28, title: "Argument-Policies nicht in der Runner-Konfiguration" }
+  - { id: "O#22", type: open, status: resolved, source: "findings.md#O#22", verified: 2026-10-29, resolved_by: "D#68", note: "pathless bleibt Standard aus core" }
   - { id: "O#23", type: open, status: resolved, source: "findings.md#O#23", verified: 2026-10-29, resolved_by: "D#64" }
   - { id: "O#24", type: open, status: open, source: "findings.md#O#24", verified: 2026-10-28, title: "Fill sieht eigene Schritte nicht; Schreib-Loch braucht weiten pathPrefix für Sicht" }
   - { id: "O#25", type: open, status: resolved, source: "findings.md#O#25", verified: 2026-10-28, resolved_by: "D#55" }
@@ -606,6 +607,7 @@ open:
   - { id: "O#29", type: open, status: resolved, source: "findings.md#O#29", verified: 2026-10-29, resolved_by: "D#61" }
   - { id: "O#30", type: open, status: resolved, source: "findings.md#O#30", verified: 2026-10-29, resolved_by: "D#65" }
   - { id: "O#31", type: open, status: resolved, source: "findings.md#O#31", verified: 2026-10-29, resolved_by: "D#66" }
+  - { id: "O#33", type: open, status: open, source: "findings.md#O#33", verified: 2026-10-29, title: "Ergebnisse in If-Zweigen für spätere Löcher unsichtbar" }
   - { id: "O#32", type: open, status: open, source: "findings.md#O#32", verified: 2026-10-29, title: "BestOfN fragt bei mehreren guten Wegen meist den Menschen" }
 
 evals:
