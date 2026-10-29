@@ -1,101 +1,216 @@
 # agentic-step-engine
 
-Eine Engine, die Agentenprogramme eines Sprachmodells als **Terme** entgegennimmt, sie vor der Ausführung prüft und nur das ausführt, was geprüft wurde. Terme dürfen **Löcher** enthalten: Stellen, an denen das Modell erst zur Laufzeit entscheidet. Jedes Loch trägt eine **Hülle**, die festlegt, was dort maximal passieren darf.
+**Das Sprachmodell schreibt das Programm. `ase` prüft es, ein Mensch gibt es frei, dann erst läuft es.**
 
-Die zentrale Invariante: **Nichts wird ausgeführt, was nicht vorher geprüft wurde.** Weder der Plan noch ein zur Laufzeit geliefertes Teilprogramm.
+Die meisten Coding-Agenten rufen Werkzeuge einzeln auf, und jeder Aufruf wirkt sofort. Hier schreibt das Modell zuerst einen Term: ein kleines Programm aus festen Schritten, mit Löchern an den wenigen Stellen, an denen es später entscheidet. Jedes Loch trägt eine Hülle, die festlegt, was dort höchstens passieren darf: welche Operationen, unter welchem Pfad, wie viele Schritte. Nichts läuft, was nicht vorher geprüft wurde, weder der Plan noch das, was das Modell in ein Loch setzt. Die Hülle vertritt den Menschen.
 
-Das Warum zu jeder Entscheidung steht in [context.md](context.md) §8. Die technische Spezifikation in [SPEC.md](SPEC.md). Die Entscheidungen selbst in [findings.md](findings.md).
+Gedacht ist es für Abläufe, die man einmal festlegt und oft laufen lässt: ein Release vorbereiten, einen roten Test diagnostizieren, Doku nachziehen. Es ist kein Ersatz für Claude Code oder Cursor im Alltag. `ase` ist ein Prototyp in Scala 3 mit einer Kommandozeile.
 
-## Idee in einem Absatz
+**Status:** Engine, Modellanbindung und CLI sind gebaut. Mit Claude über `claude --print` sind zwei der sechs Testaufgaben gemessen, beide mit 10 von 10 Läufen. Die übrigen vier sind bisher nur in Probeläufen gelaufen, und die Messung über die Anthropic-API steht noch aus ([Details](#evals-und-status)).
 
-Ein normaler Coding-Agent ruft Werkzeuge einzeln auf, und die Umgebung führt jeden Aufruf sofort aus. Es gibt kein Programm, nur eine Folge von Effekten; man kann sie weder vorab prüfen noch vernünftig freigeben. Hier schreibt das Modell stattdessen einen Term in einer kleinen, statischen Sprache (Sequenz, Bedingung, begrenzte Wiederholung, Werkzeugaufrufe). Wo es Daten braucht, die es noch nicht hat, setzt es ein Loch mit einer Hülle. Die Engine prüft den Term (DryRun), ein Mensch gibt ihn einmal frei, und beim Ausführen wird jedes Loch vom Modell gefüllt und das Füllstück gegen die Hülle geprüft, bevor es läuft. Die Hülle vertritt den Menschen.
+## Wie es funktioniert
 
-## Lebenszyklus eines Terms
+Das Modell schreibt einen **Term**: ein Programm als JSON in einer kleinen, festen Sprache. Sie kennt Datei lesen, ändern, anlegen und verschieben, erlaubte Shell-Befehle, Sequenz, Bedingung und begrenzte Wiederholung. Variablen gibt es nicht. Wo das Modell Daten braucht, die es beim Planen noch nicht hat, setzt es ein **Loch**: „hier entscheide ich später“. Jedes Loch trägt eine **Hülle** (envelope). Sie legt fest, welche Operationen unter welchem Pfad erlaubt sind, wie viele Schritte und welche Shell-Befehle.
+
+1. **Plan.** Das Modell liefert den Term zu einer Aufgabe. Alternativ hat ihn ein Mensch als **Flow** geschrieben (eine Datei in `flows/`).
+2. **Tor 1.** Ein **DryRun** prüft den Term, ohne etwas auszuführen. Geprüft werden Pfade, Shell-Befehle und Flags, die Schrittzahl im schlechtesten Fall und die **Attenuation**: Die Hülle jedes Lochs darf höchstens so weit sein wie die umgebende, Rechte werden also nur enger.
+3. **Freigabe.** **Explain** zeigt den Term in Klartext, mit der Hülle jedes Lochs. Der Mensch bestätigt einen SHA-256-Hash über diesen Term und seine äußere Hülle. Nur genau das läuft.
+4. **Ausführen.** Die festen Schritte laufen. Bei einem Loch fragt `ase` das Modell nach einem Teilterm, einem **Fill**. **Tor 2** prüft ihn gegen die Hülle des Lochs, bevor er läuft.
 
 ```mermaid
 flowchart TD
-    A[Aufgabe] --> B[Plan durch Modell<br/>Term mit Löchern]
-    B --> C{DryRun, Tor 1<br/>Attenuation, Schritte, Pfade}
-    C -- Verstoß --> B
-    C -- ok: CheckedTerm --> D[Freigabe durch Mensch<br/>bestätigt termHash → ApprovedTerm]
-    D --> E[Execute<br/>statische Schritte laufen]
+    A[Aufgabe oder Flow] --> B[Plan: Term mit Löchern]
+    B --> C{Tor 1: DryRun}
+    C -- Verstoß, Modellplan: neuer Versuch, max 3 --> B
+    C -- Verstoß, Flow oder Versuche aus --> X[ase plan endet mit Exit 3]
+    C -- ok --> D[Explain, Mensch bestätigt Hash]
+    D --> E[Execute: feste Schritte]
     E --> F[Ergebnis und Record-Log]
-    E -- Loch --> G[Fill durch Modell<br/>Teilterm für das Loch]
-    G --> H{DryRun, Tor 2<br/>gegen die Hülle des Lochs}
-    H -- Verstoß --> G
+    E -- Loch --> G[Fill: Teilterm vom Modell]
+    G --> H{Tor 2: gegen die Hülle des Lochs}
+    H -- Verstoß, max 3 Versuche --> G
+    H -- Versuche aus --> Y[Lauf endet: aborted]
     H -- ok --> E
 ```
 
-Das Modell entscheidet zweimal: beim Plan und bei jedem Loch. Beide Male steht ein Tor dahinter, das dieselbe Prüfung macht. Der Mensch gibt nur den Plan frei.
-
 ## Beispiel: Release-Vorbereitung
 
-Mara schneidet alle zwei Wochen ein Release. Die Schritte sind immer gleich, aber zwei davon brauchen Urteil: das Changelog aus den Commits formulieren und die Doku-Stellen finden, die von geänderten Schnittstellen betroffen sind. Sie schreibt den Ablauf einmal als Flow mit zwei Löchern, siehe [flows/release.json](flows/release.json).
-
-Die gefährlichen Schritte (Versionsnummer, Tag, Push) sind **keine** Löcher. Die Versionsänderung ist ein fester `EditFile` mit Compare-and-Swap; Tag und Push macht Mara selbst, `git tag` steht nicht einmal in der Allowlist. Das Modell bekommt Urteil nur dort, wo Urteil gebraucht wird, und jedes Loch hat genau die Rechte, die seine Aufgabe braucht.
+Mara schneidet alle zwei Wochen ein Release. Zwei Schritte brauchen Urteil: das Changelog aus den Commits formulieren und die Doku-Stellen anpassen, die von geänderten Schnittstellen betroffen sind. Den Rest legt sie in [flows/release.json](flows/release.json) fest. Die Versionsänderung ist ein fester `EditFile` mit Compare-and-Swap: Er ersetzt nur, wenn der alte Text genau einmal vorkommt. Tag und Push macht Mara selbst, `git tag` steht nicht in der Allowlist.
 
 ### Was Mara vor der Freigabe sieht
 
+`ase plan` prüft den Flow und legt den Term in einer Plan-Datei ab. Ein Flow braucht dafür kein Modell. `ase run` liest die Datei, prüft neu, zeigt denselben Explain und fragt dann. Die Zeile `explain` nennt den Hash gekürzt, `hash` vollständig zum Kopieren für `--approve`. Die Explain-Ausgabe unten stammt aus einem echten Aufruf.
+
 ```
-$ ase run flows/release.json version=2.4.0 previous=2.3.0
-dryrun    flows/release.json  ok  (worst case 23 steps, depth 2)
-explain   7f3a9c…e21b
-hash      7f3a9c…(64 Hex-Zeichen)…e21b
-params    version=2.4.0 previous=2.3.0
+$ ase plan --flow flows/release.json version=2.4.0 previous=2.3.0 --envelope release-envelope.json --config ase.json --out release.plan.json
+$ ase run --plan release.plan.json --envelope release-envelope.json --config ase.json --workspace . --record ../ase-records/release-2.4.0.log
+dryrun    ok  (worst case 23 steps, depth 2)
+explain   06cd1a…8f61
+hash      06cd1a1845ded9bf0812f8344e37ac200e1c952942c1270e6e6e366c5b698f61
+params    previous=2.3.0 version=2.4.0
 
-1  Prüft, ob das Arbeitsverzeichnis sauber ist (git status); endet sonst
-2  Führt ./run-tests.sh aus (Workspace-Code); fragt nach, wenn rot
-3  Liest die Commits seit v2.3.0 (git log)
-4  Hier entscheidet der Agent
-   ändert CHANGELOG.md · nur diese Datei · max 3 Schritte · Tiefe 0
-5  Hier entscheidet der Agent
-   liest und ändert unter docs/ · grep erlaubt · max 12 Schritte · Tiefe 1
-6  Ersetzt in build.sbt  version := "2.3.0"  durch  version := "2.4.0"
-7  Fertig: Release 2.4.0 vorbereitet; Tag und Push macht der Mensch
+1  führt aus: git status --porcelain
+   wenn nicht Ausgabe leer:
+2    fertig: Arbeitsverzeichnis nicht sauber; bitte erst committen oder stashen
+   sonst:
+3    führt aus: ./run-tests.sh (führt Workspace-Code aus)
+     wenn nicht Exit-Code 0:
+4      fragt: „Tests sind rot. Trotzdem weiter?“
+5    führt aus: git log --oneline v2.3.0..HEAD
+6    Hier entscheidet der Agent: „Formuliere das Changelog für 2.4.0 aus den Commits oben, gruppiert nac…“ (gekürzt, 152 Zeichen)
+     darf ReadFile, EditFile · unter CHANGELOG.md · max 3 Schritte · Tiefe 0
+     kann Ergebnisse von Schritt 3, 4, 5 sehen
+7    Hier entscheidet der Agent: „Finde Doku-Stellen unter docs/, die von geänderten öffentlichen Schnit…“ (gekürzt, 189 Zeichen)
+     darf ReadFile, EditFile, Shell · unter docs/ · max 12 Schritte · Tiefe 1 · shell: grep
+     kann Ergebnisse von Schritt 3, 4, 5, 6 sehen
+8    ersetzt in build.sbt  „version := "2.3.0"“  durch  „version := "2.4.0"“
+9    fertig: Release 2.4.0 vorbereitet; Tag und Push macht der Mensch
 
-shell     ./run-tests.sh, grep, git status, git log
-nicht erlaubt, u. a.: git tag, git push, git commit
+shell     ./run-tests.sh, git log, git status, grep
+nicht erlaubt, u. a.: git push, git commit, git tag, rm, curl
 
 Freigeben? [y/N] y
-approved  7f3a9c…e21b  → record/2026-10-27T14-02.log
+approved  06cd1a…8f61  → ../ase-records/release-2.4.0.log
 ```
 
 ### Was während des Laufs passiert
 
+Drei Dinge muss man wissen, um das Log zu lesen. Erstens sieht ein Fill die Ergebnisse seiner eigenen Schritte nicht sofort. Endet er ohne `Done`, fragt `ase` das Modell erneut für dasselbe Loch, jetzt mit dem Gelesenen. Das ist eine **Runde**; ein Loch bekommt höchstens 3 davon. Zweitens teilen sich alle Runden das Schrittbudget des Lochs, darum sinkt die Zahl hinter `≤`. Drittens fehlen die Nummern 2 und 4, weil diese Zweige nicht liefen. Die 16 Schritte am Ende zählen alle ausgeführten samt `Done` und einen je angenommenem Loch; abgelehnte Fills kosten Modellaufrufe, aber keine Schritte. Das Log ist konstruiert (echtes Format, erfundene Hashes und Zahlen).
+
 ```
-1  shell  git status --porcelain            exit 0  (leer)
-2  shell  ./run-tests.sh                     exit 0  (47 tests)
-3  shell  git log --oneline v2.3.0..HEAD     exit 0  (23 Zeilen)
+1  shell  git status --porcelain             exit 0  (leer)
+3  shell  ./run-tests.sh                     exit 0  (12 Zeilen)
+5  shell  git log --oneline v2.3.0..HEAD     exit 0  (23 Zeilen)
 
-4  hole   "Formuliere das Changelog…"
-   fill   → Seq(ReadFile CHANGELOG.md, EditFile CHANGELOG.md)   hash a41c…
-   dryrun ok (2 steps ≤ 3)
-   read   CHANGELOG.md
-   edit   CHANGELOG.md  (Kopf ersetzt, +31 Zeilen)
+6  hole   „Formuliere das Changelog für 2.4.0 aus den Commits…“
+   fill   → Seq(ReadFile CHANGELOG.md, EditFile build.sbt)
+   dryrun rejected  $.steps[1].path: Pfad „build.sbt“ liegt außerhalb von CHANGELOG.md; erlaubt ist nur CHANGELOG.md. Ist dort etwas betroffen, nenne es im Ergebnis.
+          → an Modell: „Dein Teilterm wurde abgelehnt und nicht ausgeführt:⏎- $.steps[1].path: Pfad „build.sbt“ liegt außerhalb von CHANGELOG.md; erlaubt ist nur CHANGELOG.md. Ist dort…“
+   fill   → Seq(ReadFile CHANGELOG.md)   hash a41c07…9e2f
+   dryrun ok (1 steps ≤ 3)
+   read   CHANGELOG.md                       (214 Zeilen)
+   round  Runde 2: der Fill davor endete ohne Done, seine Ergebnisse gehen mit
+   fill   → Seq(EditFile CHANGELOG.md, Done)   hash 5d2e11…08ac
+   dryrun ok (2 steps ≤ 2)
+   edit   CHANGELOG.md                       (CAS ok, +31 Zeilen)
+   done   Changelog 2.4.0 ergänzt: 4 Features, 9 Fixes, 1 Breaking
 
-5  hole   "Finde Doku-Stellen, die von geänderten Schnittstellen…"
-   fill   → Seq(Shell grep, ReadFile docs/api.md, EditFile docs/api.md, EditFile README.md)
-   dryrun rejected  EditFile README.md: Pfad außerhalb docs/
-          → an Modell: "erlaubt ist docs/; wenn README.md betroffen ist, nenne es im Ergebnis"
-   fill   → Seq(Shell grep, ReadFile docs/api.md, EditFile docs/api.md, EditFile docs/migration.md)   hash 9b07…
-   dryrun ok (4 steps ≤ 12)
-   shell  grep -rn "parseConfig" docs/        exit 0  (3 Treffer)
-   read   docs/api.md
-   edit   docs/api.md          (1 Stelle ersetzt)
-   edit   docs/migration.md    (1 Stelle ersetzt)
+7  hole   „Finde Doku-Stellen unter docs/, die von geänderten…“
+   fill   → Seq(Shell grep, ReadFile docs/api.md, ReadFile README.md)
+   dryrun rejected  $.steps[2].path: Pfad „README.md“ liegt außerhalb von docs/; erlaubt ist nur docs/. Ist dort etwas betroffen, nenne es im Ergebnis.
+          → an Modell: „Dein Teilterm wurde abgelehnt und nicht ausgeführt:⏎- $.steps[2].path: Pfad „README.md“ liegt außerhalb von docs/; erlaubt ist nur docs/. Ist dort etwas betroff…“
+   fill   → Seq(Shell grep, ReadFile docs/api.md, ReadFile docs/migration.md)   hash 9b07c3…41d0
+   dryrun ok (3 steps ≤ 12)
+   shell  grep -rn parseConfig docs/         exit 0  (3 Zeilen)
+   read   docs/api.md                        (180 Zeilen)
+   read   docs/migration.md                  (64 Zeilen)
+   round  Runde 2: der Fill davor endete ohne Done, seine Ergebnisse gehen mit
+   fill   → Seq(EditFile docs/api.md, EditFile docs/migration.md, Done)   hash 2c8140…b7e3
+   dryrun ok (3 steps ≤ 9)
+   edit   docs/api.md                        (CAS ok, +0 Zeilen)
+   edit   docs/migration.md                  (CAS ok, +2 Zeilen)
+   done   parseConfig in docs/api.md und docs/migration.md angepasst; README.md laut Commit-Log vermutlich betroffen, nicht gelesen
 
-6  edit   build.sbt            version 2.3.0 → 2.4.0  (CAS ok)
-7  done   Release 2.4.0 vorbereitet; Tag und Push macht der Mensch
+8  edit   build.sbt                          (CAS ok, +0 Zeilen)
+9  done   Release 2.4.0 vorbereitet; Tag und Push macht der Mensch
 
 Lauf beendet
-13 Schritte · 3 Modellaufrufe · 1 Ablehnung an Tor 2 · 4 Dateien geändert · 18.4k Tokens
-Hinweis des Agenten: README.md enthält ein veraltetes parseConfig-Beispiel (außerhalb der Hülle, nicht geändert)
-record/2026-10-27T14-02.log · approved 7f3a9c…e21b
+16 Schritte · 6 Modellaufrufe · 0 Ablehnungen an Tor 1 · 2 Ablehnungen an Tor 2 · 4 Dateien geändert · 23.4k Tokens
+Hinweis des Agenten (Loch 6): Changelog 2.4.0 ergänzt: 4 Features, 9 Fixes, 1 Breaking
+Hinweis des Agenten (Loch 7): parseConfig in docs/api.md und docs/migration.md angepasst; README.md laut Commit-Log vermutlich betroffen, nicht gelesen
+../ase-records/release-2.4.0.log · approved 06cd1a…8f61
 ```
 
-Der abgelehnte Fill ist die Pointe: Das Modell wollte etwas Sinnvolles tun, durfte es nicht, hat den Hinweis ins Ergebnis geschrieben, und Mara entscheidet am Ende selbst, ohne dass der Lauf stehen blieb.
+Die erste Ablehnung verhindert Schaden. Das Changelog-Loch wollte nebenbei die Version in `build.sbt` anheben. Das Loch durfte nur `CHANGELOG.md` anfassen; eine stille Versionsänderung an anderer Stelle wäre im Explain nie sichtbar gewesen (und hätte Schritt 8 scheitern lassen). Tor 2 lehnt ab, bevor etwas läuft, und der Lauf geht weiter. Die zweite Ablehnung ist die ehrliche Seite: Das Modell wollte etwas Sinnvolles tun und durfte nicht. Es nennt die Stelle im Ergebnis, und Mara entscheidet selbst.
 
-## Die Term-Sprache
+## Warum nicht einfach Claude Code mit Regeln?
+
+Ein Coding-Agent wie Claude Code lässt sich gut einzäunen. Der Plan-Modus zeigt vorher einen Plan. Erlaubnisregeln geben Werkzeuge, Befehlsmuster und Pfade frei. Subagents bekommen eigene Werkzeuglisten. Hooks können einzelne Aufrufe blockieren, und ein Devcontainer isoliert das Ganze. Was dabei bleibt:
+
+- **Der Plan bindet nicht.** Im Plan-Modus ist der Plan Prosa, und danach ruft der Agent wieder Werkzeuge einzeln auf. Hier *ist* der freigegebene Plan das Programm, das läuft. Es ist an seinen Hash gebunden, und seine Schrittzahl hat eine feste Obergrenze.
+- **Rechte gelten pro Loch, mit Pfad und Schrittbudget, und werden vor dem Lauf geprüft.** Das Changelog-Loch darf nur `CHANGELOG.md` ändern, das Doku-Loch nur unter `docs/`. Beide laufen im selben Lauf. Anders als die Werkzeuglisten eines Subagenten sind die Hüllen Teil des freigegebenen Hashes und werden vor jedem Fill geprüft.
+- **Einmal freigeben, oft laufen lassen.** Bei einem Flow ist der Hash stabil: `ase run --approve <hash> --no-ask` läuft ohne Menschen davor, etwa in CI. Ändern sich Flow, Parameter oder die Hülle im Flow, ändert sich der Hash, und `ase run` gibt nicht frei (Exit 4); eine andere `--config` lehnt es ab. Ein vom Modell geplanter Term ist jedes Mal ein anderer und braucht jedes Mal eine Freigabe.
+- **Entscheidungen zur Laufzeit gehen durch ein Tor.** Jeder Fill wird gegen die Hülle geprüft, bevor auch nur ein Schritt davon läuft. Bei einer Ablehnung bekommt das Modell die Begründung, und der Lauf geht weiter.
+
+**Wogegen es nicht schützt.** `ase` schützt vor dem, was das Modell tut, nicht vor Code im Repository. Erlaubte Programme wie `./run-tests.sh` oder `sbt test` laufen ohne Sandbox und können alles, was der Nutzer kann; Explain markiert sie als „führt Workspace-Code aus“. Es gibt keine Isolation, also gehört ein Container drumherum. Geprüft werden Ort und Art einer Änderung, nicht ihr Inhalt: Ein Loch kann innerhalb seiner Hülle schlechte Arbeit machen. Es gibt kein Zurückrollen; was gelaufen ist, bleibt gelaufen. Hüllen, die ein Modell selbst plant, sind oft weiter als nötig (O#28); Tor 1 lehnt nur ab, was über die äußere Hülle hinausgeht. Den Explain muss also jemand lesen. Weitere Restrisiken stehen in D#43.
+
+**Was es kostet.** Es braucht mehr Modellaufrufe: einen Plan und je Loch mindestens einen Fill, dazu Runden und Versuche. Claude kam auf 30k bis 45k Tokens je Lauf, Gemini Flash über agy auf 231k (M#3 bis M#5). Hüllen wollen geschrieben und gelesen werden. Die Sprache kann nur Dateien bearbeiten und eine kleine Liste von Shell-Befehlen aufrufen. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
+
+Kennungen wie O#28, D#43 und M#4 verweisen auf [findings.md](findings.md): D# ist eine Entscheidung, M# eine Messung, O# ein offener Punkt.
+
+## Schnellstart
+
+Voraussetzungen: JDK 17 und sbt 1.10.7. `ase plan` läuft überall. `ase run` führt nur unter Linux aus, unter Windows also in WSL. Unter Windows startet Java `.bat` und `.cmd` über cmd.exe, eine versteckte Shell (D#29). macOS ist ungetestet und deshalb gesperrt.
+
+Die Befehle sind bash (Linux, WSL, Git Bash).
+
+```
+git clone https://github.com/schneist/agentic-step-engine.git && cd agentic-step-engine
+sbt test                                        # außerhalb von Linux sind die Execute-Tests sichtbar übersprungen
+sbt runner/compile
+cp=$(sbt -batch -error "export runner/Runtime/fullClasspath" | tail -1)
+ase() { java -cp "$cp" ase.runner.Main "$@"; }  # so ruft auch evals/series.sh den Runner auf
+```
+
+**Ohne Modell:** Ein Flow wird ohne Modell geprüft und erklärt.
+
+```
+$ ase plan --flow flows/red-test.json --envelope evals/6-red-test/envelope.json --config evals/runner.json --out red.plan.json
+dryrun    ok  (worst case 19 steps, depth 1)
+explain   dcd18e…93bf
+...
+```
+
+**Mit Modell** (Eval 1: TODOs sammeln, in einer Kopie des Fixtures). Gemessen ist nur der Weg über Claude Code. Dafür in `evals/runner-claude-code.json` das Feld `model.endpoint` auf den eigenen `claude` setzen (`which claude`) und `model.workDir` auf ein beschreibbares Verzeichnis setzen oder das Feld löschen (dann das temporäre Verzeichnis der JVM). Der Standardanbieter `anthropic` (Messages API, `ANTHROPIC_API_KEY`) ist angebunden, aber noch nicht gemessen.
+
+```
+rm -rf /tmp/work && cp -a evals/1-todos/fixture /tmp/work
+C=evals/runner-claude-code.json
+ase plan --task evals/1-todos/task.md --envelope evals/1-todos/envelope.json --config $C --out todo.plan.json
+ase run  --plan todo.plan.json --envelope evals/1-todos/envelope.json --config $C --workspace /tmp/work
+```
+
+### CLI-Referenz
+
+```
+ase plan --envelope E (--task T | --flow F [name=wert …]) --out P [--config C]
+ase run  --plan P --envelope E --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
+```
+
+- `--approve` nimmt die 64 Hex-Zeichen der Zeile `hash` und gibt ohne Rückfrage frei. Ohne Terminal immer damit aufrufen.
+- `--no-ask` beantwortet `Ask`-Fragen nicht; der Lauf endet dann mit `ask`.
+- `--summary` schreibt Kennzahlen als JSON.
+- `plan` und `run` brauchen dieselbe `--config`.
+- Exit-Codes von `run`: 0 done, 2 ask, 3 aborted, 4 nicht freigegeben, 1 Fehler. Von `plan`: 0 geprüft, 3 abgelehnt, 1 Fehler.
+- Messserien: `evals/series.sh <eval-verzeichnis> <n> <ausgabe> [--config datei]`.
+
+Die Konfiguration (`--config`) ist JSON; jedes Feld ist optional, unbekannte Felder sind Fehler. `model.provider` legt fest, wer plant und füllt:
+
+| `provider` | Weg | Anmeldung | Standardmodell | Beispiel |
+|---|---|---|---|---|
+| `anthropic` (Standard) | Messages API | `ANTHROPIC_API_KEY` | claude-opus-5-5 | `evals/runner.json` |
+| `claudecode` | `claude --print`, ohne Werkzeuge | Abo von Claude Code | claude-opus-5-5 | `evals/runner-claude-code.json` |
+| `agy` | Antigravity-CLI | angemeldete CLI | gemini-3.8-flash-medium | `evals/runner-agy.json`, `evals/runner-agy-argon.json` |
+| `ollama` | lokal, Port 11434 | keine | qwen3:4b-instruct | `evals/runner-ollama.json` |
+
+Dazu kommen `limits`, `scripts`, `explainDenials`, `nestingLimit` und `planRounds`; Einzelheiten in [RunnerConfig.scala](runner/src/main/scala/ase/runner/RunnerConfig.scala).
+
+## Einen Flow schreiben
+
+Ein Flow ist ein JSON-Objekt mit genau vier Feldern:
+
+- `description`: Text.
+- `params`: Name → Regex. Die Werte kommen als `name=wert` zu `ase plan`.
+- `envelope`: die Hülle des Flows. Sie darf nicht weiter sein als `--envelope`.
+- `term`: der Term. Jeder Knoten hat `type` und `origin: "Human"`.
+
+`${name}` wird nach dem Parsen und nur in Textfeldern ersetzt, nie als JSON. Ein ungebundener Name ist ein Fehler. Vorlagen sind [flows/release.json](flows/release.json) und [flows/red-test.json](flows/red-test.json). Vor dem ersten Lauf `ase plan --flow …` aufrufen und den Explain lesen.
+
+Was ein Flow wie der Release-Flow im eigenen Repository braucht: `ase.json` mit `{ "scripts": ["./run-tests.sh"] }`, denn Skripte laufen nur, wenn sie dort stehen. Dazu `release-envelope.json`, die äußere Hülle; sie muss mindestens so weit sein wie die Hülle im Flow, am einfachsten ist eine Kopie des Felds `envelope` aus `flows/release.json`. `ase plan` braucht für jeden Parameter in `params` einen Wert, der zur Regex passt. Das Record-Log muss außerhalb von `--workspace` liegen. Mit `--workspace .` und ohne `--record` bricht `ase run` ab, denn der Standard `record/…` läge im Arbeitsverzeichnis.
+
+## Referenz
+
+### Die Term-Sprache
 
 ```
 Term ::= ReadFile(path) | ListDir(path)
@@ -103,17 +218,15 @@ Term ::= ReadFile(path) | ListDir(path)
        | EditFile(path, expectedOld, replacement)    -- Compare-and-Swap, expectedOld genau einmal
        | MoveFile(from, to)                          -- Ziel darf nicht existieren
        | Shell(cmd, args) | Ask(question) | Done(summary)
-       | Seq(steps)
-       | If(pred, thenT, elseT)
-       | RepeatUntil(body, until: pred, max)
+       | Seq(steps) | If(pred, thenT, elseT) | RepeatUntil(body, until: pred, max)
        | Hole(goal, envelope)
 
 Pred ::= FileExists(path) | LastExitCode(code) | LastOutputContains(text) | LastOutputEmpty | Not(p) | And(p, q)
 ```
 
-Keine Fortsetzungen, keine Lambdas, keine Variablen. Alles, was den Inhalt eines Ergebnisses inspizieren muss, ist ein Loch. Jeder Knoten trägt `origin: Human | Model(callId)`; Terme können aus `flows/` geladen oder vom Modell erzeugt werden, die Engine behandelt beide gleich. Eine Flow-Datei enthält neben dem Term eine Beschreibung, ihre Hülle und typisierte Parameter wie `${version}`, die erst nach dem Parsen in Textfelder eingesetzt werden. `If` und `RepeatUntil` sind eigene Operationen der Algebra: Wer prüft oder erklärt, sieht beide Zweige, nur Execute wählt.
+Die Sprache hat keine Fortsetzungen, Lambdas oder Variablen. Alles, was den Inhalt eines Ergebnisses verarbeiten muss, ist ein Loch. Jeder Knoten trägt `origin: Human | Model(callId)`, und Flows und Modellpläne werden gleich behandelt. Wer prüft oder erklärt, sieht beide Zweige von `If` und `RepeatUntil`; nur die Ausführung wählt. `Ask` kann auch mitten im Lauf eine Frage stellen.
 
-## Hüllen
+### Hüllen
 
 ```
 Envelope(allowedOps, pathPrefix, maxSteps, maxDepth, shellAllowlist)
@@ -121,18 +234,23 @@ AllowedCommand(binary, requiredPrefixArgs)     -- "git" + ["status"], nicht nur 
 OpKind ::= ReadFile | ListDir | WriteFile | EditFile | MoveFile | Shell | Ask | Hole
 ```
 
-`Ask` und `Hole` stehen nur in einer Hülle, wenn sie ausdrücklich erlaubt sind: Ein Loch darf dann nachfragen beziehungsweise Unterlöcher setzen. Welche Flags ein erlaubtes Programm bekommt, regelt eine Argument-Policy in der Runner-Konfiguration; Argumente, die keine Flags sind, werden als Pfade geprüft.
+`Ask` und `Hole` sind nur erlaubt, wenn die Hülle sie nennt: Ein Loch darf dann nachfragen oder Unterlöcher setzen. Shell-Befehle laufen ohne `sh -c`, ohne Pipes und ohne Umleitungen. Erlaubte Flags legt eine Argument-Policy je Programm fest. Die übrigen Argumente sind je nach Programm Pfade, ein Suchmuster (grep) oder ein Revisionsbereich (git log); Pfade werden wie bei `ReadFile` geprüft.
 
-Attenuation: Die Hülle eines inneren Lochs ist nie weiter als die des äußeren. `allowedOps` Teilmenge; jeder Shell-Befehl gleich oder enger (`git status` unter `git`); `pathPrefix` kanonisch darunter; `maxDepth` strikt kleiner; Worst-Case-Schritte des Teilbaums höchstens `maxSteps` des Elternlochs. Ein Fill wird mit einem Decoder gelesen, der nur die Knoten der Hülle kennt, und gegen eine Algebra gefaltet, die nur erlaubte Operationen weiterreicht: Verbotenes wird nicht geprüft und abgelehnt, es kommt im Term gar nicht vor.
+Attenuation heißt: `allowedOps` ist eine Teilmenge der äußeren, jeder Shell-Befehl gleich oder enger (`git status` unter `git`), `pathPrefix` liegt darunter, `maxDepth` ist strikt kleiner, und die Schritte im schlechtesten Fall sind höchstens das `maxSteps` des äußeren Lochs. Ein Fill wird mit einem Decoder gelesen, der nicht erlaubte Operationsarten gar nicht kennt. Pfade, Befehle, Flags und Budget prüft danach der DryRun.
 
-## Interpreter
+### Interpreter
 
-Derselbe Term, verschiedene Deutungen. `DryRun` prüft, `Cost` schätzt, `Explain` übersetzt für Menschen, `Execute` führt aus, `Replay` spielt eine Aufzeichnung ab. Interpreter lesen den Term und verändern ihn nie. Der Term ist eine Partitur: Execute spielt sie, Explain liest sie vor, Cost zählt die Takte, DryRun prüft, ob alle Noten im Tonumfang liegen, Replay spielt die Aufnahme ab. Die Partitur ändert sich nie.
+Derselbe Term hat mehrere Deutungen. `DryRun` prüft, `Cost` schätzt, `Explain` übersetzt für Menschen, `Execute` führt aus. `Replay` spielt ein Record-Log in Tests ohne Modell und Dateisystem ab. Interpreter lesen den Term und verändern ihn nie. Typen erzwingen die Reihenfolge: `Execute` nimmt nur einen Term, der geprüft und freigegeben ist.
 
-## Evals
+Die Module: `core` enthält Sprache, Prüfung und Interpreter, ohne HTTP und Modell; `model` die Adapter der vier Anbieter; `runner` die CLI.
 
-Sechs Aufgaben mit bekanntem Ergebnis in [evals/](evals/README.md), gemessen über n Läufe, Ergebnisse als `M#` in [findings.md](findings.md). Eval 6 ist zugleich der deterministische Integrationstest ohne Modell.
+## Evals und Status
 
-## Status
+Sechs Aufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Eval 6 ist zugleich der deterministische Integrationstest ohne Modell. Laut dem Vorgehen in [SPEC.md](SPEC.md) ist Schritt 4 im Code fertig; die Basismessungen M#1 und M#2 über die Messages API sind offen, ebenso Schritt 5 (BestOfN, Harness über alle Evals).
 
-Schritt 4 im Code fertig: Modelladapter (`model`, Messages API mit submit_term) und Runner (`runner`, `ase plan` und `ase run`, zweiphasig). Eval 1 läuft im Test durch die ganze Kette mit gefälschter API. Offen sind die ersten Live-Messungen M#1 (Eval 1) und M#2 (Eval 6) mit `evals/series.sh`. Siehe [SPEC.md](SPEC.md), Abschnitt Vorgehen.
+- **M#4**, Claude über `claude --print`, Eval 1 (TODOs sammeln): 10/10, ø 30,2k Tokens.
+- **M#5**, ebenso, Eval 6 (roter Test, Plan vom Modell): 10/10, ø 45,0k Tokens, über alle 10 Läufe 1 Ablehnung an Tor 1 und 2 an Tor 2. Kein Plan glich dem Referenzflow, und die Hüllen waren oft weiter als nötig (O#28).
+- **M#3**, Gemini 3.8 Flash über agy, Eval 1: 1/5, ø 231,5k Tokens.
+- Ohne Messung: Je ein Probelauf mit Gemini 4 Argon (`evals/runner-agy-argon.json`) bestand Eval 1 bis 4 (D#59). Eval 4 blieb mit Claude an tiefen Verzeichnissen hängen (O#29).
+
+Weiterlesen: [SPEC.md](SPEC.md) (Spezifikation, Grenzen und Limits), [findings.md](findings.md) (Entscheidungen, Messungen, offene Punkte), [context.md](context.md) mit [Glossar](context.md#7-glossar) und dem [Warum jeder Entscheidung](context.md#8-warum), [architecture.md](architecture.md), [CLAUDE.md](CLAUDE.md) (Arbeitsregeln).
