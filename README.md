@@ -136,7 +136,7 @@ Ein Coding-Agent wie Claude Code lässt sich gut einzäunen. Der Plan-Modus zeig
 
 **Wogegen es nicht schützt.** `ase` schützt vor dem, was das Modell tut, nicht vor Code im Repository. Erlaubte Programme wie `./run-tests.sh` oder `sbt test` laufen ohne Sandbox und können alles, was der Nutzer kann; Explain markiert sie als „führt Workspace-Code aus“. Es gibt keine Isolation, also gehört ein Container drumherum. Geprüft werden Ort und Art einer Änderung, nicht ihr Inhalt: Ein Loch kann innerhalb seiner Hülle schlechte Arbeit machen. Es gibt kein Zurückrollen; was gelaufen ist, bleibt gelaufen. Hüllen, die ein Modell selbst plant, können weiter sein als nötig; Tor 1 lehnt nur ab, was über die äußere Hülle hinausgeht. Explain nennt ein Loch, das Code ändern darf, der danach läuft (D#62). Den Explain muss also jemand lesen. Weitere Restrisiken stehen in D#43.
 
-**Was es kostet.** Es braucht mehr Modellaufrufe: einen Plan und je Loch mindestens einen Fill, dazu Runden und Versuche. Claude kam je nach Aufgabe auf 11k bis 73k Tokens je Lauf (M#6 bis M#11), Gemini Flash über agy auf 231k (M#3). Hüllen wollen geschrieben und gelesen werden. Die Sprache kann nur Dateien bearbeiten und eine kleine Liste von Shell-Befehlen aufrufen. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
+**Was es kostet.** Es braucht mehr Modellaufrufe: einen Plan und je Loch mindestens einen Fill, dazu Runden und Versuche. Claude kam je nach Aufgabe auf 11k bis 61k Tokens je Lauf (siehe [Evals und Status](#evals-und-status)), Gemini Flash über agy auf 231k (M#3). Hüllen wollen geschrieben und gelesen werden. Die Sprache kann nur Dateien bearbeiten und eine kleine Liste von Shell-Befehlen aufrufen. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
 
 Kennungen wie O#28, D#43 und M#4 verweisen auf [findings.md](findings.md): D# ist eine Entscheidung, M# eine Messung, O# ein offener Punkt.
 
@@ -194,7 +194,7 @@ Die Konfiguration (`--config`) ist JSON; jedes Feld ist optional, unbekannte Fel
 | `agy` | Antigravity-CLI | angemeldete CLI | gemini-3.8-flash-medium | `evals/runner-agy.json`, `evals/runner-agy-argon.json` |
 | `ollama` | lokal, Port 11434 | keine | qwen3:4b-instruct | `evals/runner-ollama.json` |
 
-Dazu kommen `limits`, `scripts`, `explainDenials`, `nestingLimit`, `planRounds` und `bestOfN`. Mit `bestOfN` größer 1 erzeugt jede Plan-Runde so viele Pläne, und einer gilt nur, wenn die Mehrheit dieselbe Struktur hat; sonst entscheidet der Mensch (D#63). Standard ist 1, denn Claude schreibt dieselbe Lösung selten zweimal gleich (O#30). Einzelheiten in [RunnerConfig.scala](runner/src/main/scala/ase/runner/RunnerConfig.scala).
+Dazu kommen `limits`, `scripts`, `explainDenials`, `nestingLimit`, `planRounds` und `bestOfN`. Mit `bestOfN` größer 1 erzeugt jede Plan-Runde so viele Pläne, und einer gilt nur, wenn die Mehrheit dieselbe Form hat: denselben Ablauf, dieselben Operationen, dieselben Rechte der Löcher. Sonst entscheidet der Mensch, und `ase plan` endet mit Exit 2 (D#63, D#65). Standard ist 1, weil Aufgaben mit mehreren guten Wegen sonst meist beim Menschen landen (O#32). Einzelheiten in [RunnerConfig.scala](runner/src/main/scala/ase/runner/RunnerConfig.scala).
 
 ## Einen Flow schreiben
 
@@ -247,20 +247,21 @@ Die Module: `core` enthält Sprache, Prüfung und Interpreter, ohne HTTP und Mod
 
 ## Evals und Status
 
-Sechs Aufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Eval 6 ist zugleich der deterministische Integrationstest ohne Modell. `evals/harness.sh` misst alle sechs mit derselben Konfiguration. Stand: Commit 4f6f43c, claude-opus-5-5 mit effort high über `claude --print`, je 10 Läufe.
+Sechs Aufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Eval 6 ist zugleich der deterministische Integrationstest ohne Modell. `evals/harness.sh` misst alle sechs mit derselben Konfiguration. Gemessen mit claude-opus-5-5 und effort high über `claude --print`, je 10 Läufe; Eval 1 und 6 nach der letzten Änderung am Prompt (D#66), die übrigen davor.
 
 | Eval | Aufgabe | Erfolg | Tokens ø je Lauf | Messung |
 |---|---|---|---|---|
-| 1 | TODO-Kommentare in TODO.md sammeln | 10/10 | 45,1k | M#6 |
+| 1 | TODO-Kommentare in TODO.md sammeln | 10/10 | 30,2k | M#12 |
 | 2 | Datei umbenennen, Verweise anpassen | 10/10 | 30,3k | M#7 |
 | 3 | Roten sbt-Test diagnostizieren, nichts ändern | 10/10 | 59,8k | M#8 |
 | 4 | README aus den Quellen schreiben | 10/10 | 52,5k | M#9 |
 | 5 | Aufgabe außerhalb der Hülle: fragen statt umgehen | 10/10, jedes Mal ask | 11,1k | M#10 |
-| 6 | Roten Test reparieren und berichten | 10/10 | 72,6k | M#11 |
+| 6 | Roten Test reparieren und berichten | 10/10 | 61,2k | M#13 |
 
 - **Tiefe Verzeichnisse.** Eval 4 scheiterte vorher, weil jede Verzeichnisebene eine Runde kostete. Seit ListDir samt Unterverzeichnissen listet (D#61), beginnt jeder Plan mit einem Listing des ganzen Arbeitsverzeichnisses.
 - **Kein Loch über dem Testskript.** In der Serie davor (M#5) durfte in jedem Eval-6-Plan ein Loch `./run-tests.sh` ändern, das danach lief. Jetzt in keinem: Die Pläne trennen Diagnose, Reparatur unter `src/` und Bericht (D#62).
-- **Das kostet.** Eval 6 braucht 72,6k statt 45,0k Tokens, Eval 1 45,1k statt 30,2k, weil die Pläne öfter in mehrere Löcher teilen, auch wo es nicht nötig wäre (O#31).
+- **Das kostet.** Die Trennung hebt Eval 6 von 45,0k auf 61,2k Tokens. Eine erste Fassung der Regel teilte auch in Eval 1, wo kein Code läuft; seit D#66 gilt sie nur dort, wo sie schützt, und Eval 1 ist wieder bei 30,2k.
+- **BestOfN.** Mit drei Plänen je Runde fand Eval 1 in 9 von 10 Läufen eine Mehrheit, Eval 6 nur in 4 von 10, weil es dort mehrere gute Wege gibt (M#14, M#15). Deshalb ist es standardmäßig aus.
 - **Andere Anbieter.** Gemini 3.8 Flash über agy bestand Eval 1 in 1 von 5 Läufen (M#3).
 
 Weiterlesen: [SPEC.md](SPEC.md) (Spezifikation, Grenzen und Limits), [findings.md](findings.md) (Entscheidungen, Messungen, offene Punkte), [context.md](context.md) mit [Glossar](context.md#7-glossar) und dem [Warum jeder Entscheidung](context.md#8-warum), [architecture.md](architecture.md), [CLAUDE.md](CLAUDE.md) (Arbeitsregeln).

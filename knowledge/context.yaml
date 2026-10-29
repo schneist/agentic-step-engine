@@ -569,8 +569,8 @@ decisions:
   - { id: "D#61", type: decision, status: decided, source: "findings.md#D#61", verified: 2026-10-29, title: "ListDir rekursiv, breitenweise, begrenzt", measured_by: [eval.4], tested_by: [ase.core.LocalToolsSuite, ase.core.ExplainSuite] }
   - { id: "D#62", type: decision, status: decided, source: "findings.md#D#62", verified: 2026-10-29, title: "Ändernde Löcher nicht über ausgeführtem Code: Prompt, Code-Hinweis mit Namen, Zählung", measured_by: [eval.6, eval.1], tested_by: [ase.core.ExplainSuite] }
   - { id: "D#63", type: decision, status: decided, source: "findings.md#D#63", verified: 2026-10-29, title: "BestOfN nur für Pläne, Standard aus", tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite] }
-  - { id: "D#65", type: decision, status: decided, source: "findings.md#D#65", verified: 2026-10-29, title: "BestOfN stimmt über die Form ab", tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite] }
-  - { id: "D#66", type: decision, status: decided, source: "findings.md#D#66", verified: 2026-10-29, title: "Teilungsregel nur bei ausgeführtem Code" }
+  - { id: "D#65", type: decision, status: decided, source: "findings.md#D#65", verified: 2026-10-29, title: "BestOfN stimmt über die Form ab", measured_by: [eval.1, eval.6], tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite] }
+  - { id: "D#66", type: decision, status: decided, source: "findings.md#D#66", verified: 2026-10-29, title: "Teilungsregel nur bei ausgeführtem Code", measured_by: [eval.1, eval.6] }
   - { id: "D#67", type: decision, status: decided, source: "findings.md#D#67", verified: 2026-10-29, title: "Messbasis über Claude Code (M#6 bis M#11)" }
   - { id: "D#64", type: decision, status: decided, source: "findings.md#D#64", verified: 2026-10-29, title: "Plan-Kennzahlen ohne Lauf, Harness, Exit 3 für abgelehnte Flows", tested_by: [ase.runner.RunnerSuite] }
 
@@ -606,6 +606,7 @@ open:
   - { id: "O#29", type: open, status: resolved, source: "findings.md#O#29", verified: 2026-10-29, resolved_by: "D#61" }
   - { id: "O#30", type: open, status: resolved, source: "findings.md#O#30", verified: 2026-10-29, resolved_by: "D#65" }
   - { id: "O#31", type: open, status: resolved, source: "findings.md#O#31", verified: 2026-10-29, resolved_by: "D#66" }
+  - { id: "O#32", type: open, status: open, source: "findings.md#O#32", verified: 2026-10-29, title: "BestOfN fragt bei mehreren guten Wegen meist den Menschen" }
 
 evals:
   - id: eval.1
@@ -615,7 +616,7 @@ evals:
     verified: 2026-10-27
     title: todos
     note: Fixture kompiliert; check.sh gegen Lösung und Fehllösung geprüft
-    measurements: ["M#3", "M#4", "M#6"]
+    measurements: ["M#3", "M#4", "M#6", "M#12", "M#14"]
   - id: eval.2
     type: eval
     status: implemented
@@ -656,7 +657,7 @@ evals:
     title: red-test (Integration, deterministisch und live)
     relates_to: [flows.red-test]
     note: Fixture und check.sh fertig; Skript-Modell in Eval6Suite
-    measurements: ["M#5", "M#11"]
+    measurements: ["M#5", "M#11", "M#13", "M#15"]
   - id: eval.lib
     type: eval
     status: implemented
