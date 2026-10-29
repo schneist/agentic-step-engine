@@ -24,8 +24,8 @@ final case class Planned(
   def split: Boolean = vote.exists(_.isInstanceOf[BestOfN.Vote.Split])
 
 /** Aufgabe → Plan → Tor 1 (Decoder der Wurzel-Hülle, dann DryRun); bei Verstoß zurück ans Modell, höchstens
-  * `rounds` Runden (SPEC RUNNER). Mit bestOf n > 1 fragt jede Runde n-mal und stimmt über die Fingerprints ab
-  * (BestOfN, D#63); eine Runde ohne geprüften Kandidaten geht mit den Gründen des ersten an das Modell zurück. Monad,
+  * `rounds` Runden (SPEC RUNNER). Mit bestOf n > 1 fragt jede Runde n-mal und stimmt über die Form ab
+  * (BestOfN, D#63, D#65); eine Runde ohne geprüften Kandidaten geht mit den Gründen des ersten an das Modell zurück. Monad,
   * weil jede Runde von der vorigen abhängt; der Runner ist Rand, nicht Algebra.
   */
 object Planner:
@@ -81,9 +81,9 @@ object Planner:
       val id = chosen.term.origin match
         case Origin.Model(callId) => callId
         case Origin.Human         => "Human"
-      s"bestof   $agreeing von $of mit Fingerprint ${Fingerprint.of(chosen.term).hex.take(12)} → $id"
+      s"bestof   $agreeing von $of mit derselben Form ${BestOfN.shape(chosen.term).take(12)} → $id"
     case BestOfN.Vote.Split(groups, failed, of) =>
-      val parts = groups.map((f, c) => s"${f.hex.take(12)} ×$c") ++ Option.when(failed > 0)(s"$failed ohne Tor 1")
+      val parts = groups.map((f, c) => s"${f.take(12)} ×$c") ++ Option.when(failed > 0)(s"$failed ohne Tor 1")
       s"bestof   keine Mehrheit unter $of: ${parts.mkString(", ")} → der Mensch entscheidet"
 
   /** Was nach einer Ablehnung an das Modell geht: die Gründe und, wenn lesbar, der abgelehnte Term selbst; der

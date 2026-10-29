@@ -50,7 +50,7 @@ if [ -n "$reference" ]; then
   [ -n "$ref_fp" ] || { echo "Referenzflow ohne Fingerprint, siehe $out/reference.txt" >&2; exit 1; }
 fi
 
-printf 'lauf\toutcome\tcheck\tschritte\tplan\tfill\trunden\ttor1\ttor2\tohne_term\task\ttokens\tplan_fingerprint\tcode_hint\n' > "$out/runs.tsv"
+printf 'lauf\toutcome\tcheck\tschritte\tplan\tfill\trunden\ttor1\ttor2\tohne_term\task\ttokens\tplan_fingerprint\tcode_hint\teinig\n' > "$out/runs.tsv"
 for i in $(seq 1 "$n"); do
   run="$out/run-$i"
   mkdir -p "$run"
@@ -82,10 +82,11 @@ for i in $(seq 1 "$n"); do
   s="$run/summary.json"
   [ -s "$s" ] || s="$run/plan-summary.json"
   hint=$(grep -c "Hinweis: darf Code ändern" "$run/plan.txt" || true)
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$i" "$outcome" "$check" \
+  # einig: übereinstimmende von allen Kandidaten des Plans (BestOfN, D#63); ohne Abstimmung 1/1
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$i" "$outcome" "$check" \
     "$(num steps "$s")" "$(num planCalls "$s")" "$(num fillCalls "$s")" "$(num holeRounds "$s")" "$(num gate1Rejections "$s")" \
     "$(num gate2Rejections "$s")" "$(num unusableAnswers "$s")" "$(sed -n 's/^  "asked" : \(.*\),/\1/p' "$s" 2>/dev/null)" \
-    "$(num tokens "$s")" "$(str planFingerprint "$s" | cut -c1-12)" "$hint" >> "$out/runs.tsv"
+    "$(num tokens "$s")" "$(str planFingerprint "$s" | cut -c1-12)" "$hint" "$(num planAgreeing "$s")/$(num planCandidates "$s")" >> "$out/runs.tsv"
   echo "Lauf $i: $outcome, check $check"
   rm -rf "$tmp"
 done

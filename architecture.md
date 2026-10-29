@@ -134,3 +134,15 @@ Umkehrkosten: niedrig im Code (LocalTools, ExecSupport, eine Zeile Prompt und Ex
 Alternativen: (a) BestOfN für Plan und Fill, wie SPEC es offenlässt. (b) Nur für Pläne, Mehrheit über alle n Kandidaten, abgelehnte zählen mit. (c) Nur für Pläne, Mehrheit nur unter den geprüften Kandidaten.
 Gewählt: b, mit bestOfN = 1 als Standard. a braucht ask mitten im Lauf (Engine, Record-Log, Replay); c würde einen einzigen geprüften von drei Kandidaten als Mehrheit nehmen, obwohl zwei Antworten unbrauchbar waren. Standard aus, weil der Fingerprint für Claude zu fein ist (O#30).
 Umkehrkosten: niedrig. Eine reine Funktion in core, die Plan-Schleife und Version 2 der Plan-Datei.
+
+## D#65 BestOfN stimmt über die Form ab
+
+Alternativen: (a) Fingerprint wie in D#63. (b) Abstimmung über das Ergebnis: jeden Kandidaten ausführen und die Arbeitsverzeichnisse vergleichen (n Ausführungen, nur in Kopien möglich, und Fills machen auch das Ergebnis zufällig). (c) Eine gröbere Form: Kontrollfluss, Operationsarten, Programmnamen, erlaubte Operationen der Löcher.
+Gewählt: c. a ist zu fein (O#30), b kostet n Läufe und braucht eine Sandbox. Die Form entscheidet nur über Einigkeit; was gilt, prüft Tor 1 am gewählten Kandidaten, freigegeben wird dessen Hash.
+Umkehrkosten: niedrig. Eine Funktion in core; die Plan-Datei speichert nur die Zahlen.
+
+## D#67 Claude Code als Messbasis
+
+Alternativen: (a) Die Basis bleibt für die Messages API reserviert, bis ein Schlüssel da ist. (b) Die Serien über `claude --print` sind die Basis.
+Gewählt: b. a ließ Änderungen ohne Vergleich zu, weil die Basis nie gemessen wurde; nach den Serien über Claude Code wurde ohnehin entschieden.
+Umkehrkosten: niedrig. Eine Serie über die Messages API ist ein Vergleich; wer die API als Basis will, misst neu und notiert es als D#.

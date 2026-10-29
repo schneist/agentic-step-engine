@@ -104,12 +104,15 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **think** (Denken vor dem Schema): Ein lokales Modell überlegt erst frei und schreibt danach den Term im Schema; nur die Antwort wird ausgewertet (D#48). Fehlt der Wert, gilt der Standard des Modells; false schaltet das Denken hybrider Modelle ab (D#50).
 - **Runde** (Mehrrunden-Fill): Ein Fill ohne Done, der Schritte ausgeführt hat, führt zu einer weiteren Runde desselben Lochs, die deren Ergebnisse sieht; höchstens `maxRoundsPerHole`, alle Runden teilen das Schrittbudget des Lochs (D#55).
 
-- **BestOfN**: Ein Plan wird n-mal erzeugt; er gilt nur, wenn mehr als die Hälfte der n **Kandidaten** denselben Fingerprint hat (**Mehrheit**). Sonst entscheidet der Mensch, `ase plan` endet mit Exit 2 (D#63). Standard aus.
+- **BestOfN**: Ein Plan wird n-mal erzeugt; er gilt nur, wenn mehr als die Hälfte der n **Kandidaten** dieselbe Form hat (**Mehrheit**, D#65). Sonst entscheidet der Mensch, `ase plan` endet mit Exit 2 (D#63). Standard aus.
 - **Kandidat**: Einer der n Pläne einer BestOfN-Runde. Ein Kandidat, der Tor 1 nicht besteht, zählt mit und stimmt mit keinem überein (D#63).
 - **Plan-Kennzahlen** (`plan-summary.json`): Was `ase plan --summary` in jedem Ausgang ablegt, auch ohne geprüften Plan: Ausgang, Aufrufe, Kandidaten, Ablehnungen, Tokens, Fingerprint (D#64).
 - **Harness** (`evals/harness.sh`): Eine Serie je Eval über alle sechs Aufgaben, mit derselben Konfiguration und demselben Commit; sammelt die M#-Zeilen (D#64).
 - **Code-Hinweis**: Die Zeile „Hinweis: darf Code ändern, der im Lauf ausgeführt wird (…)“ im Explain eines Lochs, das unter seinem pathPrefix Code ändern darf, den der Term danach ausführt. series.sh zählt sie je Plan (D#12, D#62).
 - **Rekursives ListDir**: ListDir liefert das ganze Verzeichnis samt Unterverzeichnissen, Ebene für Ebene, höchstens 2000 Einträge; Symlinks und .git werden gezeigt, aber nicht betreten (D#61).
+
+- **Form** (`BestOfN.shape`): Ein Term, reduziert auf Kontrollfluss, Operationsarten, Programmnamen, Prädikatarten und die erlaubten Operationen seiner Löcher; gröber als der Fingerprint. Darüber stimmt BestOfN ab (D#65).
+- **Messbasis**: Die Serien, gegen die eine Änderung an Algebra, Hüllen oder Werkzeugbeschreibungen gemessen wird; seit D#67 M#6 bis M#11 über Claude Code.
 
 ## 8. Warum
 
@@ -358,6 +361,18 @@ BestOfN soll Zufall im Plan erkennen: Liefert das Modell bei gleicher Aufgabe ve
 ### Warum Plan-Kennzahlen auch ohne Plan (D#64)
 
 Eine Serie, in der ein Plan an Tor 1 scheitert, hatte für diesen Lauf keine Zahlen außer dem Text der Ausgabe. Gerade diese Läufe sind die interessanten: wie oft, mit wie vielen Aufrufen, wie vielen Tokens. Der Harness braucht sie für alle sechs Evals in derselben Form. Dass ein abgelehnter Flow jetzt Exit 3 liefert wie ein abgelehnter Modellplan, macht beide Wege für Skripte gleich.
+
+### Warum BestOfN über die Form abstimmt (D#65)
+
+Mit dem Fingerprint als Maß waren sich drei Pläne oft nicht einig, obwohl jeder für sich bestand: Ein Plan gab dem Loch 8 Schritte, der andere 9, einer schrieb `src`, der andere `src/`. Solche Unterschiede sind keine Unsicherheit des Modells, sondern Schreibweise. Die Abstimmung soll erkennen, ob das Modell denselben Weg geht: welche Schritte, in welcher Reihenfolge, wo es entscheidet und was dort erlaubt ist. Was genau erlaubt ist, prüft danach Tor 1 am gewählten Plan, und der Mensch gibt dessen vollen Hash frei.
+
+### Warum die Teilungsregel nur bei ausgeführtem Code gilt (D#66)
+
+Die Regel aus D#62 sollte verhindern, dass ein Loch ein Skript ändert, das danach läuft. Das Modell wandte sie überall an und teilte auch dort, wo kein Code läuft, in Eval 1 in jedem Plan. Das kostete fast die Hälfte mehr Tokens, ohne dort etwas sicherer zu machen. Die Regel nennt jetzt ihre Bedingung.
+
+### Warum Claude Code die Messbasis ist (D#67)
+
+Die Basis war für die Messages API reserviert, damit sie das Modell so misst, wie es ein Kunde mit eigenem Konto nutzt. Gemessen wurde aber über Claude Code, und nach diesen Messungen wurde entschieden. Eine Basis, die nie gemessen wird, schützt nichts: Änderungen wurden trotzdem gemacht, nur ohne Vergleich. Also ist die Basis der Weg, der tatsächlich gemessen wird. Wo sich die Wege unterscheiden (strukturierte Ausgabe statt Werkzeug, D#58), zeigt ein späterer Vergleich.
 
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 

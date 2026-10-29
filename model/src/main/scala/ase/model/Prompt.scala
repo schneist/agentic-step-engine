@@ -63,9 +63,11 @@ object Prompt:
        |Gib jedem Loch genau die Rechte, die sein Ziel braucht, nicht mehr.
        |Lesen und Ändern teilen sich den pathPrefix. Ein Loch, das ändern darf (WriteFile, EditFile, MoveFile), bekommt
        |keinen pathPrefix, unter dem ein Skript liegt, das der Term ausführt (etwa ./run-tests.sh), es sei denn, die
-       |Aufgabe verlangt genau diese Änderung: sonst könnte das Loch ändern, was danach läuft. Muss ein Loch weiter
-       |lesen, als es ändern darf, teile es in zwei: ein Loch liest unter dem weiten pathPrefix, ändert nichts und nennt
-       |in Done, was zu ändern ist; ein späteres Loch ändert unter dem engsten pathPrefix, der die Änderung zulässt.
+       |Aufgabe verlangt genau diese Änderung: sonst könnte das Loch ändern, was danach läuft. Nur wenn ein solches
+       |Skript unter dem pathPrefix liegt, den das Loch zum Lesen braucht, teile es in zwei: ein Loch liest unter dem
+       |weiten pathPrefix, ändert nichts und nennt in Done, was zu ändern ist; ein späteres Loch ändert unter dem
+       |engsten pathPrefix, der die Änderung zulässt. Führt der Term keinen Code aus, genügt ein Loch, das liest und
+       |ändert.
        |
        |# Pfade
        |Relativ zum Arbeitsverzeichnis, "/" als Trenner, kein "..", kein ".git", nicht absolut. pathPrefix "." ist das

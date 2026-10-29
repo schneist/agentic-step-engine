@@ -1,0 +1,11 @@
+{
+  "model": {
+    "provider": "claudecode",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "endpoint": "/mnt/c/Users/schne/.local/bin/claude.exe",
+    "workDir": "/mnt/c/Users/schne/AppData/Local/Temp/ase-claude"
+  },
+  "scripts": ["./run-tests.sh"],
+  "bestOfN": 3
+}

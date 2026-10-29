@@ -91,7 +91,8 @@ class RunnerSuite extends munit.FunSuite:
     assertEquals(s.check.argPolicies, CheckConfig.default.argPolicies :+ ArgPolicy.script("./run-tests.sh"))
     List("run-tests.sh", "./bin/x.sh", "./..", "../x.sh").foreach(bad => assert(RunnerConfig.parse(s"""{"scripts":["$bad"]}""").isLeft, bad))
 
-  private val other = Term.Seq(List(Term.ListDir("docs", h), Term.Hole("Schreibe a.md", Envelope(Set(OpKind.WriteFile), "a.md", 2, 0, Set.empty), h)), h)
+  // eine andere Form als good (ReadFile statt ListDir): BestOfN stimmt über die Form ab (D#65)
+  private val other = Term.Seq(List(Term.ReadFile("docs/a.md", h), Term.Hole("Schreibe a.md", Envelope(Set(OpKind.WriteFile), "a.md", 2, 0, Set.empty), h)), h)
 
   test("BestOfN: zwei von drei gleich ist eine Mehrheit, gewählt der erste davon; Aufrufe und Tokens aller drei zählen"):
     val replies = List(answer(other), answer(good), answer(good))
