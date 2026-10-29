@@ -82,7 +82,7 @@ for i in $(seq 1 "$n"); do
   s="$run/summary.json"
   [ -s "$s" ] || s="$run/plan-summary.json"
   hint=$(grep -c "Hinweis: darf Code ändern" "$run/plan.txt" || true)
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$i" "$outcome" "$check" \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$i" "$outcome" "$check" \
     "$(num steps "$s")" "$(num planCalls "$s")" "$(num fillCalls "$s")" "$(num holeRounds "$s")" "$(num gate1Rejections "$s")" \
     "$(num gate2Rejections "$s")" "$(num unusableAnswers "$s")" "$(sed -n 's/^  "asked" : \(.*\),/\1/p' "$s" 2>/dev/null)" \
     "$(num tokens "$s")" "$(str planFingerprint "$s" | cut -c1-12)" "$hint" >> "$out/runs.tsv"

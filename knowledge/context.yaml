@@ -566,8 +566,8 @@ decisions:
   - { id: "D#58", type: decision, status: decided, source: "findings.md#D#58", verified: 2026-10-28, title: "Vierter Anbieter claudecode (claude --print, Abo)", tested_by: [ase.model.ClaudeCodeSuite, ase.model.AgySuite] }
   - { id: "D#59", type: decision, status: decided, source: "findings.md#D#59", verified: 2026-10-28, title: "agy: Fehlversuch ohne Term nennt den Anfang des Freitexts", tested_by: [ase.model.AgySuite] }
   - { id: "D#60", type: decision, status: decided, source: "findings.md#D#60", verified: 2026-10-29, title: "Lizenz Apache 2.0, Startskript bin/ase" }
-  - { id: "D#61", type: decision, status: decided, source: "findings.md#D#61", verified: 2026-10-29, title: "ListDir rekursiv, breitenweise, begrenzt", tested_by: [ase.core.LocalToolsSuite, ase.core.ExplainSuite] }
-  - { id: "D#62", type: decision, status: decided, source: "findings.md#D#62", verified: 2026-10-29, title: "Ändernde Löcher nicht über ausgeführtem Code: Prompt, Code-Hinweis mit Namen, Zählung", tested_by: [ase.core.ExplainSuite] }
+  - { id: "D#61", type: decision, status: decided, source: "findings.md#D#61", verified: 2026-10-29, title: "ListDir rekursiv, breitenweise, begrenzt", measured_by: [eval.4], tested_by: [ase.core.LocalToolsSuite, ase.core.ExplainSuite] }
+  - { id: "D#62", type: decision, status: decided, source: "findings.md#D#62", verified: 2026-10-29, title: "Ändernde Löcher nicht über ausgeführtem Code: Prompt, Code-Hinweis mit Namen, Zählung", measured_by: [eval.6, eval.1], tested_by: [ase.core.ExplainSuite] }
   - { id: "D#63", type: decision, status: decided, source: "findings.md#D#63", verified: 2026-10-29, title: "BestOfN nur für Pläne, Standard aus", tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite] }
   - { id: "D#64", type: decision, status: decided, source: "findings.md#D#64", verified: 2026-10-29, title: "Plan-Kennzahlen ohne Lauf, Harness, Exit 3 für abgelehnte Flows", tested_by: [ase.runner.RunnerSuite] }
 
@@ -602,6 +602,7 @@ open:
   - { id: "O#28", type: open, status: resolved, source: "findings.md#O#28", verified: 2026-10-29, resolved_by: "D#62" }
   - { id: "O#29", type: open, status: resolved, source: "findings.md#O#29", verified: 2026-10-29, resolved_by: "D#61" }
   - { id: "O#30", type: open, status: open, source: "findings.md#O#30", verified: 2026-10-29, title: "Fingerprint für BestOfN zu fein" }
+  - { id: "O#31", type: open, status: open, source: "findings.md#O#31", verified: 2026-10-29, title: "Teilungsregel aus D#62 verteuert auch Pläne ohne ausgeführten Code" }
 
 evals:
   - id: eval.1
@@ -611,7 +612,7 @@ evals:
     verified: 2026-10-27
     title: todos
     note: Fixture kompiliert; check.sh gegen Lösung und Fehllösung geprüft
-    measurements: ["M#3", "M#4"]
+    measurements: ["M#3", "M#4", "M#6"]
   - id: eval.2
     type: eval
     status: implemented
@@ -620,6 +621,7 @@ evals:
     title: rename
     note: Datei-Umbenennung mit MoveFile (D#18); check.sh gegen Lösung und drei Fehllösungen geprüft
     decided_by: ["D#18"]
+    measurements: ["M#7"]
   - id: eval.3
     type: eval
     status: implemented
@@ -627,6 +629,7 @@ evals:
     verified: 2026-10-27
     title: red-test-sbt
     note: sbt test rot genau in „Zinseszins über zwei Jahre“
+    measurements: ["M#8"]
   - id: eval.4
     type: eval
     status: implemented
@@ -634,12 +637,14 @@ evals:
     verified: 2026-10-27
     title: readme
     note: Fixture kompiliert
+    measurements: ["M#9"]
   - id: eval.5
     type: eval
     status: implemented
     source: evals/5-out-of-envelope/
     verified: 2026-10-27
     title: out-of-envelope
+    measurements: ["M#10"]
   - id: eval.6
     type: eval
     status: implemented
@@ -648,7 +653,7 @@ evals:
     title: red-test (Integration, deterministisch und live)
     relates_to: [flows.red-test]
     note: Fixture und check.sh fertig; Skript-Modell in Eval6Suite
-    measurements: ["M#5"]
+    measurements: ["M#5", "M#11"]
   - id: eval.lib
     type: eval
     status: implemented

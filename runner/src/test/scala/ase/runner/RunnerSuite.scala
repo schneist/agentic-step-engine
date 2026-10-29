@@ -120,6 +120,8 @@ class RunnerSuite extends munit.FunSuite:
     val r = PlanSummary.of(rejected).hcursor
     assertEquals((r.get[String]("planOutcome"), r.get[Int]("planCalls"), r.get[Int]("gate1Rejections")), (Right("rejected"), Right(2), Right(2)))
     assert(r.downField("planFingerprint").failed)
+    val rejected3 = Planner.run[S](scripted, "Aufgabe", root, check, 1, bestOf = 3).runA((List.fill(3)(answer(tooDeep)), Vector.empty)).value
+    assertEquals(PlanSummary.of(rejected3).hcursor.get[Int]("planCandidates"), Right(3))
     val ok = PlanSummary.of(Planner.run[S](scripted, "Aufgabe", root, check, 1).runA((List(answer(good)), Vector.empty)).value).hcursor
     assertEquals((ok.get[String]("planOutcome"), ok.get[String]("planFingerprint")), (Right("checked"), Right(Fingerprint.of(good).hex)))
 

@@ -8,6 +8,7 @@ import cats.syntax.all.*
 /** Ergebnis der Plan-Schleife: der geprüfte Term oder keiner, und was es gekostet hat. rejections zählt Tor 1
   * (Decoder und DryRun), unusable Antworten ohne Term; log ist der Plan-Teil des Lauf-Logs. vote: die Abstimmung der
   * letzten Runde mit Kandidaten, die Tor 1 bestanden haben (BestOfN, D#63); bei bestOf 1 eine Mehrheit von 1 aus 1.
+  * candidates: Kandidaten je Runde (bestOf).
   */
 final case class Planned(
     checked: Option[CheckedTerm],
@@ -16,7 +17,8 @@ final case class Planned(
     unusable: Int,
     tokens: Long,
     log: Vector[String],
-    vote: Option[BestOfN.Vote] = None
+    vote: Option[BestOfN.Vote] = None,
+    candidates: Int = 1
 ):
   /** Kein Kandidat hatte die Mehrheit: der Mensch entscheidet (ask statt raten). */
   def split: Boolean = vote.exists(_.isInstanceOf[BestOfN.Vote.Split])
@@ -71,7 +73,7 @@ object Planner:
               case _: BestOfN.Vote.Split               => voted.pure[F]
         }
 
-    round(1, Vector.empty, Planned(None, 0, 0, 0, 0L, Vector.empty))
+    round(1, Vector.empty, Planned(None, 0, 0, 0, 0L, Vector.empty, candidates = bestOf))
 
   /** Eine Zeile für das Lauf-Log: wie viele Kandidaten übereinstimmen, oder dass der Mensch entscheidet. */
   def show(vote: BestOfN.Vote): String = vote match

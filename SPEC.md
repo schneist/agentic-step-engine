@@ -186,7 +186,7 @@ VORGEHEN
 2. core: Term-ADT (mit MoveFile), Pred, JSON-Codec, decoderFor, handgeschriebenes Schema (D#10), Algebra mit Kontrolloperationen, restrict, ToTerm/fromTerm, DryRun mit CheckedTerm, Approval mit ApprovedTerm, Cost, Explain, structuralFingerprint, termHash (JCS), Flow-Format mit Parameterbindung, Term-Generator und AdversarialFill-Generator. Tests grün. Kein Execute, kein Modell.
 3. core: Execute (Pfad- und Shell-Prüfung zuerst, mit Tests), Record/Replay, AdversarialFill-Gesetz grün, Eval 6 im deterministischen Modus grün. Läuft und wird getestet in WSL (D#29); Java 17 und sbt 1.10.7 sind dort installiert (O#15). · erledigt 2026-10-27 (D#32–D#38), zwei Reviews eingearbeitet.
 4. model + runner mit submit_term, Plan und Fill. Erste Serie (n=10) gegen Eval 1 als M#1, Eval 6 live als M#2. · Code 2026-10-28 (D#44–D#46); M#1 und M#2 offen.
-5. BestOfN, Eval-Harness über alle sechs Aufgaben. · Code 2026-10-29 (D#63, D#64); Serien über claude --print siehe findings.md, M#1 und M#2 über die Messages API weiter offen.
+5. BestOfN, Eval-Harness über alle sechs Aufgaben. · Code 2026-10-29 (D#63, D#64); Harness über claude --print: M#6 bis M#11, alle sechs Evals 10/10; M#1 und M#2 über die Messages API weiter offen.
 Nach jedem Schritt: sbt test grün, context.yaml und findings.md nachgeführt, kurze Zusammenfassung, offene Punkte. Keine Features über diese Liste hinaus ohne Rückfrage.
 
 OFFENE FRAGEN: entschieden als D#8 (Ask im Loch) und D#9 (Scope). Weitere offene Punkte in findings.md, Abschnitt Offen.

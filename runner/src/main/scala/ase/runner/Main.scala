@@ -263,7 +263,7 @@ object PlanSummary:
     val (candidates, agreeing) = p.vote match
       case Some(BestOfN.Vote.Majority(_, a, of)) => (of, a)
       case Some(BestOfN.Vote.Split(_, _, of))    => (of, 0)
-      case None                                  => (1, if p.checked.isDefined then 1 else 0)
+      case None                                  => (p.candidates, if p.checked.isDefined then 1 else 0)
     Json.obj(
       "planOutcome" -> Json.fromString(outcome),
       "planCalls" -> Json.fromInt(p.calls),

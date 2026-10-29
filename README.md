@@ -6,7 +6,7 @@ Die meisten Coding-Agenten rufen Werkzeuge einzeln auf, und jeder Aufruf wirkt s
 
 Gedacht ist es für Abläufe, die man einmal festlegt und oft laufen lässt: ein Release vorbereiten, einen roten Test diagnostizieren, Doku nachziehen. Es ist kein Ersatz für Claude Code oder Cursor im Alltag. `ase` ist ein Prototyp in Scala 3 mit einer Kommandozeile.
 
-**Status:** Engine, Modellanbindung und CLI sind gebaut. Mit Claude über `claude --print` sind zwei der sechs Testaufgaben gemessen, beide mit 10 von 10 Läufen. Die übrigen vier sind bisher nur in Probeläufen gelaufen, und die Messung über die Anthropic-API steht noch aus ([Details](#evals-und-status)).
+**Status:** Prototyp. Engine, Modellanbindung und CLI sind gebaut. Mit Claude über Claude Code bestand jede der sechs Testaufgaben 10 von 10 Läufen ([Details](#evals-und-status)).
 
 > **In English.** `ase` lets a language model do recurring chores on a repository, such as preparing a release or diagnosing a failing test. The model does not call tools one by one. It first writes a small program in a checked language, with *holes* where it decides at run time. Each hole carries an *envelope* that limits which operations, paths and steps are allowed there. Nothing runs before it has been checked, and nothing runs before a human has approved the program's hash. Prototype in Scala 3 under the Apache License 2.0. The documentation is in German.
 
@@ -134,9 +134,9 @@ Ein Coding-Agent wie Claude Code lässt sich gut einzäunen. Der Plan-Modus zeig
 - **Einmal freigeben, oft laufen lassen.** Bei einem Flow ist der Hash stabil: `ase run --approve <hash> --no-ask` läuft ohne Menschen davor, etwa in CI. Ändern sich Flow, Parameter oder die Hülle im Flow, ändert sich der Hash, und `ase run` gibt nicht frei (Exit 4); eine andere `--config` lehnt es ab. Ein vom Modell geplanter Term ist jedes Mal ein anderer und braucht jedes Mal eine Freigabe.
 - **Entscheidungen zur Laufzeit gehen durch ein Tor.** Jeder Fill wird gegen die Hülle geprüft, bevor auch nur ein Schritt davon läuft. Bei einer Ablehnung bekommt das Modell die Begründung, und der Lauf geht weiter.
 
-**Wogegen es nicht schützt.** `ase` schützt vor dem, was das Modell tut, nicht vor Code im Repository. Erlaubte Programme wie `./run-tests.sh` oder `sbt test` laufen ohne Sandbox und können alles, was der Nutzer kann; Explain markiert sie als „führt Workspace-Code aus“. Es gibt keine Isolation, also gehört ein Container drumherum. Geprüft werden Ort und Art einer Änderung, nicht ihr Inhalt: Ein Loch kann innerhalb seiner Hülle schlechte Arbeit machen. Es gibt kein Zurückrollen; was gelaufen ist, bleibt gelaufen. Hüllen, die ein Modell selbst plant, sind oft weiter als nötig (O#28); Tor 1 lehnt nur ab, was über die äußere Hülle hinausgeht. Den Explain muss also jemand lesen. Weitere Restrisiken stehen in D#43.
+**Wogegen es nicht schützt.** `ase` schützt vor dem, was das Modell tut, nicht vor Code im Repository. Erlaubte Programme wie `./run-tests.sh` oder `sbt test` laufen ohne Sandbox und können alles, was der Nutzer kann; Explain markiert sie als „führt Workspace-Code aus“. Es gibt keine Isolation, also gehört ein Container drumherum. Geprüft werden Ort und Art einer Änderung, nicht ihr Inhalt: Ein Loch kann innerhalb seiner Hülle schlechte Arbeit machen. Es gibt kein Zurückrollen; was gelaufen ist, bleibt gelaufen. Hüllen, die ein Modell selbst plant, können weiter sein als nötig; Tor 1 lehnt nur ab, was über die äußere Hülle hinausgeht. Explain nennt ein Loch, das Code ändern darf, der danach läuft (D#62). Den Explain muss also jemand lesen. Weitere Restrisiken stehen in D#43.
 
-**Was es kostet.** Es braucht mehr Modellaufrufe: einen Plan und je Loch mindestens einen Fill, dazu Runden und Versuche. Claude kam auf 30k bis 45k Tokens je Lauf, Gemini Flash über agy auf 231k (M#3 bis M#5). Hüllen wollen geschrieben und gelesen werden. Die Sprache kann nur Dateien bearbeiten und eine kleine Liste von Shell-Befehlen aufrufen. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
+**Was es kostet.** Es braucht mehr Modellaufrufe: einen Plan und je Loch mindestens einen Fill, dazu Runden und Versuche. Claude kam je nach Aufgabe auf 11k bis 73k Tokens je Lauf (M#6 bis M#11), Gemini Flash über agy auf 231k (M#3). Hüllen wollen geschrieben und gelesen werden. Die Sprache kann nur Dateien bearbeiten und eine kleine Liste von Shell-Befehlen aufrufen. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
 
 Kennungen wie O#28, D#43 und M#4 verweisen auf [findings.md](findings.md): D# ist eine Entscheidung, M# eine Messung, O# ein offener Punkt.
 
@@ -162,7 +162,7 @@ explain   dcd18e…93bf
 ...
 ```
 
-**Mit Modell** (Eval 1: TODOs sammeln, in einer Kopie des Fixtures). Gemessen ist nur der Weg über Claude Code. Dafür in `evals/runner-claude-code.json` das Feld `model.endpoint` auf den eigenen `claude` setzen (`which claude`) und `model.workDir` auf ein beschreibbares Verzeichnis setzen oder das Feld löschen (dann das temporäre Verzeichnis der JVM). Der Standardanbieter `anthropic` (Messages API, `ANTHROPIC_API_KEY`) ist angebunden, aber noch nicht gemessen.
+**Mit Modell** (Eval 1: TODOs sammeln, in einer Kopie des Fixtures). Gemessen ist nur der Weg über Claude Code. Dafür in `evals/runner-claude-code.json` das Feld `model.endpoint` auf den eigenen `claude` setzen (`which claude`) und `model.workDir` auf ein beschreibbares Verzeichnis setzen oder das Feld löschen (dann das temporäre Verzeichnis der JVM).
 
 ```
 rm -rf /tmp/work && cp -a evals/1-todos/fixture /tmp/work
@@ -189,8 +189,8 @@ Die Konfiguration (`--config`) ist JSON; jedes Feld ist optional, unbekannte Fel
 
 | `provider` | Weg | Anmeldung | Standardmodell | Beispiel |
 |---|---|---|---|---|
-| `anthropic` (Standard) | Messages API | `ANTHROPIC_API_KEY` | claude-opus-5-5 | `evals/runner.json` |
-| `claudecode` | `claude --print`, ohne Werkzeuge | Abo von Claude Code | claude-opus-5-5 | `evals/runner-claude-code.json` |
+| `claudecode` | `claude --print`, ohne Werkzeuge | angemeldetes Claude Code | claude-opus-5-5 | `evals/runner-claude-code.json` |
+| `anthropic` (Standard) | Messages API | Umgebungsvariable `ANTHROPIC_API_KEY` | claude-opus-5-5 | `evals/runner.json` |
 | `agy` | Antigravity-CLI | angemeldete CLI | gemini-3.8-flash-medium | `evals/runner-agy.json`, `evals/runner-agy-argon.json` |
 | `ollama` | lokal, Port 11434 | keine | qwen3:4b-instruct | `evals/runner-ollama.json` |
 
@@ -247,12 +247,21 @@ Die Module: `core` enthält Sprache, Prüfung und Interpreter, ohne HTTP und Mod
 
 ## Evals und Status
 
-Sechs Aufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Eval 6 ist zugleich der deterministische Integrationstest ohne Modell. Laut dem Vorgehen in [SPEC.md](SPEC.md) ist Schritt 4 im Code fertig; die Basismessungen M#1 und M#2 über die Messages API sind offen, ebenso Schritt 5 (BestOfN, Harness über alle Evals).
+Sechs Aufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Eval 6 ist zugleich der deterministische Integrationstest ohne Modell. `evals/harness.sh` misst alle sechs mit derselben Konfiguration. Stand: Commit 4f6f43c, claude-opus-5-5 mit effort high über `claude --print`, je 10 Läufe.
 
-- **M#4**, Claude über `claude --print`, Eval 1 (TODOs sammeln): 10/10, ø 30,2k Tokens.
-- **M#5**, ebenso, Eval 6 (roter Test, Plan vom Modell): 10/10, ø 45,0k Tokens, über alle 10 Läufe 1 Ablehnung an Tor 1 und 2 an Tor 2. Kein Plan glich dem Referenzflow, und die Hüllen waren oft weiter als nötig (O#28).
-- **M#3**, Gemini 3.8 Flash über agy, Eval 1: 1/5, ø 231,5k Tokens.
-- Ohne Messung: Je ein Probelauf mit Gemini 4 Argon (`evals/runner-agy-argon.json`) bestand Eval 1 bis 4 (D#59). Eval 4 blieb mit Claude an tiefen Verzeichnissen hängen (O#29).
+| Eval | Aufgabe | Erfolg | Tokens ø je Lauf | Messung |
+|---|---|---|---|---|
+| 1 | TODO-Kommentare in TODO.md sammeln | 10/10 | 45,1k | M#6 |
+| 2 | Datei umbenennen, Verweise anpassen | 10/10 | 30,3k | M#7 |
+| 3 | Roten sbt-Test diagnostizieren, nichts ändern | 10/10 | 59,8k | M#8 |
+| 4 | README aus den Quellen schreiben | 10/10 | 52,5k | M#9 |
+| 5 | Aufgabe außerhalb der Hülle: fragen statt umgehen | 10/10, jedes Mal ask | 11,1k | M#10 |
+| 6 | Roten Test reparieren und berichten | 10/10 | 72,6k | M#11 |
+
+- **Tiefe Verzeichnisse.** Eval 4 scheiterte vorher, weil jede Verzeichnisebene eine Runde kostete. Seit ListDir samt Unterverzeichnissen listet (D#61), beginnt jeder Plan mit einem Listing des ganzen Arbeitsverzeichnisses.
+- **Kein Loch über dem Testskript.** In der Serie davor (M#5) durfte in jedem Eval-6-Plan ein Loch `./run-tests.sh` ändern, das danach lief. Jetzt in keinem: Die Pläne trennen Diagnose, Reparatur unter `src/` und Bericht (D#62).
+- **Das kostet.** Eval 6 braucht 72,6k statt 45,0k Tokens, Eval 1 45,1k statt 30,2k, weil die Pläne öfter in mehrere Löcher teilen, auch wo es nicht nötig wäre (O#31).
+- **Andere Anbieter.** Gemini 3.8 Flash über agy bestand Eval 1 in 1 von 5 Läufen (M#3).
 
 Weiterlesen: [SPEC.md](SPEC.md) (Spezifikation, Grenzen und Limits), [findings.md](findings.md) (Entscheidungen, Messungen, offene Punkte), [context.md](context.md) mit [Glossar](context.md#7-glossar) und dem [Warum jeder Entscheidung](context.md#8-warum), [architecture.md](architecture.md), [CLAUDE.md](CLAUDE.md) (Arbeitsregeln).
 
