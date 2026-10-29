@@ -47,15 +47,27 @@ object Explain:
   /** Zeilen, nächste Nummer, frühere Ergebnisse nach diesem Knoten. */
   type Out[A] = State => (Vector[String], Int, Vector[Scope.Seen])
 
-  /** Prosa (Ziele, Fragen) gekürzt in einer Zeile. */
-  private def quote(s: String, max: Int): String =
-    val v = Text.visible(s)
-    if v.length > max then s"„${v.take(max)}…“ (gekürzt, ${s.length} Zeichen)" else s"„$v“"
-
   /** Statischer Inhalt passt in die Zeile, wenn er kurz ist und keinen Zeilenumbruch hat; sonst als Block (D#41). */
   private val InlineMax = 50
 
+  /** Ziel eines Agentenschritts und Frage an den Menschen: bis hierhin in der Zeile, sonst vollständig als Block (D#71). */
+  private val TextInlineMax = 70
+
+  /** Anzeigebreite im Block; länger wird an Leerzeichen umbrochen, Fortsetzungen eingerückt (D#71). */
+  private val WrapAt = 100
+
+  /** Eine sichtbare Zeile in Stücke bis WrapAt, an Leerzeichen; ein Wort länger als WrapAt bleibt ganz. */
+  private def wrap(line: String): Vector[String] =
+    line.split(" ", -1).foldLeft(Vector.empty[String]) { (acc, word) =>
+      acc.lastOption match
+        case Some(last) if last.length + 1 + word.length <= WrapAt => acc.init :+ s"$last $word"
+        case _ if acc.isEmpty                                       => Vector(word)
+        case _                                                      => acc :+ word
+    }
+
   private def fitsInLine(s: String): Boolean = !s.contains('\n') && Text.visible(s).length <= InlineMax
+
+  private def textFitsInLine(s: String): Boolean = Text.visible(s).length <= TextInlineMax
 
   /** Inhalt vollständig, eine Zeile pro Zeile; ein Zeilenende am Schluss ergibt keine leere Zeile. */
   private def contentLines(s: String): Vector[String] =
@@ -87,6 +99,13 @@ object Explain:
     private def pad(indent: Int): String = "  " * indent
     private def note(text: String, indent: Int): String = "   " + pad(indent) + Text.visible(text)
 
+    /** Prosa als Block unter einer Zeile, Zeilenumbrüche sichtbar als \n wie in der Zeile (H3); umbrochen nur für die
+      * Anzeige, Fortsetzungen eingerückt (D#71).
+      */
+    private def textBlock(title: String, text: String, indent: Int): Vector[String] =
+      note(s"$title (${text.length} Zeichen):", indent) +:
+        wrap(Text.visible(text)).zipWithIndex.map((part, i) => "   " + pad(indent) + (if i == 0 then "│ " else "│   ") + part)
+
     /** Inhaltsblock unter einem Schritt: jede Zeile mit Rahmen, gefährliche Zeichen sichtbar (D#31, D#41). */
     private def block(title: String, content: String, indent: Int): Vector[String] =
       note(s"$title (${lineCount(content)}):", indent + 1) +:
@@ -108,7 +127,9 @@ object Explain:
     def shell(cmd: String, args: List[String], origin: Origin): Out[StepResult] =
       val marker = if check.runsWorkspaceCode(cmd).isDefined then " (führt Workspace-Code aus)" else ""
       step(s"führt aus: ${(cmd :: args).mkString(" ")}$marker", Scope.shellPaths(cmd, args, check))
-    def ask(question: String, origin: Origin): Out[StepResult] = step(s"fragt: ${quote(question, 80)}", Nil)
+    def ask(question: String, origin: Origin): Out[StepResult] =
+      if textFitsInLine(question) then step(s"fragt: „${Text.visible(question)}“", Nil)
+      else step("fragt:", Nil, i => textBlock("Frage", question, i + 1))
     def done(summary: String, origin: Origin): Out[StepResult] = step(s"fertig: $summary", Nil)
 
     def think(goal: String, envelope: Envelope, origin: Origin): Out[StepResult] = s =>
@@ -124,7 +145,8 @@ object Explain:
         if seen.isEmpty then "kann keine früheren Ergebnisse sehen"
         else s"kann Ergebnisse von Schritt ${seen.mkString(", ")} sehen"
       val lines = Vector(
-        f"${s.next}%-3d" + pad(s.indent) + s"Hier entscheidet der Agent: ${quote(goal, 70)}",
+        f"${s.next}%-3d" + pad(s.indent) + "Hier entscheidet der Agent:" + (if textFitsInLine(goal) then s" „${Text.visible(goal)}“" else "")
+      ) ++ Option.when(!textFitsInLine(goal))(textBlock("Ziel", goal, s.indent)).toVector.flatten ++ Vector(
         note(envelopeText(envelope), s.indent),
         note(sees, s.indent)
       ) ++ Option.when(changesCode.nonEmpty)(note(s"Hinweis: darf Code ändern, der im Lauf ausgeführt wird (${changesCode.mkString(", ")})", s.indent)) ++

@@ -15,16 +15,24 @@ class ExplainSuite extends munit.FunSuite:
          |
          |1  führt aus: ./run-tests.sh (führt Workspace-Code aus)
          |2  listet src samt Unterverzeichnissen
-         |3  Hier entscheidet der Agent: „Finde die Ursache des roten Tests. Ändere nichts; beende mit Done und …“ (gekürzt, 101 Zeichen)
+         |3  Hier entscheidet der Agent:
+         |   Ziel (101 Zeichen):
+         |   │ Finde die Ursache des roten Tests. Ändere nichts; beende mit Done und nenne Datei, Zeile und
+         |   │   Ursache.
          |   darf ReadFile, Shell · unter src/ · max 6 Schritte · Tiefe 0 · shell: grep
          |   kann Ergebnisse von Schritt 1, 2 sehen
-         |4  Hier entscheidet der Agent: „Behebe die gefundene Ursache mit genau einem EditFile. Tests nicht änd…“ (gekürzt, 74 Zeichen)
+         |4  Hier entscheidet der Agent:
+         |   Ziel (74 Zeichen):
+         |   │ Behebe die gefundene Ursache mit genau einem EditFile. Tests nicht ändern.
          |   darf ReadFile, EditFile · unter src/ · max 3 Schritte · Tiefe 0
          |   kann Ergebnisse von Schritt 1, 2, 3 sehen
          |   wiederhole höchstens 2-mal, bis Exit-Code 0:
          |5    führt aus: ./run-tests.sh (führt Workspace-Code aus)
          |   wenn Exit-Code 0:
-         |6    Hier entscheidet der Agent: „Schreibe REPORT.md: Ursache, betroffene Datei, Änderung. Grundlage sin…“ (gekürzt, 111 Zeichen)
+         |6    Hier entscheidet der Agent:
+         |     Ziel (111 Zeichen):
+         |     │ Schreibe REPORT.md: Ursache, betroffene Datei, Änderung. Grundlage sind die Ergebnisse der beiden
+         |     │   Löcher davor.
          |     darf WriteFile · unter REPORT.md · max 2 Schritte · Tiefe 0
          |     kann Ergebnisse von Schritt 1, 3, 4, 5 sehen
          |   sonst:
@@ -87,3 +95,23 @@ class ExplainSuite extends munit.FunSuite:
     assert(wide.contains("darf WriteFile · unter REPORT.md · sieht Ergebnisse unter . · max 1 Schritt · Tiefe 0"), wide)
     assert(wide.contains("kann Ergebnisse von Schritt 1, 2 sehen"), wide)
     assert(!wide.contains("Hinweis: darf Code ändern"), wide)
+
+  test("Ziel und Frage stehen vollständig vor der Freigabe, umbrochen nur für die Anzeige (D#71)"):
+    val root = Envelope(Set(OpKind.WriteFile, OpKind.Ask, OpKind.Hole), ".", 10, 1, Set.empty)
+    val goal = "Schreibe R.md. " + ("Wort " * 40) + "Ende.\nZweite Zeile mit \u001b[2K."
+    val question = "Soll ich weitermachen, obwohl " + ("die Tests " * 10) + "rot sind?"
+    val t = Term.Seq(
+      List(Term.Ask(question, Origin.Human), Term.Hole(goal, Envelope(Set(OpKind.WriteFile), "R.md", 1, 0, Set.empty), Origin.Human)),
+      Origin.Human
+    )
+    val out = Explain.render(checked(t, root))
+    assert(!out.contains("gekürzt"), out)
+    assert(out.contains("2  Hier entscheidet der Agent:\n   Ziel (" + goal.length + " Zeichen):\n   │ Schreibe R.md. Wort"), out)
+    assert(out.contains("\n   │   Wort"), out)
+    // Zeilenumbrüche und Steuerzeichen bleiben sichtbar und erzeugen keine eigene Zeile (H3)
+    assert(out.contains("Ende.\\nZweite Zeile mit \\u001b[2K."), out)
+    assert(out.contains("1  fragt:\n     Frage (" + question.length + " Zeichen):\n     │ Soll ich weitermachen"), out)
+    // jedes Wort des Ziels steht in der Ausgabe, nichts ist abgeschnitten
+    assertEquals(out.split("\\s+").count(_ == "Wort"), 40)
+    val short = Explain.render(checked(Term.Hole("Schreibe R.md.", Envelope(Set(OpKind.WriteFile), "R.md", 1, 0, Set.empty), Origin.Human), root))
+    assert(short.contains("1  Hier entscheidet der Agent: „Schreibe R.md.“"), short)

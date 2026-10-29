@@ -62,10 +62,16 @@ params    previous=2.3.0 version=2.4.0
      wenn nicht Exit-Code 0:
 4      fragt: „Tests sind rot. Trotzdem weiter?“
 5    führt aus: git log --oneline v2.3.0..HEAD
-6    Hier entscheidet der Agent: „Formuliere das Changelog für 2.4.0 aus den Commits oben, gruppiert nac…“ (gekürzt, 152 Zeichen)
+6    Hier entscheidet der Agent:
+     Ziel (152 Zeichen):
+     │ Formuliere das Changelog für 2.4.0 aus den Commits oben, gruppiert nach Features, Fixes, Breaking.
+     │   Ergänze CHANGELOG.md oben, ändere nichts Bestehendes.
      darf ReadFile, EditFile · unter CHANGELOG.md · max 3 Schritte · Tiefe 0
      kann Ergebnisse von Schritt 3, 4, 5 sehen
-7    Hier entscheidet der Agent: „Finde Doku-Stellen unter docs/, die von geänderten öffentlichen Schnit…“ (gekürzt, 189 Zeichen)
+7    Hier entscheidet der Agent:
+     Ziel (189 Zeichen):
+     │ Finde Doku-Stellen unter docs/, die von geänderten öffentlichen Schnittstellen betroffen sind, und
+     │   passe sie an. Betroffene Stellen außerhalb docs/ nicht ändern, sondern im Ergebnis nennen.
      darf ReadFile, EditFile, Shell · unter docs/ · max 12 Schritte · Tiefe 1 · shell: grep
      kann Ergebnisse von Schritt 3, 4, 5, 6 sehen
 8    ersetzt in build.sbt  „version := "2.3.0"“  durch  „version := "2.4.0"“

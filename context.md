@@ -372,6 +372,10 @@ Mit dem Fingerprint als Maß waren sich drei Pläne oft nicht einig, obwohl jede
 
 Die Regel aus D#62 sollte verhindern, dass ein Agentenschritt ein Skript ändert, das danach läuft. Das Modell wandte sie überall an und teilte auch dort, wo kein Code läuft, in Eval 1 in jedem Plan. Das kostete fast die Hälfte mehr Tokens, ohne dort etwas sicherer zu machen. Die Regel nennt jetzt ihre Bedingung.
 
+### Warum Explain das ganze Ziel zeigt (D#71)
+
+Die Freigabe ist nur so viel wert wie das, was der Mensch dabei liest. Das Ziel eines Agentenschritts ist der Auftrag an das Modell; bei einem Bericht mit fester Tabelle sind das schnell 1.500 Zeichen. Auf 70 Zeichen gekürzt, gibt der Mensch einen Hash über Text frei, den er nie gesehen hat. Statische Inhalte von WriteFile und EditFile stehen aus demselben Grund schon vollständig da (D#41). Umbrochen wird nur für die Anzeige, und Steuerzeichen bleiben sichtbar escaped, damit kein Ziel eine Zeile vortäuschen kann, die nicht von Explain stammt.
+
 ### Warum Agentenschritt statt Loch (D#70)
 
 „Loch“ kommt aus der Programmiersprachen-Theorie (typed holes) und ist dort genau: eine Stelle im Programm, die später gefüllt wird. Auf Deutsch liest es sich wie ein Fehler. „Agentenschritt“ sagt, was dort passiert, passt zum Namen der Engine und zu Explain („Hier entscheidet der Agent“). Im Code bleibt `Hole`, weil Bezeichner, JSON und Hashes sonst ohne Gewinn brechen. Im Prompt bleibt vorerst „Loch“: Jede Änderung an dem, was das Modell liest, braucht eine Messung, und ein Wort allein ist den Aufwand nicht wert.
