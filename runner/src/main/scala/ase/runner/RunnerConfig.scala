@@ -96,8 +96,9 @@ object RunnerConfig:
     */
   private def scriptList(json: Json): Either[String, List[String]] =
     json.asArray.toRight("scripts: erwartet eine Liste").flatMap(_.toList.traverse(j =>
-      j.asString.filter(s => s.startsWith("./") && RelPath.parse(s.drop(2)).exists(_.size == 1))
-        .toRight(s"scripts: „${j.noSpaces}“ ist kein Skript der Form ./name")
+      // auch in Unterverzeichnissen (D#72); RelPath schließt .., .git und absolute Pfade aus
+      j.asString.filter(s => s.startsWith("./") && RelPath.parse(s.drop(2)).exists(_.nonEmpty))
+        .toRight(s"scripts: „${j.noSpaces}“ ist kein Skript der Form ./pfad")
     ))
 
   /** Ein Programm aus programs (D#68): seine Argument-Policy und die Pfade, deren Code es ausführt (leer: keinen). */

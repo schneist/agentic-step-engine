@@ -89,7 +89,11 @@ class RunnerSuite extends munit.FunSuite:
     assertEquals((a.model.provider, a.model.model, a.model.endpoint, a.model.workDir), (Provider.Agy, "gemini-3.8-flash-medium", "/mnt/c/agy.exe", "/mnt/c/tmp"))
     val s = RunnerConfig.parse("""{"scripts":["./run-tests.sh"]}""").fold(fail(_), identity)
     assertEquals(s.check.argPolicies, CheckConfig.default.argPolicies :+ ArgPolicy.script("./run-tests.sh"))
-    List("run-tests.sh", "./bin/x.sh", "./..", "../x.sh").foreach(bad => assert(RunnerConfig.parse(s"""{"scripts":["$bad"]}""").isLeft, bad))
+    List("run-tests.sh", "./..", "../x.sh", "./a/../../x.sh", "./.git/hooks/x", "./").foreach(bad => assert(RunnerConfig.parse(s"""{"scripts":["$bad"]}""").isLeft, bad))
+    // Skripte in Unterverzeichnissen (D#72): Policy ohne Argumente, als Workspace-Code markiert
+    val n = RunnerConfig.parse("""{"scripts":["./ase/cfd/deckel_setzen.sh"]}""").fold(fail(_), identity).check
+    assert(n.argPolicies.contains(ArgPolicy.script("./ase/cfd/deckel_setzen.sh")))
+    assertEquals(n.runsWorkspaceCode("./ase/cfd/deckel_setzen.sh"), Some(List("ase/cfd/deckel_setzen.sh")))
 
   test("programs: eigene Argument-Policy, runsCode macht daraus Workspace-Code (D#68)"):
     val c = RunnerConfig.parse("""{"programs":[{"binary":"python3","flags":["-B"],"runsCode":["."]},{"binary":"wc","flags":["-l"]}]}""")
