@@ -21,6 +21,7 @@ enum Violation:
   case ShellArgRejected(loc: Location, cmd: String, arg: String, reason: String)
   case WiderOps(loc: Location, extra: Set[OpKind])
   case WiderPrefix(loc: Location, child: String, parent: String)
+  case WiderScope(loc: Location, child: String, parent: String)
   case WiderShell(loc: Location, command: AllowedCommand)
   case WiderSteps(loc: Location, child: Int, parent: Int)
   case DepthNotSmaller(loc: Location, child: Int, parent: Int, strict: Boolean)
@@ -54,6 +55,8 @@ enum Violation:
       s"Die Hülle erlaubt mehr als die umgebende: ${Violation.ops(extra)}. Nimm das heraus."
     case WiderPrefix(_, child, parent) =>
       s"pathPrefix $child liegt nicht unter $parent."
+    case WiderScope(_, child, parent) =>
+      s"scopePrefix $child liegt nicht unter $parent, unter dem die umgebende Hülle sieht."
     case WiderShell(_, command) =>
       s"Befehl „${command.show}“ ist weiter als alles, was die umgebende Hülle erlaubt."
     case WiderSteps(_, child, parent) =>

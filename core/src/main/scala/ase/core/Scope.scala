@@ -5,9 +5,11 @@ object Scope:
   /** Ergebnis eines früheren Schritts: Nummer wie im Explain und die Pfade, die das Ergebnis trägt (leer = pfadlos). */
   final case class Seen(step: Int, paths: List[String])
 
-  /** Sichtbar sind Ergebnisse ohne Pfad und solche, deren Pfade alle unter dem pathPrefix des Lochs liegen. */
+  /** Sichtbar sind Ergebnisse ohne Pfad und solche, deren Pfade alle unter dem pathPrefix des Lochs liegen, oder unter
+    * seinem scopePrefix, wenn die Hülle einen nennt (D#69).
+    */
   def visible(prior: Vector[Seen], hole: Envelope): Vector[Seen] =
-    RelPath.parse(hole.pathPrefix) match
+    RelPath.parse(hole.sees) match
       case Left(_)       => Vector.empty
       case Right(prefix) => prior.filter(_.paths.forall(RelPath.isUnder(_, prefix)))
 

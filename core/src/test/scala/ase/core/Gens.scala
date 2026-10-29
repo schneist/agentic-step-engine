@@ -35,14 +35,16 @@ object Gens:
     AllowedCommand("sbt", List("test"))
   )
 
-  val anyEnvelope: Gen[Envelope] =
+  /** scope: auch Hüllen mit eigener Sicht (D#69); das Schema für Modellantworten kennt scopePrefix nicht. */
+  def anyEnvelope(scope: Boolean): Gen[Envelope] =
     for
       ops <- Gen.someOf(OpKind.values.toList)
       prefix <- Gen.oneOf(".", "src", "docs/", "CHANGELOG.md")
       steps <- Gen.choose(0, 30)
       depth <- Gen.choose(0, 3)
       shell <- Gen.someOf(commands)
-    yield Envelope(ops.toSet, prefix, steps, depth, shell.toSet)
+      sees <- if scope then Gen.option(Gen.oneOf(".", "src")) else Gen.const(None)
+    yield Envelope(ops.toSet, prefix, steps, depth, shell.toSet, sees)
 
   def anyPred(level: Int): Gen[Pred] =
     val leaves = Gen.oneOf(
@@ -59,7 +61,7 @@ object Gens:
         1 -> Gen.zip(Gen.lzy(anyPred(level - 1)), Gen.lzy(anyPred(level - 1))).map((a, b) => Pred.And(a, b))
       )
 
-  def anyTerm(level: Int): Gen[Term] =
+  def anyTerm(level: Int, scope: Boolean = true): Gen[Term] =
     val args = Gen.choose(0, 3).flatMap(Gen.listOfN(_, text))
     val leaves: Gen[Term] = Gen.oneOf(
       Gen.zip(anyPath, origin).map((p, o) => Term.ReadFile(p, o)),
@@ -70,11 +72,11 @@ object Gens:
       Gen.zip(Gen.oneOf("ls", "grep", "git", "curl"), args, origin).map((c, a, o) => Term.Shell(c, a, o)),
       Gen.zip(text, origin).map((q, o) => Term.Ask(q, o)),
       Gen.zip(text, origin).map((s, o) => Term.Done(s, o)),
-      Gen.zip(text, anyEnvelope, origin).map((g, e, o) => Term.Hole(g, e, o))
+      Gen.zip(text, anyEnvelope(scope), origin).map((g, e, o) => Term.Hole(g, e, o))
     )
     if level <= 0 then leaves
     else
-      val below = Gen.lzy(anyTerm(level - 1))
+      val below = Gen.lzy(anyTerm(level - 1, scope))
       Gen.frequency(
         6 -> leaves,
         1 -> Gen.zip(Gen.choose(0, 3).flatMap(Gen.listOfN(_, below)), origin).map((s, o) => Term.Seq(s, o)),

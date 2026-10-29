@@ -73,3 +73,17 @@ class ExplainSuite extends munit.FunSuite:
     val out = Explain.render(checked(Term.Done("x", Origin.Human), root))
     assert(out.contains("Warnung: erlaubt, obwohl in explainDenials: git push, git commit, git tag"), out)
     assert(out.contains("nicht erlaubt, u. a.: rm, curl"), out)
+
+  test("scopePrefix: Explain nennt die Sicht; der Code-Hinweis hängt am pathPrefix (D#69)"):
+    val root = Envelope(Set(OpKind.WriteFile, OpKind.Shell, OpKind.Hole), ".", 20, 1, Set(AllowedCommand("grep", Nil), AllowedCommand("sbt", List("test"))))
+    def plan(e: Envelope) = Term.Seq(
+      List(Term.Shell("grep", List("-rn", "TODO", "src"), Origin.Human), Term.Shell("sbt", List("test"), Origin.Human), Term.Hole("berichte", e, Origin.Human)),
+      Origin.Human
+    )
+    val report = Envelope(Set(OpKind.WriteFile), "REPORT.md", 1, 0, Set.empty)
+    val narrow = Explain.render(checked(plan(report), root))
+    assert(narrow.contains("kann Ergebnisse von Schritt 2 sehen"), narrow)
+    val wide = Explain.render(checked(plan(report.copy(scopePrefix = Some("."))), root))
+    assert(wide.contains("darf WriteFile · unter REPORT.md · sieht Ergebnisse unter . · max 1 Schritt · Tiefe 0"), wide)
+    assert(wide.contains("kann Ergebnisse von Schritt 1, 2 sehen"), wide)
+    assert(!wide.contains("Hinweis: darf Code ändern"), wide)

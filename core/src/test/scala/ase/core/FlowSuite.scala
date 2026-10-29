@@ -73,3 +73,9 @@ class FlowSuite extends munit.FunSuite:
   test("Flow-Hülle weiter als die Runner-Hülle wird abgelehnt"):
     val runner = minimal.envelope.copy(maxSteps = 3)
     assert(Flow.bind(minimal, Map("msg" -> "x"), runner).left.exists(_.isInstanceOf[FlowError.EnvelopeTooWide]))
+
+  test("Parameter werden auch im scopePrefix ersetzt (D#69)"):
+    val report = Envelope(Set(OpKind.WriteFile), "R.md", 1, 0, Set.empty, Some("${dir}"))
+    val f = Flow("t", Map("dir" -> "^[a-z]+$"), Envelope(Set(OpKind.WriteFile, OpKind.Hole), ".", 5, 1, Set.empty), Term.Hole("x", report, Origin.Human))
+    val bound = Flow.bind(f, Map("dir" -> "src"), f.envelope).fold(e => fail(e.toString), identity)
+    assertEquals(bound.term, Term.Hole("x", report.copy(scopePrefix = Some("src")), Origin.Human))

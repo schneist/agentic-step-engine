@@ -19,14 +19,19 @@ final case class AllowedCommand(binary: String, requiredPrefixArgs: List[String]
 
   def show: String = (binary :: requiredPrefixArgs).mkString(" ")
 
-/** Hülle eines Lochs: was dort höchstens passieren darf. */
+/** Hülle eines Lochs: was dort höchstens passieren darf. scopePrefix: unter welchem Pfad das Loch Ergebnisse früherer
+  * Schritte sieht, wenn das weiter sein soll als der pathPrefix, unter dem es liest und ändert (D#69).
+  */
 final case class Envelope(
     allowedOps: Set[OpKind],
     pathPrefix: String,
     maxSteps: Int,
     maxDepth: Int,
-    shellAllowlist: Set[AllowedCommand]
-)
+    shellAllowlist: Set[AllowedCommand],
+    scopePrefix: Option[String] = None
+):
+  /** Der Pfad, unter dem das Loch frühere Ergebnisse sieht (D#9, D#69). */
+  def sees: String = scopePrefix.getOrElse(pathPrefix)
 
 /** Ergebnis eines Schritts. Prädikate lesen das Ergebnis des unmittelbar vorangehenden Schritts (D#20). */
 final case class StepResult(exitCode: Option[Int], output: Option[String])

@@ -44,3 +44,11 @@ class CodecSuite extends munit.FunSuite:
     val a = Envelope(Set(OpKind.Shell, OpKind.ReadFile), ".", 1, 0, Set(AllowedCommand("ls", Nil), AllowedCommand("grep", Nil)))
     val b = a.copy(allowedOps = Set(OpKind.ReadFile, OpKind.Shell), shellAllowlist = Set(AllowedCommand("grep", Nil), AllowedCommand("ls", Nil)))
     assertEquals(Codec.envelope(a).noSpaces, Codec.envelope(b).noSpaces)
+
+  test("scopePrefix: nur geschrieben, wenn gesetzt; Hüllen ohne behalten Form und Hash (D#69)"):
+    val e = Envelope(Set(OpKind.WriteFile), "REPORT.md", 1, 0, Set.empty)
+    assert(!Codec.envelope(e).noSpaces.contains("scopePrefix"))
+    assertEquals(Codec.decodeEnvelope(Codec.envelope(e), Location.root), Right(e))
+    val wide = e.copy(scopePrefix = Some("."))
+    assertEquals(Codec.decodeEnvelope(Codec.envelope(wide), Location.root), Right(wide))
+    assertNotEquals(TermHash.of(Term.Done("x", Origin.Human), wide), TermHash.of(Term.Done("x", Origin.Human), e))

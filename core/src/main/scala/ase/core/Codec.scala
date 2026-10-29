@@ -55,14 +55,17 @@ object Codec:
   def allowedCommand(c: AllowedCommand): Json =
     Json.obj("binary" -> Json.fromString(c.binary), "requiredPrefixArgs" -> strs(c.requiredPrefixArgs))
 
+  /** scopePrefix nur, wenn gesetzt: Hüllen ohne bleiben wie vor D#69, samt Hash. */
   def envelope(e: Envelope): Json = Json.obj(
-    "allowedOps" -> Json.arr(e.allowedOps.toList.sortBy(_.ordinal).map(o => Json.fromString(o.toString))*),
-    "pathPrefix" -> Json.fromString(e.pathPrefix),
-    "maxSteps" -> Json.fromInt(e.maxSteps),
-    "maxDepth" -> Json.fromInt(e.maxDepth),
-    "shellAllowlist" -> Json.arr(
-      e.shellAllowlist.toList.sortBy(c => (c.binary, c.requiredPrefixArgs.mkString("\u0000"))).map(allowedCommand)*
-    )
+    List(
+      "allowedOps" -> Json.arr(e.allowedOps.toList.sortBy(_.ordinal).map(o => Json.fromString(o.toString))*),
+      "pathPrefix" -> Json.fromString(e.pathPrefix),
+      "maxSteps" -> Json.fromInt(e.maxSteps),
+      "maxDepth" -> Json.fromInt(e.maxDepth),
+      "shellAllowlist" -> Json.arr(
+        e.shellAllowlist.toList.sortBy(c => (c.binary, c.requiredPrefixArgs.mkString("\u0000"))).map(allowedCommand)*
+      )
+    ) ++ e.scopePrefix.map(s => "scopePrefix" -> Json.fromString(s))*
   )
 
   def pred(p: Pred): Json = p match
@@ -112,7 +115,7 @@ object Codec:
   def decodeEnvelope(json: Json, loc: Location): Result[Envelope] =
     for
       o <- obj(json, loc)
-      _ <- only(o, loc, Set("allowedOps", "pathPrefix", "maxSteps", "maxDepth", "shellAllowlist"))
+      _ <- only(o, loc, Set("allowedOps", "pathPrefix", "maxSteps", "maxDepth", "shellAllowlist", "scopePrefix"))
       opNames <- strings(o, loc, "allowedOps")
       ops <- opNames.traverse(n => OpKind.parse(n).toRight(DecodeError.UnknownType(loc / "allowedOps", n)))
       prefix <- string(o, loc, "pathPrefix")
@@ -120,7 +123,8 @@ object Codec:
       maxDepth <- int(o, loc, "maxDepth")
       shellJson <- array(o, loc, "shellAllowlist")
       shell <- shellJson.zipWithIndex.traverse((j, i) => decodeAllowedCommand(j, loc.at("shellAllowlist", i)))
-    yield Envelope(ops.toSet, prefix, maxSteps, maxDepth, shell.toSet)
+      scope <- o("scopePrefix").traverse(_ => string(o, loc, "scopePrefix"))
+    yield Envelope(ops.toSet, prefix, maxSteps, maxDepth, shell.toSet, scope)
 
   private def decodeAllowedCommand(json: Json, loc: Location): Result[AllowedCommand] =
     for

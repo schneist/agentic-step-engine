@@ -87,3 +87,19 @@ class DryRunSuite extends munit.FunSuite:
   test("schlechtester Fall über dem Budget wird abgelehnt"):
     val t = Term.RepeatUntil(Term.Seq(List.fill(5)(Term.Done("x", h)), h), Pred.LastOutputEmpty, 11, h)
     assertEquals(violations(t), List(Violation.StepBudgetExceeded(Location.root, 55, 50)))
+
+  test("scopePrefix: nur enger als die Sicht der umgebenden Hülle, und ein gültiger Pfad (D#69)"):
+    val report = Envelope(Set(OpKind.WriteFile), "REPORT.md", 1, 0, Set.empty)
+    assertEquals(violations(hole(report.copy(scopePrefix = Some(".")))), Nil)
+    val srcRoot = root.copy(pathPrefix = "src", shellAllowlist = Set(AllowedCommand("grep", Nil)))
+    assertEquals(
+      violations(hole(report.copy(pathPrefix = "src/R.md", scopePrefix = Some("."))), srcRoot),
+      List(Violation.WiderScope(Location.root / "envelope", ".", "src"))
+    )
+    // die Sicht der Wurzel darf weiter sein als ihr pathPrefix; darunter gilt sie als Grenze
+    val seesAll = srcRoot.copy(scopePrefix = Some("."))
+    assertEquals(violations(hole(report.copy(pathPrefix = "src/R.md", scopePrefix = Some("."))), seesAll), Nil)
+    assert(violations(hole(report.copy(scopePrefix = Some("../x")))).exists {
+      case Violation.InvalidPath(loc, "../x", _) => loc == Location.root / "envelope" / "scopePrefix"
+      case _                                     => false
+    })

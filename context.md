@@ -4,7 +4,7 @@ Das Warum und das Für-wen. Technik steht in SPEC.md, Entscheidungen in findings
 
 ## 1. Zweck
 
-Agenten auf Basis von Sprachmodellen sind nützlich, aber in der Praxis an einer Stelle unbrauchbar: Man kann ihnen Effekte nicht vorab ansehen. Sie rufen Werkzeuge einzeln auf, die Umgebung führt jeden Aufruf aus, und der Mensch hat die Wahl zwischen "jede Aktion abnicken" und "gar nicht hinschauen". Diese Engine ersetzt die Folge von Effekten durch ein Programm in einer kleinen statischen Sprache, das man prüfen, erklären, schätzen und freigeben kann, bevor es läuft. Das Unbekannte wird nicht verboten, sondern eingehegt: als Loch mit einer Hülle.
+Agenten auf Basis von Sprachmodellen sind nützlich, aber in der Praxis an einer Stelle unbrauchbar: Man kann ihnen Effekte nicht vorab ansehen. Sie rufen Werkzeuge einzeln auf, die Umgebung führt jeden Aufruf aus, und der Mensch hat die Wahl zwischen "jede Aktion abnicken" und "gar nicht hinschauen". Diese Engine ersetzt die Folge von Effekten durch ein Programm in einer kleinen statischen Sprache, das man prüfen, erklären, schätzen und freigeben kann, bevor es läuft. Das Unbekannte wird nicht verboten, sondern eingehegt: als Agentenschritt mit einer Hülle.
 
 ## 2. Für wen
 
@@ -32,37 +32,37 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Algebra** (`AgentAlg[F]`): Die Operationen, ohne Festlegung, was sie bedeuten. Tagless Final.
 - **Interpreter**: Eine Deutung der Algebra. DryRun, Cost, Explain, Execute, Replay. Lesen den Term, verändern ihn nie.
 - **ToTerm / fromTerm**: Die Brücke zwischen Programm-als-Code und Programm-als-Daten. `ToTerm` schreibt einen Term, `fromTerm` spielt ihn in jeden Interpreter ein.
-- **Loch** (`Hole`): Ein Knoten im Term, an dem das Modell erst zur Laufzeit entscheidet. Trägt ein Ziel und eine Hülle.
-- **Hülle** (`Envelope`): Was in einem Loch maximal passieren darf: erlaubte Operationen, Pfadpräfix, maximale Schritte, maximale Tiefe, Shell-Allowlist.
+- **Agentenschritt** (`Hole`): Ein Knoten im Term, an dem das Modell erst zur Laufzeit entscheidet. Trägt ein Ziel und eine Hülle. Im Code und im JSON heißt er `Hole`; bis 2026-10-29 hieß er auch in der Doku „Loch“, so steht es noch in `findings.md` und im Prompt an das Modell.
+- **Hülle** (`Envelope`): Was in einem Agentenschritt maximal passieren darf: erlaubte Operationen, Pfadpräfix, maximale Schritte, maximale Tiefe, Shell-Allowlist.
 - **Attenuation**: Die Regel, dass eine innere Hülle nie weiter ist als die äußere. Nach Mark Miller (Object Capabilities).
 - **Envelope-Monotonie**: Dasselbe wie Attenuation, als Gesetz formuliert und per Property-Test geprüft.
-- **Plan**: Der erste Modellaufruf: Aufgabe hinein, Term mit Löchern heraus.
-- **Fill**: Ein Modellaufruf für ein Loch: Ziel, Hülle und Kontext hinein, Teilterm heraus.
-- **Scope**: Die Ergebnisse der vorangegangenen Schritte, die ein Loch beim Fill als Kontext bekommt.
-- **Tor 1 / Tor 2**: DryRun über den Plan beziehungsweise über einen Fill-Teilterm gegen die Hülle seines Lochs.
+- **Plan**: Der erste Modellaufruf: Aufgabe hinein, Term mit Agentenschritten heraus.
+- **Fill**: Ein Modellaufruf für einen Agentenschritt: Ziel, Hülle und Kontext hinein, Teilterm heraus.
+- **Scope**: Die Ergebnisse der vorangegangenen Schritte, die ein Agentenschritt beim Fill als Kontext bekommt.
+- **Tor 1 / Tor 2**: DryRun über den Plan beziehungsweise über einen Fill-Teilterm gegen die Hülle seines Agentenschritts.
 - **CheckedTerm**: Ein Term, der DryRun bestanden hat, mit Wurzel-Hülle und Hash. Nur DryRun kann ihn erzeugen. Noch nicht freigegeben (D#11).
 - **ApprovedTerm**: Ein CheckedTerm, dessen Hash ein Mensch (oder in Tests der Auto-Approver) bestätigt hat. Nur `Approval.approve` kann ihn erzeugen; nur ihn nimmt Execute an (D#11).
 - **CheckedFill**: Ein Fill-Teilterm, der Tor 2 bestanden hat. Intern in Execute; braucht keine eigene Freigabe, weil er in einem ApprovedTerm liegt (D#6).
 - **Auto-Approver**: Freigabe in Tests: ruft `approve` mit dem Hash aus der Explain-Ausgabe auf, durchläuft also denselben Weg wie ein Mensch.
 - **OpKind**: Die Operationsarten, die eine Hülle erlauben kann: ReadFile, ListDir, WriteFile, EditFile, MoveFile, Shell, Ask, Hole (D#8, D#18). Seq, If, RepeatUntil, Done sind immer erlaubt.
 - **WorstCaseSteps**: Obere Schranke der Schritte eines Terms, statisch berechnet (D#14).
-- **Tiefe**: Schlechteste Loch-Verschachtelung; ein Loch auf oberster Ebene zählt 1 plus sein maxDepth (D#14).
+- **Tiefe**: Schlechteste Verschachtelung der Agentenschritte; ein Agentenschritt auf oberster Ebene zählt 1 plus sein maxDepth (D#14).
 - **Verschachtelungsgrenze**: Maximale syntaktische Schachtelung von Knoten (Seq in If in …), bis zu der das Schema ausgerollt ist; nicht dasselbe wie maxDepth (D#10).
 - **Ausrollen**: Ein rekursives Schema als endliche Folge von Ebenen schreiben, Term_k verweist nur auf Term_{k-1} (D#10).
-- **Well-Formedness**: Ein Loch ist lösbar beschränkt: maxSteps ≥ 1, allowedOps nicht leer, maxDepth ≥ 0.
+- **Well-Formedness**: Ein Agentenschritt ist lösbar beschränkt: maxSteps ≥ 1, allowedOps nicht leer, maxDepth ≥ 0.
 - **Argument-Policy**: Pro erlaubtem Shell-Programm die erlaubten Flags; alle anderen Argumente sind Pfade und werden wie Dateipfade geprüft (D#12).
 - **Workspace**: Das Arbeitsverzeichnis eines Laufs. Kein Pfad darf es verlassen.
 - **Marshalling**: Aufbereitung von Ergebnissen für das Modell: Kürzung mit Hinweis, Fehler als Handlungsanweisung; baut auch den Scope.
 - **Outcome**: Ausgang eines Laufs: done, ask oder aborted. Geht an `check.sh` (D#17).
 - **Fixture**: Vorlage des Arbeitsverzeichnisses einer Eval in `evals/<nr>-<slug>/fixture/`; vor jedem Lauf frisch kopiert.
 - **Skript-Modell**: Test-Modelladapter mit festen Antworten, für den deterministischen Modus von Eval 6.
-- **Hinweis des Agenten**: Die Done-Zusammenfassung eines Lochs, im Lauf-Log ausgegeben (D#15).
+- **Hinweis des Agenten**: Die Done-Zusammenfassung eines Agentenschritts, im Lauf-Log ausgegeben (D#15).
 - **termHash**: SHA-256 über das kanonische JSON (JCS) von Term plus Wurzel-Hülle, origin eingeschlossen. Bindet die Freigabe an genau diesen Term (D#23).
 - **Fingerprint** (`structuralFingerprint`): Ein Term ohne seine Prosa-Felder und ohne origin. Zwei Pläne mit anderem Wortlaut oder anderer Herkunft, aber gleicher Struktur haben denselben Fingerprint (D#19).
 - **Record / Replay**: Execute zeichnet Werkzeugergebnisse und Modellantworten auf; Replay spielt sie ohne Dateisystem und ohne Modell ab.
-- **AdversarialFill**: Ein Test-Modelladapter, der Löcher absichtlich mit Ausbruchsversuchen füllt.
+- **AdversarialFill**: Ein Test-Modelladapter, der Agentenschritte absichtlich mit Ausbruchsversuchen füllt.
 - **Origin**: Herkunft eines Term-Knotens, `Human` oder `Model(callId)`; callId benennt den Modellaufruf (plan-n, fill-n). Zählt für den Hash, nicht für den Fingerprint (D#19).
-- **Flow**: Ein von Menschen geschriebener Term mit Löchern, in `flows/`. Als Datei ein Wrapper aus description, params, envelope und term (D#22).
+- **Flow**: Ein von Menschen geschriebener Term mit Agentenschritten, in `flows/`. Als Datei ein Wrapper aus description, params, envelope und term (D#22).
 - **Flow-Parameter**: Platzhalter `${name}` in String-Feldern eines Flows, mit Regex deklariert, nach dem Decodieren und vor DryRun gebunden (D#22).
 - **MoveFile**: Verschiebt eine existierende Datei an einen Pfad, der noch nicht existiert; beide unter pathPrefix (D#18).
 - **JCS**: JSON Canonicalization Scheme, RFC 8785; Grundlage des termHash (D#23).
@@ -75,18 +75,18 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **CheckConfig**: Verschachtelungsgrenze und Argument-Policies, mit denen DryRun prüft.
 - **Ergebnisform** (`Shape`): Welche Felder das Ergebnis eines Schritts haben kann (Exit-Code, Ausgabe); damit erkennt DryRun Bedingungen, die nie wahr werden (D#20).
 - **Konstanter Funktor**: Ein `F[_]`, das sein Argument ignoriert, etwa `Cost.Of[A] = Cost`. So deuten Cost, Explain, DryRun und ToTerm die Algebra, ohne etwas auszuführen.
-- **Sicht** (`Scope.visible`): Welche früheren Ergebnisse ein Loch beim Fill bekommt. Explain zeigt sie vorab als Obergrenze „kann Ergebnisse von Schritt … sehen“, Execute wendet dieselbe Regel auf aufgelöste Pfade an (D#9, D#30, D#39, D#42). Pfadlos ist ein Ergebnis ohne Pfad, das jedes Loch sehen kann: Workspace-Code, Befehle aus `pathless`, Antworten, Zusammenfassungen von Löchern.
+- **Sicht** (`Scope.visible`): Welche früheren Ergebnisse ein Agentenschritt beim Fill bekommt. Explain zeigt sie vorab als Obergrenze „kann Ergebnisse von Schritt … sehen“, Execute wendet dieselbe Regel auf aufgelöste Pfade an (D#9, D#30, D#39, D#42). Pfadlos ist ein Ergebnis ohne Pfad, das jeder Agentenschritt sehen kann: Workspace-Code, Befehle aus `pathless`, Antworten, Zusammenfassungen von Agentenschritten.
 - **WSL**: Windows Subsystem for Linux. Dort läuft Execute auf dem eigenen Rechner (D#29).
 - **Port**: Schnittstelle von Execute zur Außenwelt: `Tools` (Werkzeuge), `FillModel` (Modell beim Fill), `AskHandler` (Mensch bei Ask), `Clock` (Zeitlimit), `Recorder` (Ereignislog). Execute und Replay unterscheiden sich nur in den Ports.
 - **Engine**: Der gemeinsame Kern von Execute und Replay, eine Deutung der Algebra über die Ports.
 - **LocalTools**: Die echten Werkzeuge unter Linux: Pfadprüfung zur Laufzeit, Datei-Operationen, Shell mit Timeout, gehärtetes git.
 - **Submission**: Die Antwort des Modells, so wie submit_term sie liefert: `{"term": …}` als Text.
-- **StepId**: Nummer eines Schritts im Log: auf oberster Ebene wie im Explain, im Loch `Loch.Versuch.Schritt` (etwa `4.2.1`).
+- **StepId**: Nummer eines Schritts im Log: auf oberster Ebene wie im Explain, im Agentenschritt `Agentenschritt.Versuch.Schritt` (etwa `4.2.1`).
 - **Reply / touched**: Ergebnis eines Werkzeugaufrufs; `touched` nennt die aufgelösten Pfade, an denen ein Syscall stattfand. Leer heißt: vor jedem Syscall abgelehnt.
 - **Record-Log**: Das versionierte Ereignislog eines Laufs (JSON Lines, Feld `v`); erstes Ereignis ist der Start mit termHash.
 - **Lauf-Log** (`RunLog`): Die Darstellung des Record-Logs für Menschen, im Format des README.
 - **ToolCheck**: Die reine Prüfung eines Werkzeugaufrufs gegen seine Hülle (Operation, Pfade, Allowlist, Policy). LocalTools ruft sie vor jedem Syscall, Replay vor jedem abgespielten Aufruf (D#32).
-- **Aufruf eines Lochs**: Jede Ausführung eines Hole-Knotens, auch jede in einem weiteren Durchlauf von RepeatUntil; jeder Aufruf hat sein eigenes Budget (D#34).
+- **Aufruf eines Agentenschritts**: Jede Ausführung eines Hole-Knotens, auch jede in einem weiteren Durchlauf von RepeatUntil; jeder Aufruf hat sein eigenes Budget (D#34).
 - **Mutationsprobe**: Einen behobenen Fehler absichtlich wieder einbauen und prüfen, ob ein Gesetz ihn findet. Belegt, dass ein Gesetz prüft, was sein Name behauptet.
 - **Ausschnitt** (`Excerpt`): Gekürzte Ausgabe für das Modell: erste und letzte Zeilen, Gesamtzahl, Hinweis.
 - **Golden-Test**: Ein Test, der eine Ausgabe Zeichen für Zeichen mit einer festgehaltenen vergleicht (Explain für red-test).
@@ -102,16 +102,17 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Entwicklungslauf**: Ein Lauf mit einem lokalen Modell, um die Kette ohne Kosten zu üben; als Serie ein eigener M#-Eintrag mit Anbieter und Modell.
 - **Lösungsbeispiel**: Eine vollständig gelöste Beispielaufgabe (Plan und Fill) im System-Prompt des lokalen Modells; bewusst eine andere Aufgabe als die Evals (D#49).
 - **think** (Denken vor dem Schema): Ein lokales Modell überlegt erst frei und schreibt danach den Term im Schema; nur die Antwort wird ausgewertet (D#48). Fehlt der Wert, gilt der Standard des Modells; false schaltet das Denken hybrider Modelle ab (D#50).
-- **Runde** (Mehrrunden-Fill): Ein Fill ohne Done, der Schritte ausgeführt hat, führt zu einer weiteren Runde desselben Lochs, die deren Ergebnisse sieht; höchstens `maxRoundsPerHole`, alle Runden teilen das Schrittbudget des Lochs (D#55).
+- **Runde** (Mehrrunden-Fill): Ein Fill ohne Done, der Schritte ausgeführt hat, führt zu einer weiteren Runde desselben Agentenschritts, die deren Ergebnisse sieht; höchstens `maxRoundsPerHole`, alle Runden teilen das Schrittbudget des Agentenschritts (D#55).
 
 - **BestOfN**: Ein Plan wird n-mal erzeugt; er gilt nur, wenn mehr als die Hälfte der n **Kandidaten** dieselbe Form hat (**Mehrheit**, D#65). Sonst entscheidet der Mensch, `ase plan` endet mit Exit 2 (D#63). Standard aus.
 - **Kandidat**: Einer der n Pläne einer BestOfN-Runde. Ein Kandidat, der Tor 1 nicht besteht, zählt mit und stimmt mit keinem überein (D#63).
 - **Plan-Kennzahlen** (`plan-summary.json`): Was `ase plan --summary` in jedem Ausgang ablegt, auch ohne geprüften Plan: Ausgang, Aufrufe, Kandidaten, Ablehnungen, Tokens, Fingerprint (D#64).
 - **Harness** (`evals/harness.sh`): Eine Serie je Eval über alle sechs Aufgaben, mit derselben Konfiguration und demselben Commit; sammelt die M#-Zeilen (D#64).
-- **Code-Hinweis**: Die Zeile „Hinweis: darf Code ändern, der im Lauf ausgeführt wird (…)“ im Explain eines Lochs, das unter seinem pathPrefix Code ändern darf, den der Term danach ausführt. series.sh zählt sie je Plan (D#12, D#62).
+- **Code-Hinweis**: Die Zeile „Hinweis: darf Code ändern, der im Lauf ausgeführt wird (…)“ im Explain eines Agentenschritts, der unter seinem pathPrefix Code ändern darf, den der Term danach ausführt. series.sh zählt sie je Plan (D#12, D#62).
 - **Rekursives ListDir**: ListDir liefert das ganze Verzeichnis samt Unterverzeichnissen, Ebene für Ebene, höchstens 2000 Einträge; Symlinks und .git werden gezeigt, aber nicht betreten (D#61).
 
-- **Form** (`BestOfN.shape`): Ein Term, reduziert auf Kontrollfluss, Operationsarten, Programmnamen, Prädikatarten und die erlaubten Operationen seiner Löcher; gröber als der Fingerprint. Darüber stimmt BestOfN ab (D#65).
+- **Form** (`BestOfN.shape`): Ein Term, reduziert auf Kontrollfluss, Operationsarten, Programmnamen, Prädikatarten und die erlaubten Operationen seiner Agentenschritte; gröber als der Fingerprint. Darüber stimmt BestOfN ab (D#65).
+- **scopePrefix**: Optionales Feld der Hülle: unter welchem Pfad ein Agentenschritt Ergebnisse früherer Schritte sieht, wenn das weiter sein soll als sein pathPrefix (D#69).
 - **programs**: Feld der Runner-Konfiguration für weitere Programme, je mit Argument-Policy und `runsCode`, den Pfaden, deren Code es ausführt (D#68).
 - **Messbasis**: Die Serien, gegen die eine Änderung an Algebra, Hüllen oder Werkzeugbeschreibungen gemessen wird; seit D#67 M#6 bis M#11 über Claude Code.
 
@@ -123,13 +124,13 @@ Ein Eintrag pro Entwurfsentscheidung. Geschrieben für Leser, die Workflow-Engin
 
 Ein Sprachmodell ist innen nicht lesbar. Seine Zwischenzustände sind Vektoren, in denen tausende Konzepte übereinandergelegt sind (Superposition), und die Interpretierbarkeitsforschung versucht mit erheblichem Aufwand, daraus nachträglich unabhängige, lesbare Merkmale herauszuschneiden. Was man am Rand des Modells sieht, sind Tokens, und bei einem gewöhnlichen Agenten sind diese Tokens einzelne Werkzeugaufrufe, die sofort ausgeführt werden. Es gibt kein Objekt, auf das man zeigen und sagen könnte: Das wird gleich passieren. Terme stellen dieses Objekt her. Das Modell schreibt ein Programm als Daten, und mehrere unabhängige Leser können es prüfen, erklären und schätzen, bevor irgendetwas läuft. Die Lesbarkeit, die das Modell innen nicht hat, wird am Rand zurückgeholt.
 
-### Warum Löcher
+### Warum Agentenschritte
 
-Ein Modell kann Fortsetzungen nicht vorab schreiben. Was nach dem Lesen einer Datei passieren soll, hängt vom Inhalt ab, und den kennt das Modell beim Planen nicht. Dazu kommt eine Eigenschaft der Erzeugung: Ein einmal ausgegebenes Token kann nicht zurückgenommen werden; der Text ist die einzige Schleife, die ein Modell hat. Ein vollständiger Plan vorab wäre also entweder trivial oder erfunden. Löcher lösen das, indem sie das Unbekannte markieren statt es zu verstecken: Der Plan sagt, hier wird später entschieden, und die Hülle sagt, wie weit diese Entscheidung reichen darf. Der prüfbare Teil wird prüfbar, der dynamische Teil bekommt eine Grenze. Das ist etwas anderes als die übliche Schleife, in der das Modell nach jedem Schritt neu gefragt wird; dort gibt es keinen Plan, nur Schritte.
+Ein Modell kann Fortsetzungen nicht vorab schreiben. Was nach dem Lesen einer Datei passieren soll, hängt vom Inhalt ab, und den kennt das Modell beim Planen nicht. Dazu kommt eine Eigenschaft der Erzeugung: Ein einmal ausgegebenes Token kann nicht zurückgenommen werden; der Text ist die einzige Schleife, die ein Modell hat. Ein vollständiger Plan vorab wäre also entweder trivial oder erfunden. Agentenschritte lösen das, indem sie das Unbekannte markieren statt es zu verstecken: Der Plan sagt, hier wird später entschieden, und die Hülle sagt, wie weit diese Entscheidung reichen darf. Der prüfbare Teil wird prüfbar, der dynamische Teil bekommt eine Grenze. Das ist etwas anderes als die übliche Schleife, in der das Modell nach jedem Schritt neu gefragt wird; dort gibt es keinen Plan, nur Schritte.
 
 ### Warum Hüllen als Capabilities (D#25)
 
-Man kann eine Grenze auf zwei Arten durchsetzen: prüfen, ob eine Aktion erlaubt ist, oder dafür sorgen, dass die verbotene Aktion gar nicht formulierbar ist. Das zweite ist stärker, weil es keine Liste von Verboten gibt, die unvollständig sein könnte: Was nicht vorgesehen ist, kann nicht vorkommen. Mark Millers Object-Capability-Modell beschreibt das: Wer eine Fähigkeit nicht in der Hand hat, kann die Operation nicht einmal aufrufen, und Fähigkeiten lassen sich nur abgeschwächt weitergeben (Attenuation). Übertragen auf die Engine (D#25): Ein Fill kommt als JSON zur Laufzeit; der Compiler sieht ihn nie. Die Sperre liegt deshalb im Parser: `decoderFor(envelope)` kennt für ein Loch mit `allowedOps = {ReadFile, Shell}` schlicht keinen `EditFile`-Knoten, und was nicht decodiert wird, existiert nicht als Term. Beim Ausführen wird der Teilterm zusätzlich gegen `restrict(alg, envelope)` gefaltet, eine Algebra, die verbotene Operationen nicht weiterreicht. Nur für Programme, die in Scala geschrieben sind (etwa gegen einen Trait `ReadOnlyAlg`), ist es wirklich das Typsystem. DryRun bleibt die Verteidigung für alles, was die Struktur nicht ausdrückt (Pfade, Schrittzahlen, Argumente).
+Man kann eine Grenze auf zwei Arten durchsetzen: prüfen, ob eine Aktion erlaubt ist, oder dafür sorgen, dass die verbotene Aktion gar nicht formulierbar ist. Das zweite ist stärker, weil es keine Liste von Verboten gibt, die unvollständig sein könnte: Was nicht vorgesehen ist, kann nicht vorkommen. Mark Millers Object-Capability-Modell beschreibt das: Wer eine Fähigkeit nicht in der Hand hat, kann die Operation nicht einmal aufrufen, und Fähigkeiten lassen sich nur abgeschwächt weitergeben (Attenuation). Übertragen auf die Engine (D#25): Ein Fill kommt als JSON zur Laufzeit; der Compiler sieht ihn nie. Die Sperre liegt deshalb im Parser: `decoderFor(envelope)` kennt für einen Agentenschritt mit `allowedOps = {ReadFile, Shell}` schlicht keinen `EditFile`-Knoten, und was nicht decodiert wird, existiert nicht als Term. Beim Ausführen wird der Teilterm zusätzlich gegen `restrict(alg, envelope)` gefaltet, eine Algebra, die verbotene Operationen nicht weiterreicht. Nur für Programme, die in Scala geschrieben sind (etwa gegen einen Trait `ReadOnlyAlg`), ist es wirklich das Typsystem. DryRun bleibt die Verteidigung für alles, was die Struktur nicht ausdrückt (Pfade, Schrittzahlen, Argumente).
 
 ### Warum Interpreter nie zurückschreiben
 
@@ -137,7 +138,7 @@ Die Interpreter dieser Engine ähneln Attention-Köpfen in einem Transformer: Me
 
 ### Warum zwei DryRun-Tore
 
-Das Modell entscheidet zweimal: einmal beim Plan, einmal bei jedem Loch. Beide Entscheidungen können falsch oder böswillig sein, also brauchen beide ein Tor. Das erste Tor prüft den Plan gegen die Wurzel-Hülle, das zweite jeden Fill-Teilterm gegen die Hülle seines Lochs. Der Mensch gibt nur den Plan frei, und zwar mit der Hülle jedes Lochs im Klartext vor Augen. Danach vertritt ihn die Hülle (D#6). Das ist die Stelle, an der die Engine ihren Nutzen zieht: Ein Mensch kann vorab beantworten, welcher Bereich erlaubt ist, aber nicht, welche einzelne Aktion. Die Frage wird von "darf diese Aktion?" zu "darf dieser Bereich?" verschoben, und die zweite Frage ist die, die ein Mensch einmal, vorab, in einer Datei beantworten kann.
+Das Modell entscheidet zweimal: einmal beim Plan, einmal bei jedem Agentenschritt. Beide Entscheidungen können falsch oder böswillig sein, also brauchen beide ein Tor. Das erste Tor prüft den Plan gegen die Wurzel-Hülle, das zweite jeden Fill-Teilterm gegen die Hülle seines Agentenschritts. Der Mensch gibt nur den Plan frei, und zwar mit der Hülle jedes Agentenschritts im Klartext vor Augen. Danach vertritt ihn die Hülle (D#6). Das ist die Stelle, an der die Engine ihren Nutzen zieht: Ein Mensch kann vorab beantworten, welcher Bereich erlaubt ist, aber nicht, welche einzelne Aktion. Die Frage wird von "darf diese Aktion?" zu "darf dieser Bereich?" verschoben, und die zweite Frage ist die, die ein Mensch einmal, vorab, in einer Datei beantworten kann.
 
 ### Warum ApprovedTerm ein Typ ist und kein Flag
 
@@ -149,31 +150,31 @@ Das Versprechen der Engine ruht auf zwei Säulen: Die Maschine hat geprüft, und
 
 ### Warum Ask eine erlaubte Operation ist (D#8)
 
-Ein Loch ist die Stelle, an der der Mensch nicht dabei sein muss. Darf es trotzdem fragen, holt es ihn zu einem Zeitpunkt zurück, den er beim Freigeben nicht vorhersehen konnte. Ganz verbieten geht aber auch nicht: Manche Löcher merken erst beim Arbeiten, dass die Aufgabe nicht in die Hülle passt (Eval 5), und dann ist Fragen besser als Raten oder ein stiller Umweg. Die Lösung ist dieselbe wie für jede andere Fähigkeit: `Ask` steht in `allowedOps` oder nicht, Explain zeigt es an, und die Attenuation gilt auch hier. Standard ist aus.
+Ein Agentenschritt ist die Stelle, an der der Mensch nicht dabei sein muss. Darf er trotzdem fragen, holt er ihn zu einem Zeitpunkt zurück, den er beim Freigeben nicht vorhersehen konnte. Ganz verbieten geht aber auch nicht: Manche Agentenschritte merken erst beim Arbeiten, dass die Aufgabe nicht in die Hülle passt (Eval 5), und dann ist Fragen besser als Raten oder ein stiller Umweg. Die Lösung ist dieselbe wie für jede andere Fähigkeit: `Ask` steht in `allowedOps` oder nicht, Explain zeigt es an, und die Attenuation gilt auch hier. Standard ist aus.
 
 ### Warum der Scope gefiltert wird (D#9)
 
-Ein Loch braucht Kontext, oft von weiter oben (das Changelog-Loch braucht die Ausgabe von `git log`). Deshalb sieht es alle umschließenden Seqs. Die Hülle begrenzt aber bisher nur, was ein Loch tut, nicht, was es sieht. Ohne Filter hätte ein Loch mit `pathPrefix = docs/` den Inhalt einer Datei im Kontext, die ein früherer Schritt außerhalb von docs/ gelesen hat, und könnte ihn in eine Datei unter docs/ schreiben. Der Filter lässt nur Ergebnisse ohne Pfad (Shell-Aufrufe ohne Pfadargument, Exit-Codes, Zusammenfassungen früherer Löcher) und solche, deren Pfade alle im eigenen pathPrefix liegen, durch. Welche Pfade ein Shell-Aufruf berührt, weiß die Engine aus der Argument-Policy (D#12); `grep -r token secrets/` gilt also als Ergebnis über `secrets/`. Zusammenfassungen früherer Löcher sind Prosa des Modells und könnten Inhalte transportieren; dieser Kanal bleibt offen, weil sonst Diagnose- und Reparatur-Loch nicht zusammenarbeiten können.
+Ein Agentenschritt braucht Kontext, oft von weiter oben (der Changelog-Schritt braucht die Ausgabe von `git log`). Deshalb sieht er alle umschließenden Seqs. Die Hülle begrenzt aber bisher nur, was ein Agentenschritt tut, nicht, was er sieht. Ohne Filter hätte ein Agentenschritt mit `pathPrefix = docs/` den Inhalt einer Datei im Kontext, die ein früherer Schritt außerhalb von docs/ gelesen hat, und könnte ihn in eine Datei unter docs/ schreiben. Der Filter lässt nur Ergebnisse ohne Pfad (Shell-Aufrufe ohne Pfadargument, Exit-Codes, Zusammenfassungen früherer Agentenschritte) und solche, deren Pfade alle im eigenen pathPrefix liegen, durch. Welche Pfade ein Shell-Aufruf berührt, weiß die Engine aus der Argument-Policy (D#12); `grep -r token secrets/` gilt also als Ergebnis über `secrets/`. Zusammenfassungen früherer Agentenschritte sind Prosa des Modells und könnten Inhalte transportieren; dieser Kanal bleibt offen, weil sonst Diagnose- und Reparaturschritt nicht zusammenarbeiten können.
 
 ### Warum das Schema ausgerollt wird (D#10)
 
-Mit `strict: true` garantiert die API, dass die Antwort zum Schema passt; das Modell kann kein ungültiges JSON mehr liefern, und Versuche werden nicht für Klammerfehler verbraucht. Strict unterstützt aber keine rekursiven Schemas. Also wird die Rekursion als endliche Leiter geschrieben: Ebene 5 darf Ebene-4-Knoten enthalten, Ebene 4 Ebene-3-Knoten, und so weiter. Die Grenze ist syntaktisch (wie tief Seq, If, RepeatUntil ineinander stecken), nicht dasselbe wie maxDepth (wie tief Löcher ineinander stecken). Dazu kommt eine Eigenheit des aktuellen Modells: Ein bestimmtes Tool lässt sich nicht erzwingen. Das Modell wird im Prompt angewiesen, und eine Antwort ohne `submit_term` zählt als Fehlversuch.
+Mit `strict: true` garantiert die API, dass die Antwort zum Schema passt; das Modell kann kein ungültiges JSON mehr liefern, und Versuche werden nicht für Klammerfehler verbraucht. Strict unterstützt aber keine rekursiven Schemas. Also wird die Rekursion als endliche Leiter geschrieben: Ebene 5 darf Ebene-4-Knoten enthalten, Ebene 4 Ebene-3-Knoten, und so weiter. Die Grenze ist syntaktisch (wie tief Seq, If, RepeatUntil ineinander stecken), nicht dasselbe wie maxDepth (wie tief Agentenschritte ineinander stecken). Dazu kommt eine Eigenheit des aktuellen Modells: Ein bestimmtes Tool lässt sich nicht erzwingen. Das Modell wird im Prompt angewiesen, und eine Antwort ohne `submit_term` zählt als Fehlversuch.
 
 ### Warum Shell-Argumente eine Policy brauchen (D#12)
 
-`AllowedCommand("grep", [])` sagt, welches Programm laufen darf, aber nicht, worauf. `grep -r token /` liest das ganze Dateisystem, `git diff --output=…` schreibt Dateien, `git diff --ext-diff` startet fremde Programme. Eine Liste verbotener Flags ist nie vollständig. Deshalb gilt umgekehrt: Pro Programm sind bestimmte Flags erlaubt, und alles andere, was kein Flag ist, wird als Pfad behandelt und genauso geprüft wie bei ReadFile. `cat` fällt weg, weil ReadFile dasselbe mit Prüfung und Kürzung tut. Programme, die Code aus dem Workspace ausführen (Skripte, `sbt test`), bleiben erlaubt, aber Explain sagt es, und wenn ein Loch diesen Code vorher ändern darf, steht es als Hinweis da. Die Engine kann nicht versprechen, was ein Kindprozess tut; sie verspricht, was sie selbst tut.
+`AllowedCommand("grep", [])` sagt, welches Programm laufen darf, aber nicht, worauf. `grep -r token /` liest das ganze Dateisystem, `git diff --output=…` schreibt Dateien, `git diff --ext-diff` startet fremde Programme. Eine Liste verbotener Flags ist nie vollständig. Deshalb gilt umgekehrt: Pro Programm sind bestimmte Flags erlaubt, und alles andere, was kein Flag ist, wird als Pfad behandelt und genauso geprüft wie bei ReadFile. `cat` fällt weg, weil ReadFile dasselbe mit Prüfung und Kürzung tut. Programme, die Code aus dem Workspace ausführen (Skripte, `sbt test`), bleiben erlaubt, aber Explain sagt es, und wenn ein Agentenschritt diesen Code vorher ändern darf, steht es als Hinweis da. Die Engine kann nicht versprechen, was ein Kindprozess tut; sie verspricht, was sie selbst tut.
 
 ### Warum ein Prädikat LastOutputEmpty (D#13)
 
-Der Release-Flow will abbrechen, wenn das Arbeitsverzeichnis nicht sauber ist. `git status --porcelain` meldet das über eine nicht leere Ausgabe, nicht über den Exit-Code. Mit den vorhandenen Prädikaten ließ sich „leer“ nicht ausdrücken; der Versuch `Not(LastOutputContains(""))` ist immer falsch, weil jeder Text den leeren Text enthält. Ein Loch dafür wäre ein Modellaufruf für eine Ja/Nein-Frage. Das neue Prädikat ist statisch auswertbar und klein. Die Regel, dass jede Algebra-Änderung eine Messung braucht, greift erst ab der ersten Messung; davor gibt es nichts zu vergleichen.
+Der Release-Flow will abbrechen, wenn das Arbeitsverzeichnis nicht sauber ist. `git status --porcelain` meldet das über eine nicht leere Ausgabe, nicht über den Exit-Code. Mit den vorhandenen Prädikaten ließ sich „leer“ nicht ausdrücken; der Versuch `Not(LastOutputContains(""))` ist immer falsch, weil jeder Text den leeren Text enthält. Ein Agentenschritt dafür wäre ein Modellaufruf für eine Ja/Nein-Frage. Das neue Prädikat ist statisch auswertbar und klein. Die Regel, dass jede Algebra-Änderung eine Messung braucht, greift erst ab der ersten Messung; davor gibt es nichts zu vergleichen.
 
 ### Warum Schritte so gezählt werden (D#14)
 
-Zahlen, die Explain vor der Freigabe zeigt, müssen nachrechenbar sein, sonst sind sie Dekoration. Gezählt wird, was etwas tut: jede Blattoperation einmal, Kontrollknoten gar nicht. Ein Loch zählt seinen Modellaufruf plus sein Budget, damit Modellaufrufe im Budget sichtbar sind. Abgelehnte Fills tun nichts; sie zählen gegen das Versuchslimit, nicht gegen Schritte.
+Zahlen, die Explain vor der Freigabe zeigt, müssen nachrechenbar sein, sonst sind sie Dekoration. Gezählt wird, was etwas tut: jede Blattoperation einmal, Kontrollknoten gar nicht. Ein Agentenschritt zählt seinen Modellaufruf plus sein Budget, damit Modellaufrufe im Budget sichtbar sind. Abgelehnte Fills tun nichts; sie zählen gegen das Versuchslimit, nicht gegen Schritte.
 
 ### Warum Gelaufenes gelaufen bleibt (D#15)
 
-Ein Fill kann zur Laufzeit scheitern, obwohl er Tor 2 bestanden hat, etwa wenn `expectedOld` nicht passt. Zurückrollen hieße, Effekte rückgängig zu machen, die die Engine nicht vollständig kennt. Stattdessen bekommt das Modell den Fehler als Handlungsanweisung und füllt neu, im selben Budget. Das Log zeigt beide Versuche. `Done` in einem Fill beendet nur das Loch; sonst könnte ein Loch den ganzen Flow abkürzen, den der Mensch freigegeben hat.
+Ein Fill kann zur Laufzeit scheitern, obwohl er Tor 2 bestanden hat, etwa wenn `expectedOld` nicht passt. Zurückrollen hieße, Effekte rückgängig zu machen, die die Engine nicht vollständig kennt. Stattdessen bekommt das Modell den Fehler als Handlungsanweisung und füllt neu, im selben Budget. Das Log zeigt beide Versuche. `Done` in einem Fill beendet nur den Agentenschritt; sonst könnte ein Agentenschritt den ganzen Flow abkürzen, den der Mensch freigegeben hat.
 
 ### Warum Replay ohne Dateisystem trotzdem den Endzustand prüft (D#16)
 
@@ -197,7 +198,7 @@ Applicative kann Schritte nebeneinanderstellen, aber nicht abhängig von einem E
 
 ### Warum Shell-Befehle über Präfixe abgeschwächt werden (D#21)
 
-`git` mit beliebigen Argumenten ist mehr Recht als `git status`. Ein inneres Loch soll also `git status` bekommen dürfen, wenn das äußere `git` hat. Eine reine Mengenprüfung sieht das nicht, weil die beiden Einträge verschieden sind. Die Regel vergleicht deshalb Präfixe: Je länger die Pflicht-Argumente, desto enger das Recht. Und ein Loch, das Shell darf, aber keinen einzigen Befehl, kann nichts davon nutzen; es ist unlösbar beschränkt und wird abgelehnt.
+`git` mit beliebigen Argumenten ist mehr Recht als `git status`. Ein innerer Agentenschritt soll also `git status` bekommen dürfen, wenn das äußere `git` hat. Eine reine Mengenprüfung sieht das nicht, weil die beiden Einträge verschieden sind. Die Regel vergleicht deshalb Präfixe: Je länger die Pflicht-Argumente, desto enger das Recht. Und ein Agentenschritt, der Shell darf, aber keinen einzigen Befehl, kann nichts davon nutzen; er ist unlösbar beschränkt und wird abgelehnt.
 
 ### Warum Flows Parameter nur nach dem Parsen bekommen (D#22)
 
@@ -213,7 +214,7 @@ Ein abgeleiteter Codec übersetzt treu, was im JSON steht, auch ein `"origin": "
 
 ### Warum ein Befehl ohne Pfad das ganze Arbeitsverzeichnis berührt (D#27)
 
-`grep -r token` ohne Pfadangabe durchsucht alles, `git status` meldet alle Dateien, `sbt test` liest den ganzen Build. Würde die Prüfung nur Pfade ansehen, die ausdrücklich dastehen, könnte ein Loch mit `pathPrefix = docs/` einfach den Pfad weglassen. Deshalb zählt das Weglassen als „.“, und solche Befehle sind nur in Hüllen erlaubt, die das ganze Arbeitsverzeichnis umfassen.
+`grep -r token` ohne Pfadangabe durchsucht alles, `git status` meldet alle Dateien, `sbt test` liest den ganzen Build. Würde die Prüfung nur Pfade ansehen, die ausdrücklich dastehen, könnte ein Agentenschritt mit `pathPrefix = docs/` einfach den Pfad weglassen. Deshalb zählt das Weglassen als „.“, und solche Befehle sind nur in Hüllen erlaubt, die das ganze Arbeitsverzeichnis umfassen.
 
 ### Warum fromTerm keinen Constraint braucht (D#28)
 
@@ -223,9 +224,9 @@ Solange If und RepeatUntil eigene Knoten außerhalb der Algebra waren, musste fr
 
 Die Engine startet Programme ohne Shell, Argumente als Liste. Unter Linux ist das der Normalfall. Unter Windows nicht: Ein Skript für bash lässt sich gar nicht direkt starten, und eine .bat- oder .cmd-Datei startet Java heimlich über cmd.exe, die Sonderzeichen in Argumenten deutet. Genau das, was die Engine verbietet, passierte dann unbemerkt. Statt eine Übersetzungsschicht für Windows zu bauen, läuft Execute nur unter Linux, auf dem eigenen Rechner im WSL. Prüfen, erklären und freigeben geht weiter überall. Die strengeren Pfadregeln gelten trotzdem auf allen Plattformen: Ein Flow soll nicht auf einem System gültig und auf einem anderen gefährlich sein.
 
-### Warum ein Loch mehr sehen als tun darf, und warum das im Explain steht (D#30)
+### Warum ein Agentenschritt mehr sehen als tun darf, und warum das im Explain steht (D#30)
 
-Prüfung und Sicht folgen verschiedenen Regeln. Für die Prüfung gilt ein Befehl ohne Pfad als Zugriff auf alles (D#27), damit ein Loch sich keinen Zugriff erschleicht. Für die Sicht zählen nur ausdrücklich genannte Pfade (D#9), sonst sähe das Diagnose-Loch nicht einmal den roten Test, den es erklären soll. Das lässt eine Lücke: Die Ausgabe eines Testskripts kann Inhalte von überall enthalten. Solche Befehle laufen aber nur auf oberster Ebene, im freigegebenen Plan. Damit der Mensch auch den Datenfluss freigibt und nicht nur die Schritte, nennt Explain unter jedem Loch die früheren Ergebnisse, die es sehen wird. Für Workflow-Leser: Das ist die Datenzuordnung eines Tasks, sichtbar in der Prozessdefinition.
+Prüfung und Sicht folgen verschiedenen Regeln. Für die Prüfung gilt ein Befehl ohne Pfad als Zugriff auf alles (D#27), damit ein Agentenschritt sich keinen Zugriff erschleicht. Für die Sicht zählen nur ausdrücklich genannte Pfade (D#9), sonst sähe der Diagnoseschritt nicht einmal den roten Test, den er erklären soll. Das lässt eine Lücke: Die Ausgabe eines Testskripts kann Inhalte von überall enthalten. Solche Befehle laufen aber nur auf oberster Ebene, im freigegebenen Plan. Damit der Mensch auch den Datenfluss freigibt und nicht nur die Schritte, nennt Explain unter jedem Agentenschritt die früheren Ergebnisse, die er sehen wird. Für Workflow-Leser: Das ist die Datenzuordnung eines Tasks, sichtbar in der Prozessdefinition.
 
 ### Warum die Korrekturen aus dem Review (D#31)
 
@@ -237,11 +238,11 @@ Replay soll beweisen, dass ein Lauf vollständig aufgezeichnet ist und sich ohne
 
 ### Warum ein Lauf so endet, wie er endet (D#33)
 
-Ein Loch hat ein Modell, das auf Fehler reagieren kann; der feste Teil des Plans hat keins. Scheitert dort ein Schritt, gibt es niemanden, der ihn reparieren könnte, also bricht der Lauf ab, statt zu raten. Ein Exit-Code ungleich 0 ist dagegen kein Fehler, sondern ein Ergebnis, auf das der Plan mit If reagieren kann (Tests sind rot). Fragt ein Lauf den Menschen, und niemand antwortet, endet er mit „ask“: ein ehrlicher Zustand für einen Lauf ohne Menschen daneben, und genau das, was Eval 5 erwartet.
+Ein Agentenschritt hat ein Modell, das auf Fehler reagieren kann; der feste Teil des Plans hat keins. Scheitert dort ein Schritt, gibt es niemanden, der ihn reparieren könnte, also bricht der Lauf ab, statt zu raten. Ein Exit-Code ungleich 0 ist dagegen kein Fehler, sondern ein Ergebnis, auf das der Plan mit If reagieren kann (Tests sind rot). Fragt ein Lauf den Menschen, und niemand antwortet, endet er mit „ask“: ein ehrlicher Zustand für einen Lauf ohne Menschen daneben, und genau das, was Eval 5 erwartet.
 
 ### Warum Schritte zur Laufzeit selbst gezählt werden (D#34)
 
-DryRun rechnet vorab eine obere Schranke. Execute verlässt sich nicht darauf, sondern zählt selbst und kappt hart; zwei unabhängige Zählungen fangen sich gegenseitig auf, wie der Überlauf aus dem ersten Review gezeigt hat. Ein Loch in einer Schleife bekommt in jedem Durchlauf sein Budget neu, so wie DryRun es auch berechnet hat; sonst würde ein freigegebener Plan an einer Stelle scheitern, die der Mensch für erlaubt hielt.
+DryRun rechnet vorab eine obere Schranke. Execute verlässt sich nicht darauf, sondern zählt selbst und kappt hart; zwei unabhängige Zählungen fangen sich gegenseitig auf, wie der Überlauf aus dem ersten Review gezeigt hat. Ein Agentenschritt in einer Schleife bekommt in jedem Durchlauf sein Budget neu, so wie DryRun es auch berechnet hat; sonst würde ein freigegebener Plan an einer Stelle scheitern, die der Mensch für erlaubt hielt.
 
 ### Warum das Record-Log so aussieht (D#35)
 
@@ -261,7 +262,7 @@ Die Freigabe soll an genau den Term gebunden sein, den der Mensch gesehen hat. E
 
 ### Warum nur manche Befehle ohne Pfad pfadlos sind (D#39)
 
-`grep -rn password` ohne Pfad liest den ganzen Workspace. Galt die Ausgabe als pfadlos, sah sie jedes Loch, auch eines, das nur REPORT.md schreiben darf; der Filter aus D#9 war damit umgangen. Ganz streng (D#27, alles ohne Pfad ist ".") sähe aber das Diagnose-Loch in Eval 6 den roten Test nicht und das Changelog-Loch im Release-Flow die Commits nicht. Die Grenze verläuft deshalb nach dem Inhalt der Ausgabe: Programme, die Workspace-Code ausführen, liefern das Ergebnis, um das es im Flow geht (Testausgabe), und `git log` liefert Metadaten, keine Dateiinhalte. Beide Listen stehen in der Prüfkonfiguration, nicht im Code.
+`grep -rn password` ohne Pfad liest den ganzen Workspace. Galt die Ausgabe als pfadlos, sah sie jeder Agentenschritt, auch einer, der nur REPORT.md schreiben darf; der Filter aus D#9 war damit umgangen. Ganz streng (D#27, alles ohne Pfad ist ".") sähe aber der Diagnoseschritt in Eval 6 den roten Test nicht und der Changelog-Schritt im Release-Flow die Commits nicht. Die Grenze verläuft deshalb nach dem Inhalt der Ausgabe: Programme, die Workspace-Code ausführen, liefern das Ergebnis, um das es im Flow geht (Testausgabe), und `git log` liefert Metadaten, keine Dateiinhalte. Beide Listen stehen in der Prüfkonfiguration, nicht im Code.
 
 ### Warum der CheckedTerm seine Prüfkonfiguration trägt (D#40)
 
@@ -281,7 +282,7 @@ Die verbleibenden Lücken (Zeitfenster zwischen Prüfung und Syscall, Lesen übe
 
 ### Warum der Modelladapter kein Gespräch führt (D#44)
 
-Jeder Plan und jeder Fill ist ein einzelner Aufruf. Die Engine kennt ein Loch als Ziel, Hülle und sichtbare Ergebnisse; mehr braucht das Modell nicht, und mehr soll es auch nicht sehen (D#9). Ein Gesprächsverlauf würde Ergebnisse früherer Löcher durch die Hintertür weitertragen und die Messung von Reihenfolge und Länge abhängig machen. Was ein Versuch falsch gemacht hat, steht deshalb als Text in der nächsten Anfrage, beim Plan zusammen mit dem abgelehnten Term, weil das Modell ihn sonst nicht mehr kennt. Zwei Arten von Fehlern werden getrennt: Liefert das Modell keinen brauchbaren Term, ist das ein Fehlversuch, und es bekommt eine neue Chance. Ist die API nicht erreichbar oder der Schlüssel falsch, hat das Modell nichts falsch gemacht; der Lauf endet, statt Versuche zu verbrauchen, die in der Messung als Modellfehler erschienen. Aus demselben Grund gibt es keinen Ersatz durch ein anderes Modell: Eine M#-Zeile nennt genau ein Modell und einen Effort.
+Jeder Plan und jeder Fill ist ein einzelner Aufruf. Die Engine kennt einen Agentenschritt als Ziel, Hülle und sichtbare Ergebnisse; mehr braucht das Modell nicht, und mehr soll es auch nicht sehen (D#9). Ein Gesprächsverlauf würde Ergebnisse früherer Agentenschritte durch die Hintertür weitertragen und die Messung von Reihenfolge und Länge abhängig machen. Was ein Versuch falsch gemacht hat, steht deshalb als Text in der nächsten Anfrage, beim Plan zusammen mit dem abgelehnten Term, weil das Modell ihn sonst nicht mehr kennt. Zwei Arten von Fehlern werden getrennt: Liefert das Modell keinen brauchbaren Term, ist das ein Fehlversuch, und es bekommt eine neue Chance. Ist die API nicht erreichbar oder der Schlüssel falsch, hat das Modell nichts falsch gemacht; der Lauf endet, statt Versuche zu verbrauchen, die in der Messung als Modellfehler erschienen. Aus demselben Grund gibt es keinen Ersatz durch ein anderes Modell: Eine M#-Zeile nennt genau ein Modell und einen Effort.
 
 ### Warum Planen und Ausführen zwei Befehle sind (D#45)
 
@@ -301,39 +302,39 @@ Eine Ausgabe, die vom ersten Zeichen an im Schema stehen muss, lässt dem Modell
 
 ### Warum ein Lösungsbeispiel nur für das lokale Modell (D#49)
 
-Denken hilft einem kleinen Modell, ist auf der CPU aber zu langsam für Entwicklungsläufe. Ein Beispiel zeigt das Muster, das ein Plan braucht, ohne dass das Modell es herleiten muss: erst die Daten lesen, dann ein Loch, das sie sieht, keine Datei zweimal. Es löst bewusst eine andere Aufgabe als die Evals, sonst misst ein Lauf nur, ob das Modell abschreiben kann. Claude bekommt das Beispiel nicht: Jede Änderung an seinem Prompt bräuchte eine eigene Messung, und M#1 soll die Basis für den Prompt sein, wie er ist.
+Denken hilft einem kleinen Modell, ist auf der CPU aber zu langsam für Entwicklungsläufe. Ein Beispiel zeigt das Muster, das ein Plan braucht, ohne dass das Modell es herleiten muss: erst die Daten lesen, dann ein Agentenschritt, der sie sieht, keine Datei zweimal. Es löst bewusst eine andere Aufgabe als die Evals, sonst misst ein Lauf nur, ob das Modell abschreiben kann. Claude bekommt das Beispiel nicht: Jede Änderung an seinem Prompt bräuchte eine eigene Messung, und M#1 soll die Basis für den Prompt sein, wie er ist.
 
 ### Warum think drei Werte hat (D#50)
 
 Ollama kennt drei Fälle: Modelle ohne Denken, die das Feld nicht kennen, und hybride Modelle, die ohne Angabe denken. Ein Wahrheitswert mit false als Standard kann das Denken eines hybriden Modells nicht abschalten, weil false dasselbe hieße wie nichts senden. Erst ein fehlender Wert neben true und false trennt "Standard des Modells" von "aus".
 
-### Warum der Prompt das Lesen vor dem Loch verlangt (D#51)
+### Warum der Prompt das Lesen vor dem Agentenschritt verlangt (D#51)
 
-Dass ein Term die Ergebnisse seiner eigenen Schritte nicht sieht, folgt aus D#5, steht im Prompt aber nur für den Plan. Ein Modell, das im Fill liest und dann verarbeiten will, greift zum einzigen Mittel, das die Sprache dafür hat: einem weiteren Loch. In einer Hülle ohne Löcher scheitert das, und die knappe Ablehnung sagte nicht, warum. Ein Modell, das den Grund nicht kennt, wiederholt den Fehler bis zum Versuchslimit. Den Grund dort zu nennen, wo der Fehler entsteht, ist billiger als drei verlorene Versuche. Weil M#1 noch nicht gelaufen ist, wird diese Fassung die Basis.
+Dass ein Term die Ergebnisse seiner eigenen Schritte nicht sieht, folgt aus D#5, steht im Prompt aber nur für den Plan. Ein Modell, das im Fill liest und dann verarbeiten will, greift zum einzigen Mittel, das die Sprache dafür hat: einem weiteren Agentenschritt. In einer Hülle, die keine Agentenschritte erlaubt, scheitert das, und die knappe Ablehnung sagte nicht, warum. Ein Modell, das den Grund nicht kennt, wiederholt den Fehler bis zum Versuchslimit. Den Grund dort zu nennen, wo der Fehler entsteht, ist billiger als drei verlorene Versuche. Weil M#1 noch nicht gelaufen ist, wird diese Fassung die Basis.
 
 ### Warum requiredPrefixArgs nur Unterbefehle trägt (D#52)
 
-Drei Dinge begrenzen einen Befehl: der Unterbefehl (git status statt git), die Argument-Policy (welche Flags) und der pathPrefix (welche Pfade). Wenn requiredPrefixArgs auch Flags oder Pfade trägt, überlagern sich zwei dieser Mechanismen, und es entstehen Hüllen, die formal enger, aber unbrauchbar sind: Ein Loch, das nur „grep --include=*.java“ darf, scheitert mit jedem gewöhnlichen grep. Tor 1 soll unlösbare Löcher ablehnen, solange der Plan noch korrigierbar ist, statt drei Fill-Versuche zu verlieren.
+Drei Dinge begrenzen einen Befehl: der Unterbefehl (git status statt git), die Argument-Policy (welche Flags) und der pathPrefix (welche Pfade). Wenn requiredPrefixArgs auch Flags oder Pfade trägt, überlagern sich zwei dieser Mechanismen, und es entstehen Hüllen, die formal enger, aber unbrauchbar sind: Ein Agentenschritt, der nur „grep --include=*.java“ darf, scheitert mit jedem gewöhnlichen grep. Tor 1 soll unlösbare Agentenschritte ablehnen, solange der Plan noch korrigierbar ist, statt drei Fill-Versuche zu verlieren.
 
-### Warum die Regel vor dem Loch am Anfang steht (D#53)
+### Warum die Regel vor dem Agentenschritt am Anfang steht (D#53)
 
-Ein Modell liest die Grundregel eines Abschnitts eher als die Ausnahmen danach. In D#51 stand der Satz hinter den Sonderregeln zum Sichtbereich, und der Plan-Prompt, also die Stelle, an der der Plan entsteht, blieb unverändert. Jetzt steht die Regel als erster Gedanke des Abschnitts und noch einmal dort, wo der Plan geschrieben wird. Der Hinweis auf die leer angelegte Zieldatei kommt aus beiden Probeläufen: Ein statisches WriteFile nach dem Loch scheitert, sobald das Loch die Datei schon geschrieben hat.
+Ein Modell liest die Grundregel eines Abschnitts eher als die Ausnahmen danach. In D#51 stand der Satz hinter den Sonderregeln zum Sichtbereich, und der Plan-Prompt, also die Stelle, an der der Plan entsteht, blieb unverändert. Jetzt steht die Regel als erster Gedanke des Abschnitts und noch einmal dort, wo der Plan geschrieben wird. Der Hinweis auf die leer angelegte Zieldatei kommt aus beiden Probeläufen: Ein statisches WriteFile nach dem Agentenschritt scheitert, sobald der Agentenschritt die Datei schon geschrieben hat.
 
 ### Warum ein dritter Anbieter über die Antigravity-CLI (D#54)
 
 Das lokale Modell war entweder zu langsam (mit Denken) oder zu schwach (ohne), um die Kette sinnvoll zu üben; für Claude fehlt der Schlüssel. agy ist auf dem Rechner angemeldet und bietet starke Modelle, mit derselben Schema-Bindung wie Ollama. Dass agy ein Agent ist, nicht nur ein Modell, ist der Preis: Er bekommt einen eigenen Prompt und könnte lesen. Ein leeres Verzeichnis pro Aufruf und der Plan-Modus halten ihn von Workspace und Änderungen fern; was dann noch abweicht, ist für Entwicklungsläufe hinnehmbar und steht bei jeder Zahl dabei.
 
-### Warum ein Loch in Runden arbeiten darf (D#55)
+### Warum ein Agentenschritt in Runden arbeiten darf (D#55)
 
-Der statische Term (D#5) hat einen Preis, den die Probeläufe und das Review offengelegt haben: Ein Loch kann nicht lesen und dann mit dem Gelesenen handeln. Für Pläne lässt sich das umgehen, indem der Plan vor dem Loch liest. Für generische Flows nicht: Welche Datei die Ursache eines roten Tests enthält, weiß der Flow nicht, und ein Compare-and-Swap verlangt den genauen alten Text. Eine Runde mehr im selben Loch löst das, ohne die Sprache zu ändern. Die Freigabe bleibt, was sie war: Der Mensch sieht die Hülle jedes Lochs, und alle Runden zusammen bleiben darin und in seinem Budget. Was sich ändert, sind nur die Modellaufrufe, und die sind gedeckelt.
+Der statische Term (D#5) hat einen Preis, den die Probeläufe und das Review offengelegt haben: Ein Agentenschritt kann nicht lesen und dann mit dem Gelesenen handeln. Für Pläne lässt sich das umgehen, indem der Plan vor dem Agentenschritt liest. Für generische Flows nicht: Welche Datei die Ursache eines roten Tests enthält, weiß der Flow nicht, und ein Compare-and-Swap verlangt den genauen alten Text. Eine Runde mehr im selben Agentenschritt löst das, ohne die Sprache zu ändern. Die Freigabe bleibt, was sie war: Der Mensch sieht die Hülle jedes Agentenschritts, und alle Runden zusammen bleiben darin und in seinem Budget. Was sich ändert, sind nur die Modellaufrufe, und die sind gedeckelt.
 
 ### Warum ein leerer Fill ein Fehlversuch ist (D#56)
 
-Ein Loch hat ein Ziel. Ein Teilterm ohne einen einzigen Schritt erreicht es nicht und sagt auch nicht, warum; mit D#55 löst er nicht einmal eine weitere Runde aus. Ohne Ablehnung endet das Loch still, und der Fehler zeigt sich erst am fehlenden Ergebnis. Als Fehlversuch bekommt das Modell eine Anweisung und kann es besser machen; will es wirklich nichts tun, sagt es das in Done, und der Mensch liest den Grund als Hinweis des Agenten.
+Ein Agentenschritt hat ein Ziel. Ein Teilterm ohne einen einzigen Schritt erreicht es nicht und sagt auch nicht, warum; mit D#55 löst er nicht einmal eine weitere Runde aus. Ohne Ablehnung endet der Agentenschritt still, und der Fehler zeigt sich erst am fehlenden Ergebnis. Als Fehlversuch bekommt das Modell eine Anweisung und kann es besser machen; will es wirklich nichts tun, sagt es das in Done, und der Mensch liest den Grund als Hinweis des Agenten.
 
-### Warum das Bericht-Loch zwei Schritte bekommt (D#57)
+### Warum der Berichtsschritt zwei Schritte bekommt (D#57)
 
-Der Fill-Prompt verlangt, ein Loch mit Done zu beenden, und seit D#55 löst ein Fill ohne Done eine weitere Runde aus. Ein Budget von einem Schritt widerspricht beidem: Das Modell muss entweder auf Done verzichten oder einen Versuch verlieren. Einen Schritt mehr zu erlauben ändert nichts an dem, was das Loch darf (nur WriteFile unter REPORT.md), und passt den Flow an die Regeln an, statt die Regeln für einen Flow aufzuweichen.
+Der Fill-Prompt verlangt, einen Agentenschritt mit Done zu beenden, und seit D#55 löst ein Fill ohne Done eine weitere Runde aus. Ein Budget von einem Schritt widerspricht beidem: Das Modell muss entweder auf Done verzichten oder einen Versuch verlieren. Einen Schritt mehr zu erlauben ändert nichts an dem, was der Agentenschritt darf (nur WriteFile unter REPORT.md), und passt den Flow an die Regeln an, statt die Regeln für einen Flow aufzuweichen.
 
 ### Warum Claude auch über die Kommandozeile von Claude Code (D#58)
 
@@ -349,15 +350,15 @@ Ohne Lizenzdatei darf niemand den Code benutzen, auch wer ihn nur ausprobieren w
 
 ### Warum ListDir rekursiv listet (D#61)
 
-Ein Loch, das ein Projekt erkunden soll, sah bisher nur eine Ebene pro Schritt, und weil es die Ergebnisse seiner eigenen Schritte erst in der nächsten Runde sieht (D#55), kostete jede Verzeichnisebene eine Runde. In Eval 4 liegen die Quellen vier Ebenen tief; mit drei Runden war das nicht zu schaffen, und eine Hülle ohne Shell hat kein `ls -R`. Ein rekursives Listing gibt die ganze Struktur in einem Schritt. Breitenweise, damit eine Kürzung die tiefen Ebenen trifft und die Übersicht bleibt; mit fester Obergrenze, damit ein großes Build-Verzeichnis die Engine nicht beschäftigt. Sprache, Schema und Hash bleiben, was es ist: Geändert hat sich nur, was die Operation liefert.
+Ein Agentenschritt, der ein Projekt erkunden soll, sah bisher nur eine Ebene pro Schritt, und weil er die Ergebnisse seiner eigenen Schritte erst in der nächsten Runde sieht (D#55), kostete jede Verzeichnisebene eine Runde. In Eval 4 liegen die Quellen vier Ebenen tief; mit drei Runden war das nicht zu schaffen, und eine Hülle ohne Shell hat kein `ls -R`. Ein rekursives Listing gibt die ganze Struktur in einem Schritt. Breitenweise, damit eine Kürzung die tiefen Ebenen trifft und die Übersicht bleibt; mit fester Obergrenze, damit ein großes Build-Verzeichnis die Engine nicht beschäftigt. Sprache, Schema und Hash bleiben, was es ist: Geändert hat sich nur, was die Operation liefert.
 
-### Warum ein Loch nicht ändern soll, was danach läuft (D#62)
+### Warum ein Agentenschritt nicht ändern soll, was danach läuft (D#62)
 
-Eine Hülle hat einen pathPrefix für Lesen und Ändern. Ein Loch, das Tests lesen und Quellen ändern soll, bekommt deshalb leicht "." und damit auch das Recht, `./run-tests.sh` zu ändern. Läuft das Skript danach, führt die Engine Code aus, den das Modell geschrieben hat, ohne dass Tor 2 ihn je als Shell-Befehl gesehen hat. In M#5 war das in jedem Plan so. Ein Verbot an Tor 1 wäre zu grob (ein Flow darf ein Build-Skript reparieren sollen), also zwei leichtere Mittel: Der Prompt sagt, wie man das Loch teilt, und Explain nennt den betroffenen Code beim Namen, damit der Mensch es vor der Freigabe sieht. Ob der Prompt wirkt, zeigt die Spalte code_hint der Serien.
+Eine Hülle hat einen pathPrefix für Lesen und Ändern. Ein Agentenschritt, der Tests lesen und Quellen ändern soll, bekommt deshalb leicht "." und damit auch das Recht, `./run-tests.sh` zu ändern. Läuft das Skript danach, führt die Engine Code aus, den das Modell geschrieben hat, ohne dass Tor 2 ihn je als Shell-Befehl gesehen hat. In M#5 war das in jedem Plan so. Ein Verbot an Tor 1 wäre zu grob (ein Flow darf ein Build-Skript reparieren sollen), also zwei leichtere Mittel: Der Prompt sagt, wie man den Agentenschritt teilt, und Explain nennt den betroffenen Code beim Namen, damit der Mensch es vor der Freigabe sieht. Ob der Prompt wirkt, zeigt die Spalte code_hint der Serien.
 
 ### Warum BestOfN nur für Pläne und standardmäßig aus (D#63)
 
-BestOfN soll Zufall im Plan erkennen: Liefert das Modell bei gleicher Aufgabe verschiedene Pläne, ist keiner davon verlässlich, und der Mensch soll entscheiden, statt dass die Engine rät. Der Plan ist die Stelle, an der ein Mensch ohnehin freigibt; ein Fill läuft schon gegen die Hülle seines Lochs, und eine Abstimmung mitten im Lauf hätte Engine und Record-Log geändert. Standard aus, weil die Messungen zeigen, dass Claude dieselbe Lösung selten zweimal gleich schreibt: Mit dem Fingerprint als Maß stimmten drei Pläne nur in gut einem Drittel der Fälle überein, obwohl alle zehn Läufe bestanden. Das Werkzeug ist da; das richtige Maß für Übereinstimmung ist offen (O#30).
+BestOfN soll Zufall im Plan erkennen: Liefert das Modell bei gleicher Aufgabe verschiedene Pläne, ist keiner davon verlässlich, und der Mensch soll entscheiden, statt dass die Engine rät. Der Plan ist die Stelle, an der ein Mensch ohnehin freigibt; ein Fill läuft schon gegen die Hülle seines Agentenschritts, und eine Abstimmung mitten im Lauf hätte Engine und Record-Log geändert. Standard aus, weil die Messungen zeigen, dass Claude dieselbe Lösung selten zweimal gleich schreibt: Mit dem Fingerprint als Maß stimmten drei Pläne nur in gut einem Drittel der Fälle überein, obwohl alle zehn Läufe bestanden. Das Werkzeug ist da; das richtige Maß für Übereinstimmung ist offen (O#30).
 
 ### Warum Plan-Kennzahlen auch ohne Plan (D#64)
 
@@ -365,11 +366,19 @@ Eine Serie, in der ein Plan an Tor 1 scheitert, hatte für diesen Lauf keine Zah
 
 ### Warum BestOfN über die Form abstimmt (D#65)
 
-Mit dem Fingerprint als Maß waren sich drei Pläne oft nicht einig, obwohl jeder für sich bestand: Ein Plan gab dem Loch 8 Schritte, der andere 9, einer schrieb `src`, der andere `src/`. Solche Unterschiede sind keine Unsicherheit des Modells, sondern Schreibweise. Die Abstimmung soll erkennen, ob das Modell denselben Weg geht: welche Schritte, in welcher Reihenfolge, wo es entscheidet und was dort erlaubt ist. Was genau erlaubt ist, prüft danach Tor 1 am gewählten Plan, und der Mensch gibt dessen vollen Hash frei.
+Mit dem Fingerprint als Maß waren sich drei Pläne oft nicht einig, obwohl jeder für sich bestand: Ein Plan gab dem Agentenschritt 8 Schritte, der andere 9, einer schrieb `src`, der andere `src/`. Solche Unterschiede sind keine Unsicherheit des Modells, sondern Schreibweise. Die Abstimmung soll erkennen, ob das Modell denselben Weg geht: welche Schritte, in welcher Reihenfolge, wo es entscheidet und was dort erlaubt ist. Was genau erlaubt ist, prüft danach Tor 1 am gewählten Plan, und der Mensch gibt dessen vollen Hash frei.
 
 ### Warum die Teilungsregel nur bei ausgeführtem Code gilt (D#66)
 
-Die Regel aus D#62 sollte verhindern, dass ein Loch ein Skript ändert, das danach läuft. Das Modell wandte sie überall an und teilte auch dort, wo kein Code läuft, in Eval 1 in jedem Plan. Das kostete fast die Hälfte mehr Tokens, ohne dort etwas sicherer zu machen. Die Regel nennt jetzt ihre Bedingung.
+Die Regel aus D#62 sollte verhindern, dass ein Agentenschritt ein Skript ändert, das danach läuft. Das Modell wandte sie überall an und teilte auch dort, wo kein Code läuft, in Eval 1 in jedem Plan. Das kostete fast die Hälfte mehr Tokens, ohne dort etwas sicherer zu machen. Die Regel nennt jetzt ihre Bedingung.
+
+### Warum Agentenschritt statt Loch (D#70)
+
+„Loch“ kommt aus der Programmiersprachen-Theorie (typed holes) und ist dort genau: eine Stelle im Programm, die später gefüllt wird. Auf Deutsch liest es sich wie ein Fehler. „Agentenschritt“ sagt, was dort passiert, passt zum Namen der Engine und zu Explain („Hier entscheidet der Agent“). Im Code bleibt `Hole`, weil Bezeichner, JSON und Hashes sonst ohne Gewinn brechen. Im Prompt bleibt vorerst „Loch“: Jede Änderung an dem, was das Modell liest, braucht eine Messung, und ein Wort allein ist den Aufwand nicht wert.
+
+### Warum Sicht und Schreibrecht getrennt sind (D#69)
+
+Ein Berichtsschritt soll alles lesen, was die Kette ausgegeben hat, aber nur eine Datei anlegen. Solange die Sicht am pathPrefix hing, ging nur eines von beiden: Unter `PRUEFUNG_V133.md` sah der Agentenschritt nichts von `python3 x.py`, unter "." durfte er jede neue Datei anlegen. Ein weiterer pathPrefix ist das größere Recht; was ein Agentenschritt sieht, ist nur Kontext für das Modell. Deshalb ein eigenes Feld statt einer Ausnahme in der Regel, welche Ergebnisse pfadlos zählen: Die Ausgabe von `python3 x.py` pfadlos zu zählen, hätte jedem Agentenschritt auch einen Traceback mit Zeilen aus x.py gezeigt. Die Sicht schwächt sich wie alle Rechte nur ab. Für Modelle bleibt das Feld vorerst unsichtbar, damit die gemessenen Pläne gleich bleiben; ob Modelle es brauchen, zeigt erst ein Einsatz mit Modellplänen.
 
 ### Warum Programme in die Konfiguration gehören (D#68)
 
@@ -385,7 +394,7 @@ Was nicht erlaubt ist, ist unendlich. Für den Menschen beruhigend ist aber die 
 
 ### Warum Record und Replay
 
-Die zentrale Invariante gilt auch für Löcher, und Löcher werden vom Modell gefüllt, das beliebiges liefern kann. Man kann diese Invariante nur beweisen, wenn man beliebige Modellantworten einspielen kann, ohne ein Modell zu haben. Record zeichnet jeden Lauf als Ereignisfolge auf (Werkzeugergebnisse und Modellantworten), Replay spielt die Folge ohne Dateisystem und ohne Modell ab, und AdversarialFill erzeugt Antworten, die absichtlich ausbrechen wollen. Zusammen ergibt das einen Property-Test über hunderte zufällige Terme in Millisekunden. Nebenbei ist ein Agentenlauf damit Event Sourcing, mit allem, was man darüber weiß: Versionierung der Ereignisse, wenn sich die Algebra ändert, und der Hash des freigegebenen Terms als erstes Ereignis.
+Die zentrale Invariante gilt auch für Agentenschritte, und Agentenschritte werden vom Modell gefüllt, das beliebiges liefern kann. Man kann diese Invariante nur beweisen, wenn man beliebige Modellantworten einspielen kann, ohne ein Modell zu haben. Record zeichnet jeden Lauf als Ereignisfolge auf (Werkzeugergebnisse und Modellantworten), Replay spielt die Folge ohne Dateisystem und ohne Modell ab, und AdversarialFill erzeugt Antworten, die absichtlich ausbrechen wollen. Zusammen ergibt das einen Property-Test über hunderte zufällige Terme in Millisekunden. Nebenbei ist ein Agentenlauf damit Event Sourcing, mit allem, was man darüber weiß: Versionierung der Ereignisse, wenn sich die Algebra ändert, und der Hash des freigegebenen Terms als erstes Ereignis.
 
 ### Warum Evals vor Code
 
@@ -397,11 +406,11 @@ Jede Operation der Algebra bekommt einen Namen und eine Beschreibung, die das Mo
 
 ### Warum origin pro Knoten
 
-Was das Modell stabil plant, kann zum festen menschlichen Flow werden; was es variabel plant, bleibt Loch. Mit `origin` an jedem Knoten und dem Fingerprint über viele Pläne liefert die Engine die Daten dafür selbst: Wenn das Doku-Loch bei zehn Releases jedes Mal dasselbe Muster liefert, zieht man das Muster in den Flow und verkleinert das Loch. Das ist dieselbe Bewegung, die in der Branche Scaffolding nach innen in die Modelle wandern lässt, nur in die andere Richtung: vom Modell in die Prozessdefinition. Der Flow wird mit der Zeit starrer, wo das Modell verlässlich ist, und bleibt offen, wo es nicht ist.
+Was das Modell stabil plant, kann zum festen menschlichen Flow werden; was es variabel plant, bleibt Agentenschritt. Mit `origin` an jedem Knoten und dem Fingerprint über viele Pläne liefert die Engine die Daten dafür selbst: Wenn der Doku-Schritt bei zehn Releases jedes Mal dasselbe Muster liefert, zieht man das Muster in den Flow und verkleinert den Agentenschritt. Das ist dieselbe Bewegung, die in der Branche Scaffolding nach innen in die Modelle wandern lässt, nur in die andere Richtung: vom Modell in die Prozessdefinition. Der Flow wird mit der Zeit starrer, wo das Modell verlässlich ist, und bleibt offen, wo es nicht ist.
 
 ### Warum ein statischer Baum und keine Variablen (D#5)
 
-Ein JSON-Term kann keine Scala-Funktionen enthalten, also keine Fortsetzungen. Zwei Auswege: eine kleine Ausdruckssprache mit Variablen im Term, oder jede Datenabhängigkeit als Loch. Für v1 das zweite, weil es die Sprache klein hält, die Algebra nur `Applicative` verlangt und jede Datenabhängigkeit damit automatisch durch ein Tor läuft. Der Preis sind mehr Modellaufrufe. Variablen bleiben Kandidat für v2, wenn die Evals zeigen, dass zu viele Löcher nur Daten durchreichen.
+Ein JSON-Term kann keine Scala-Funktionen enthalten, also keine Fortsetzungen. Zwei Auswege: eine kleine Ausdruckssprache mit Variablen im Term, oder jede Datenabhängigkeit als Agentenschritt. Für v1 das zweite, weil es die Sprache klein hält, die Algebra nur `Applicative` verlangt und jede Datenabhängigkeit damit automatisch durch ein Tor läuft. Der Preis sind mehr Modellaufrufe. Variablen bleiben Kandidat für v2, wenn die Evals zeigen, dass zu viele Agentenschritte nur Daten durchreichen.
 
 ### Warum das Schema von Hand (D#7)
 

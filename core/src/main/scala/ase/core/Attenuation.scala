@@ -21,6 +21,10 @@ object Attenuation:
       case (_, Left(reason)) => List(Violation.InvalidPath(loc, parent.pathPrefix, reason))
       case (Right(c), Right(p)) =>
         Option.when(!c.startsWith(p))(Violation.WiderPrefix(loc, child.pathPrefix, parent.pathPrefix)).toList
+    // Sicht wird wie der pathPrefix nur enger (D#69); ein ungültiger scopePrefix steht in wellFormed
+    val scope = (RelPath.parse(child.sees), RelPath.parse(parent.sees)) match
+      case (Right(c), Right(p)) => Option.when(!c.startsWith(p))(Violation.WiderScope(loc, child.sees, parent.sees)).toList
+      case _                    => Nil
     val shell = child.shellAllowlist.toList
       .filterNot(allowedBy(parent.shellAllowlist, _))
       .sortBy(_.show)
@@ -31,7 +35,7 @@ object Attenuation:
     val steps = mode match
       case Mode.Hole => None // über WorstCaseSteps geprüft (D#14)
       case Mode.Flow => Option.when(child.maxSteps > parent.maxSteps)(Violation.WiderSteps(loc, child.maxSteps, parent.maxSteps))
-    ops ++ prefix ++ shell ++ depth ++ steps
+    ops ++ prefix ++ scope ++ shell ++ depth ++ steps
 
   /** Well-Formedness: ein Loch muss lösbar beschränkt sein (D#21). Jeder erlaubte Befehl muss nutzbar sein:
     * es gibt eine Argument-Policy, und unter einem engeren pathPrefix als "." nimmt er Pfade an (D#27, D#31).
@@ -50,7 +54,8 @@ object Attenuation:
         Some(s"„${c.show}“ nimmt keine Pfade und berührt damit das ganze Arbeitsverzeichnis, nicht nur ${e.pathPrefix}")
       else None
     }
-    (List(
+    val scope = e.scopePrefix.toList.flatMap(s => RelPath.parse(s).left.toOption.map(Violation.InvalidPath(loc / "scopePrefix", s, _)))
+    scope ++ (List(
       Option.when(e.maxSteps < 1)("maxSteps muss mindestens 1 sein"),
       Option.when(e.allowedOps.isEmpty)("allowedOps ist leer"),
       Option.when(e.maxDepth < 0)("maxDepth darf nicht negativ sein"),

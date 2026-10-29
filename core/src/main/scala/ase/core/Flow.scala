@@ -75,8 +75,9 @@ object Flow:
     def envelope(e: Envelope): Either[FlowError, Envelope] =
       (
         f(e.pathPrefix),
-        e.shellAllowlist.toList.traverse(c => (f(c.binary), c.requiredPrefixArgs.traverse(f)).mapN(AllowedCommand(_, _)))
-      ).mapN((prefix, shell) => e.copy(pathPrefix = prefix, shellAllowlist = shell.toSet))
+        e.shellAllowlist.toList.traverse(c => (f(c.binary), c.requiredPrefixArgs.traverse(f)).mapN(AllowedCommand(_, _))),
+        e.scopePrefix.traverse(f)
+      ).mapN((prefix, shell, scope) => e.copy(pathPrefix = prefix, shellAllowlist = shell.toSet, scopePrefix = scope))
     def go(t: Term): Either[FlowError, Term] = t match
       case Term.ReadFile(p, o)          => f(p).map(Term.ReadFile(_, o))
       case Term.ListDir(p, o)           => f(p).map(Term.ListDir(_, o))

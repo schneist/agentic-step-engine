@@ -31,3 +31,10 @@ class ScopeSuite extends munit.FunSuite:
 
   test("MoveFile ist nur sichtbar, wenn beide Pfade unter dem Präfix liegen"):
     assertEquals(Scope.visible(Vector(Scope.Seen(1, List("docs/a.md", "src/b.md"))), docs), Vector.empty)
+
+  test("scopePrefix: Sicht weiter als der pathPrefix, Schreiben bleibt eng (D#69)"):
+    val report = Envelope(Set(OpKind.WriteFile), "REPORT.md", 1, 0, Set.empty)
+    val prior = Vector(Scope.Seen(1, shell("grep", "-rn", "x", "src")), Scope.Seen(2, List("REPORT.md")), Scope.Seen(3, Nil))
+    assertEquals(Scope.visible(prior, report).map(_.step), Vector(2, 3))
+    assertEquals(Scope.visible(prior, report.copy(scopePrefix = Some("."))).map(_.step), Vector(1, 2, 3))
+    assertEquals(Scope.visible(prior, report.copy(scopePrefix = Some("docs"))).map(_.step), Vector(3))

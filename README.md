@@ -2,10 +2,10 @@
 
 **Das Sprachmodell schreibt das Programm. `ase` prüft es, ein Mensch gibt es frei, dann erst läuft es.**
 
-`ase` lässt ein Sprachmodell wiederkehrende Arbeiten an einem Repository erledigen: ein Release vorbereiten, einen roten Test reparieren, Doku nachziehen. Das Modell ruft dabei keine Werkzeuge einzeln auf, die sofort wirken. Es schreibt zuerst ein kleines Programm aus festen Schritten, mit **Löchern** an den Stellen, an denen es erst zur Laufzeit entscheiden kann. Jedes Loch trägt eine **Hülle**: welche Operationen, unter welchem Pfad, wie viele Schritte. Du liest das Programm im Klartext und gibst seinen Hash frei. Danach läuft genau dieses Programm, und auch was das Modell später in ein Loch setzt, wird vor der Ausführung gegen dessen Hülle geprüft.
+`ase` lässt ein Sprachmodell wiederkehrende Arbeiten an einem Repository erledigen: ein Release vorbereiten, einen roten Test reparieren, Doku nachziehen. Das Modell ruft dabei keine Werkzeuge einzeln auf, die sofort wirken. Es schreibt zuerst ein kleines Programm aus festen Schritten, mit **Agentenschritten** an den Stellen, an denen es erst zur Laufzeit entscheiden kann. Jeder Agentenschritt trägt eine **Hülle**: welche Operationen, unter welchem Pfad, wie viele Schritte. Du liest das Programm im Klartext und gibst seinen Hash frei. Danach läuft genau dieses Programm, und auch was das Modell später in einen Agentenschritt setzt, wird vor der Ausführung gegen dessen Hülle geprüft.
 
 - **Der Plan ist das Programm.** Freigegeben wird kein Prosaplan, sondern ein Term mit Hash und fester Obergrenze für die Schrittzahl.
-- **Rechte pro Loch.** Im selben Lauf darf ein Loch nur `CHANGELOG.md` ändern, ein anderes nur unter `docs/`.
+- **Rechte pro Agentenschritt.** Im selben Lauf darf ein Agentenschritt nur `CHANGELOG.md` ändern, ein anderes nur unter `docs/`.
 - **Einmal freigeben, oft laufen lassen.** Ein Flow hat einen stabilen Hash und läuft mit `--approve <hash> --no-ask` auch in CI.
 - **Erprobt.** Mit Claude bestand jede der sechs Testaufgaben 10 von 10 Läufen ([Zahlen](#wie-zuverlässig-es-ist)).
 
@@ -15,24 +15,24 @@ Prototyp in Scala 3 mit Kommandozeile, Apache License 2.0. Gedacht für Abläufe
 
 ## Wie es funktioniert
 
-Das Modell schreibt einen **Term**: ein Programm als JSON in einer kleinen, festen Sprache. Sie kennt Datei lesen, ändern, anlegen und verschieben, erlaubte Shell-Befehle, Sequenz, Bedingung und begrenzte Wiederholung. Variablen gibt es nicht. Wo das Modell Daten braucht, die es beim Planen noch nicht hat, setzt es ein **Loch**: „hier entscheide ich später“. Die **Hülle** (envelope) des Lochs legt fest, welche Operationen unter welchem Pfad erlaubt sind, wie viele Schritte und welche Shell-Befehle.
+Das Modell schreibt einen **Term**: ein Programm als JSON in einer kleinen, festen Sprache. Sie kennt Datei lesen, ändern, anlegen und verschieben, erlaubte Shell-Befehle, Sequenz, Bedingung und begrenzte Wiederholung. Variablen gibt es nicht. Wo das Modell Daten braucht, die es beim Planen noch nicht hat, setzt es einen **Agentenschritt** (im Term `Hole`): „hier entscheide ich später“. Die **Hülle** (envelope) des Agentenschritts legt fest, welche Operationen unter welchem Pfad erlaubt sind, wie viele Schritte und welche Shell-Befehle.
 
 1. **Plan.** Das Modell liefert den Term zu einer Aufgabe. Alternativ hat ihn ein Mensch als **Flow** geschrieben (eine Datei in `flows/`).
-2. **Tor 1.** Ein **DryRun** prüft den Term, ohne etwas auszuführen: Pfade, Shell-Befehle und Flags, die Schrittzahl im schlechtesten Fall und die **Attenuation**. Die Hülle jedes Lochs darf höchstens so weit sein wie die umgebende; Rechte werden nur enger.
-3. **Freigabe.** **Explain** zeigt den Term im Klartext, mit der Hülle jedes Lochs. Der Mensch bestätigt einen SHA-256-Hash über diesen Term und seine äußere Hülle. Nur genau das läuft.
-4. **Ausführen.** Die festen Schritte laufen. Bei einem Loch fragt `ase` das Modell nach einem Teilterm, einem **Fill**. **Tor 2** prüft ihn gegen die Hülle des Lochs, bevor er läuft.
+2. **Tor 1.** Ein **DryRun** prüft den Term, ohne etwas auszuführen: Pfade, Shell-Befehle und Flags, die Schrittzahl im schlechtesten Fall und die **Attenuation**. Die Hülle jedes Agentenschritts darf höchstens so weit sein wie die umgebende; Rechte werden nur enger.
+3. **Freigabe.** **Explain** zeigt den Term im Klartext, mit der Hülle jedes Agentenschritts. Der Mensch bestätigt einen SHA-256-Hash über diesen Term und seine äußere Hülle. Nur genau das läuft.
+4. **Ausführen.** Die festen Schritte laufen. Bei einem Agentenschritt fragt `ase` das Modell nach einem Teilterm, einem **Fill**. **Tor 2** prüft ihn gegen die Hülle des Agentenschritts, bevor er läuft.
 
 ```mermaid
 flowchart TD
-    A[Aufgabe oder Flow] --> B[Plan: Term mit Löchern]
+    A[Aufgabe oder Flow] --> B[Plan: Term mit Agentenschritten]
     B --> C{Tor 1: DryRun}
     C -- Verstoß, Modellplan: neuer Versuch, max 3 --> B
     C -- Verstoß, Flow oder Versuche aus --> X[ase plan endet mit Exit 3]
     C -- ok --> D[Explain, Mensch bestätigt Hash]
     D --> E[Execute: feste Schritte]
     E --> F[Ergebnis und Record-Log]
-    E -- Loch --> G[Fill: Teilterm vom Modell]
-    G --> H{Tor 2: gegen die Hülle des Lochs}
+    E -- Agentenschritt --> G[Fill: Teilterm vom Modell]
+    G --> H{Tor 2: gegen die Hülle des Agentenschritts}
     H -- Verstoß, max 3 Versuche --> G
     H -- Versuche aus --> Y[Lauf endet: aborted]
     H -- ok --> E
@@ -80,7 +80,7 @@ approved  06cd1a…8f61  → ../ase-records/release-2.4.0.log
 
 ### Was während des Laufs passiert
 
-Drei Dinge muss man wissen, um das Log zu lesen. Erstens sieht ein Fill die Ergebnisse seiner eigenen Schritte nicht sofort. Endet er ohne `Done`, fragt `ase` das Modell erneut für dasselbe Loch, jetzt mit dem Gelesenen. Das ist eine **Runde**; ein Loch bekommt höchstens 3 davon. Zweitens teilen sich alle Runden das Schrittbudget des Lochs, darum sinkt die Zahl hinter `≤`. Drittens fehlen die Nummern 2 und 4, weil diese Zweige nicht liefen. Die 16 Schritte am Ende zählen alle ausgeführten samt `Done` und einen je angenommenem Loch; abgelehnte Fills kosten Modellaufrufe, aber keine Schritte. Das Log ist konstruiert (echtes Format, erfundene Hashes und Zahlen).
+Drei Dinge muss man wissen, um das Log zu lesen. Erstens sieht ein Fill die Ergebnisse seiner eigenen Schritte nicht sofort. Endet er ohne `Done`, fragt `ase` das Modell erneut für denselben Agentenschritt, jetzt mit dem Gelesenen. Das ist eine **Runde**; ein Agentenschritt bekommt höchstens 3 davon. Zweitens teilen sich alle Runden das Schrittbudget des Agentenschritts, darum sinkt die Zahl hinter `≤`. Drittens fehlen die Nummern 2 und 4, weil diese Zweige nicht liefen. Die 16 Schritte am Ende zählen alle ausgeführten samt `Done` und einen je angenommenem Agentenschritt; abgelehnte Fills kosten Modellaufrufe, aber keine Schritte. Das Log ist konstruiert (echtes Format, erfundene Hashes und Zahlen).
 
 ```
 1  shell  git status --porcelain             exit 0  (leer)
@@ -121,28 +121,28 @@ Drei Dinge muss man wissen, um das Log zu lesen. Erstens sieht ein Fill die Erge
 
 Lauf beendet
 16 Schritte · 6 Modellaufrufe · 0 Ablehnungen an Tor 1 · 2 Ablehnungen an Tor 2 · 4 Dateien geändert · 23.4k Tokens
-Hinweis des Agenten (Loch 6): Changelog 2.4.0 ergänzt: 4 Features, 9 Fixes, 1 Breaking
-Hinweis des Agenten (Loch 7): parseConfig in docs/api.md und docs/migration.md angepasst; README.md laut Commit-Log vermutlich betroffen, nicht gelesen
+Hinweis des Agenten (Agentenschritt 6): Changelog 2.4.0 ergänzt: 4 Features, 9 Fixes, 1 Breaking
+Hinweis des Agenten (Agentenschritt 7): parseConfig in docs/api.md und docs/migration.md angepasst; README.md laut Commit-Log vermutlich betroffen, nicht gelesen
 ../ase-records/release-2.4.0.log · approved 06cd1a…8f61
 ```
 
-Die erste Ablehnung verhindert Schaden. Das Changelog-Loch wollte nebenbei die Version in `build.sbt` anheben. Das Loch durfte nur `CHANGELOG.md` anfassen; eine stille Versionsänderung an anderer Stelle wäre im Explain nie sichtbar gewesen (und hätte Schritt 8 scheitern lassen). Tor 2 lehnt ab, bevor etwas läuft, und der Lauf geht weiter. Die zweite Ablehnung ist die ehrliche Seite: Das Modell wollte etwas Sinnvolles tun und durfte nicht. Es nennt die Stelle im Ergebnis, und Mara entscheidet selbst.
+Die erste Ablehnung verhindert Schaden. Der Changelog-Schritt wollte nebenbei die Version in `build.sbt` anheben. Er durfte nur `CHANGELOG.md` anfassen; eine stille Versionsänderung an anderer Stelle wäre im Explain nie sichtbar gewesen (und hätte Schritt 8 scheitern lassen). Tor 2 lehnt ab, bevor etwas läuft, und der Lauf geht weiter. Die zweite Ablehnung ist die ehrliche Seite: Das Modell wollte etwas Sinnvolles tun und durfte nicht. Es nennt die Stelle im Ergebnis, und Mara entscheidet selbst.
 
 ## Warum nicht einfach Claude Code mit Regeln?
 
 Ein Coding-Agent wie Claude Code lässt sich gut einzäunen. Der Plan-Modus zeigt vorher einen Plan. Erlaubnisregeln geben Werkzeuge, Befehlsmuster und Pfade frei. Subagents bekommen eigene Werkzeuglisten. Hooks können einzelne Aufrufe blockieren, und ein Devcontainer isoliert das Ganze. Was dabei bleibt:
 
 - **Der Plan bindet nicht.** Im Plan-Modus ist der Plan Prosa, und danach ruft der Agent wieder Werkzeuge einzeln auf. Hier *ist* der freigegebene Plan das Programm, das läuft. Es ist an seinen Hash gebunden, und seine Schrittzahl hat eine feste Obergrenze.
-- **Rechte gelten pro Loch, mit Pfad und Schrittbudget, und werden vor dem Lauf geprüft.** Anders als die Werkzeuglisten eines Subagenten sind die Hüllen Teil des freigegebenen Hashes und werden vor jedem Fill geprüft.
+- **Rechte gelten pro Agentenschritt, mit Pfad und Schrittbudget, und werden vor dem Lauf geprüft.** Anders als die Werkzeuglisten eines Subagenten sind die Hüllen Teil des freigegebenen Hashes und werden vor jedem Fill geprüft.
 - **Einmal freigeben, oft laufen lassen.** Ändern sich Flow, Parameter oder die Hülle im Flow, ändert sich der Hash, und `ase run` gibt nicht frei. Ein vom Modell geplanter Term ist jedes Mal ein anderer und braucht jedes Mal eine Freigabe.
 - **Entscheidungen zur Laufzeit gehen durch ein Tor.** Jeder Fill wird gegen die Hülle geprüft, bevor auch nur ein Schritt davon läuft. Bei einer Ablehnung bekommt das Modell die Begründung, und der Lauf geht weiter.
 
 ## Grenzen
 
-- **Kein Schutz vor Code im Repository.** `ase` schützt vor dem, was das Modell tut. Erlaubte Programme wie `./run-tests.sh` oder `sbt test` laufen ohne Sandbox und können alles, was der Nutzer kann. Explain markiert sie als „führt Workspace-Code aus“ und warnt vor einem Loch, das solchen Code ändern darf. Für Isolation gehört ein Container drumherum.
-- **Geprüft werden Ort und Art, nicht Inhalt.** Ein Loch kann innerhalb seiner Hülle schlechte Arbeit machen. Hüllen, die ein Modell selbst plant, können weiter sein als nötig. Den Explain muss also jemand lesen.
+- **Kein Schutz vor Code im Repository.** `ase` schützt vor dem, was das Modell tut. Erlaubte Programme wie `./run-tests.sh` oder `sbt test` laufen ohne Sandbox und können alles, was der Nutzer kann. Explain markiert sie als „führt Workspace-Code aus“ und warnt vor einem Agentenschritt, der solchen Code ändern darf. Für Isolation gehört ein Container drumherum.
+- **Geprüft werden Ort und Art, nicht Inhalt.** Ein Agentenschritt kann innerhalb seiner Hülle schlechte Arbeit machen. Hüllen, die ein Modell selbst plant, können weiter sein als nötig. Den Explain muss also jemand lesen.
 - **Kein Zurückrollen.** Was gelaufen ist, bleibt gelaufen.
-- **Mehr Modellaufrufe.** Ein Plan und je Loch mindestens ein Fill. Claude braucht je nach Aufgabe 11k bis 61k Tokens je Lauf. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
+- **Mehr Modellaufrufe.** Ein Plan und je Agentenschritt mindestens ein Fill. Claude braucht je nach Aufgabe 11k bis 61k Tokens je Lauf. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
 - **Kleine Sprache.** Sie bearbeitet Dateien und ruft eine kleine Liste von Shell-Befehlen auf, mehr nicht.
 
 ## Wie zuverlässig es ist
@@ -158,7 +158,7 @@ Sechs Testaufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). J
 | 5 | Aufgabe außerhalb der Hülle: fragen statt umgehen | 10/10 | 11,1k |
 | 6 | Roten Test reparieren und berichten | 10/10 | 61,2k |
 
-Eval 5 misst das Gegenteil von Erfolg um jeden Preis: Die Aufgabe verlangt etwas, das die Hülle nicht erlaubt, und `ase` muss nachfragen, statt es zu umgehen. In Eval 6 trennen die Pläne Diagnose, Reparatur und Bericht so, dass kein Loch das Testskript ändern darf, das danach läuft. Andere Modelle sind angebunden, aber schwächer: Gemini 3.8 Flash über agy bestand Eval 1 in 1 von 5 Läufen.
+Eval 5 misst das Gegenteil von Erfolg um jeden Preis: Die Aufgabe verlangt etwas, das die Hülle nicht erlaubt, und `ase` muss nachfragen, statt es zu umgehen. In Eval 6 trennen die Pläne Diagnose, Reparatur und Bericht so, dass kein Agentenschritt das Testskript ändern darf, das danach läuft. Andere Modelle sind angebunden, aber schwächer: Gemini 3.8 Flash über agy bestand Eval 1 in 1 von 5 Läufen.
 
 Im ersten echten Einsatz lief ein Flow an einem Python-Projekt mit rund 1.000 Skripten: 18 Rechenschritte in der Reihenfolge, die das Projekt vorschreibt, mit Abbruch, wenn eine Konsistenzprüfung scheitert, und am Ende ein Prüfbericht. 5 von 5 Läufen lieferten einen vollständigen Bericht mit denselben Befunden, je mit einem Modellaufruf und rund 56k Tokens.
 
@@ -226,7 +226,7 @@ Die Konfiguration (`--config`) ist JSON; jedes Feld ist optional, unbekannte Fel
 | `agy` | Antigravity-CLI | angemeldete CLI | gemini-3.8-flash-medium | `evals/runner-agy.json`, `evals/runner-agy-argon.json` |
 | `ollama` | lokal, Port 11434 | keine | qwen3:4b-instruct | `evals/runner-ollama.json` |
 
-Dazu kommen `limits`, `scripts`, `programs`, `explainDenials`, `nestingLimit`, `planRounds` und `bestOfN`. Mit `programs` erlaubt man weitere Programme, etwa `{ "binary": "python3", "runsCode": ["."] }`: Flags nur aus der eigenen Liste, alle übrigen Argumente werden als Pfade geprüft, und `runsCode` sagt, welcher Code damit läuft. Mit `bestOfN` größer 1 erzeugt jede Plan-Runde so viele Pläne, und einer gilt nur, wenn die Mehrheit dieselbe Form hat: denselben Ablauf, dieselben Operationen, dieselben Rechte der Löcher. Sonst entscheidet der Mensch. Das lohnt sich bei Aufgaben mit einem naheliegenden Lösungsweg; gibt es mehrere gute Wege, landet die Entscheidung meist beim Menschen. Standard ist 1. Einzelheiten in [RunnerConfig.scala](runner/src/main/scala/ase/runner/RunnerConfig.scala).
+Dazu kommen `limits`, `scripts`, `programs`, `explainDenials`, `nestingLimit`, `planRounds` und `bestOfN`. Mit `programs` erlaubt man weitere Programme, etwa `{ "binary": "python3", "runsCode": ["."] }`: Flags nur aus der eigenen Liste, alle übrigen Argumente werden als Pfade geprüft, und `runsCode` sagt, welcher Code damit läuft. Mit `bestOfN` größer 1 erzeugt jede Plan-Runde so viele Pläne, und einer gilt nur, wenn die Mehrheit dieselbe Form hat: denselben Ablauf, dieselben Operationen, dieselben Rechte der Agentenschritte. Sonst entscheidet der Mensch. Das lohnt sich bei Aufgaben mit einem naheliegenden Lösungsweg; gibt es mehrere gute Wege, landet die Entscheidung meist beim Menschen. Standard ist 1. Einzelheiten in [RunnerConfig.scala](runner/src/main/scala/ase/runner/RunnerConfig.scala).
 
 ## Referenz
 
@@ -244,19 +244,21 @@ Term ::= ReadFile(path) | ListDir(path)                -- ListDir samt Unterverz
 Pred ::= FileExists(path) | LastExitCode(code) | LastOutputContains(text) | LastOutputEmpty | Not(p) | And(p, q)
 ```
 
-Die Sprache hat keine Fortsetzungen, Lambdas oder Variablen. Alles, was den Inhalt eines Ergebnisses verarbeiten muss, ist ein Loch. Jeder Knoten trägt `origin: Human | Model(callId)`, und Flows und Modellpläne werden gleich behandelt. Wer prüft oder erklärt, sieht beide Zweige von `If` und `RepeatUntil`; nur die Ausführung wählt. `Ask` kann auch mitten im Lauf eine Frage stellen.
+Die Sprache hat keine Fortsetzungen, Lambdas oder Variablen. Alles, was den Inhalt eines Ergebnisses verarbeiten muss, ist ein Agentenschritt. Jeder Knoten trägt `origin: Human | Model(callId)`, und Flows und Modellpläne werden gleich behandelt. Wer prüft oder erklärt, sieht beide Zweige von `If` und `RepeatUntil`; nur die Ausführung wählt. `Ask` kann auch mitten im Lauf eine Frage stellen.
 
 ### Hüllen
 
 ```
-Envelope(allowedOps, pathPrefix, maxSteps, maxDepth, shellAllowlist)
+Envelope(allowedOps, pathPrefix, maxSteps, maxDepth, shellAllowlist, scopePrefix?)
 AllowedCommand(binary, requiredPrefixArgs)     -- "git" + ["status"], nicht nur "git"
 OpKind ::= ReadFile | ListDir | WriteFile | EditFile | MoveFile | Shell | Ask | Hole
 ```
 
-`Ask` und `Hole` sind nur erlaubt, wenn die Hülle sie nennt: Ein Loch darf dann nachfragen oder Unterlöcher setzen. Shell-Befehle laufen ohne `sh -c`, ohne Pipes und ohne Umleitungen. Erlaubte Flags legt eine Argument-Policy je Programm fest. Die übrigen Argumente sind je nach Programm Pfade, ein Suchmuster (grep) oder ein Revisionsbereich (git log); Pfade werden wie bei `ReadFile` geprüft.
+`Ask` und `Hole` sind nur erlaubt, wenn die Hülle sie nennt: Ein Agentenschritt darf dann nachfragen oder innere Agentenschritte setzen. Shell-Befehle laufen ohne `sh -c`, ohne Pipes und ohne Umleitungen. Erlaubte Flags legt eine Argument-Policy je Programm fest. Die übrigen Argumente sind je nach Programm Pfade, ein Suchmuster (grep) oder ein Revisionsbereich (git log); Pfade werden wie bei `ReadFile` geprüft.
 
-Attenuation heißt: `allowedOps` ist eine Teilmenge der äußeren, jeder Shell-Befehl gleich oder enger (`git status` unter `git`), `pathPrefix` liegt darunter, `maxDepth` ist strikt kleiner, und die Schritte im schlechtesten Fall sind höchstens das `maxSteps` des äußeren Lochs. Ein Fill wird mit einem Decoder gelesen, der nicht erlaubte Operationsarten gar nicht kennt. Pfade, Befehle, Flags und Budget prüft danach der DryRun.
+Attenuation heißt: `allowedOps` ist eine Teilmenge der äußeren, jeder Shell-Befehl gleich oder enger (`git status` unter `git`), `pathPrefix` liegt darunter, `maxDepth` ist strikt kleiner, und die Schritte im schlechtesten Fall sind höchstens das `maxSteps` des äußeren Agentenschritts. Ein Fill wird mit einem Decoder gelesen, der nicht erlaubte Operationsarten gar nicht kennt. Pfade, Befehle, Flags und Budget prüft danach der DryRun.
+
+Ein Agentenschritt sieht die Ergebnisse früherer Schritte, deren Pfade unter seinem `pathPrefix` liegen; Ergebnisse ohne Pfad sieht er immer. Mit `scopePrefix` sieht er weiter, als er schreiben darf: Ein Berichtsschritt unter `REPORT.md` mit `"scopePrefix": "."` liest die Ausgaben aller Schritte davor und legt trotzdem nur diese eine Datei an. Auch die Sicht wird nach innen nur enger.
 
 ### Unter der Haube
 

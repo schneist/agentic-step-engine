@@ -80,7 +80,8 @@ object Explain:
     val ops = e.allowedOps.toList.sortBy(_.ordinal).mkString(", ")
     val shell = Option.when(e.shellAllowlist.nonEmpty)(s" · shell: ${e.shellAllowlist.toList.map(_.show).sorted.mkString(", ")}")
     val steps = if e.maxSteps == 1 then "1 Schritt" else s"${e.maxSteps} Schritte"
-    s"darf $ops · unter ${e.pathPrefix} · max $steps · Tiefe ${e.maxDepth}${shell.getOrElse("")}"
+    val scope = e.scopePrefix.fold("")(s => s" · sieht Ergebnisse unter $s")
+    s"darf $ops · unter ${e.pathPrefix}$scope · max $steps · Tiefe ${e.maxDepth}${shell.getOrElse("")}"
 
   private def interpreter(code: List[Vector[String]], check: CheckConfig): AgentAlg[Out] = new AgentAlg[Out]:
     private def pad(indent: Int): String = "  " * indent

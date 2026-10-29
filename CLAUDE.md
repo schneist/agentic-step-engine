@@ -18,7 +18,7 @@ Nichts wird ausgeführt, was nicht vorher geprüft wurde. Weder ein Plan noch ei
 
 - Kein `sh -c`, keine Shell-Interpretation. Argumente als Liste, keine Pipes, keine Redirections. Flags nur aus der Argument-Policy des Programms; alle anderen Argumente werden als Pfade geprüft (D#12).
 - Kein `Sync`, `Async`, `IO` oder `Monad` als Constraint in der Algebra. Programme verlangen nur `Applicative`. Effekte leben ausschließlich in Interpretern am Rand.
-- Keine Lambdas, Fortsetzungen oder Variablen im Term. Datenabhängigkeiten sind Löcher.
+- Keine Lambdas, Fortsetzungen oder Variablen im Term. Datenabhängigkeiten sind Agentenschritte (`Hole`).
 - Hüllen werden nur abgeschwächt, nie erweitert (Attenuation).
 - Interpreter schreiben nie in den Term zurück. Transformationen `Term => Term` sind eigene Funktionen mit eigenem DryRun danach.
 - `toRealPath()` nie auf eine Zieldatei, die noch nicht existiert. Tiefstes existierendes Elternverzeichnis auflösen, Rest normalisiert anhängen.
@@ -42,10 +42,10 @@ Nichts wird ausgeführt, was nicht vorher geprüft wurde. Weder ein Plan noch ei
 `Explain` und das Lauf-Log folgen dem Format im README (Abschnitt "Beispiel"). Kurz:
 
 - Eine Zeile pro statischem Schritt: Nummer, Operation, Ziel, Ergebnis.
-- Löcher eingerückt: `hole` mit Ziel, dann `fill` mit Teilterm und Hash, dann `dryrun ok|rejected`, dann die Schritte des Teilterms.
+- Agentenschritte eingerückt: `hole` mit Ziel, dann `fill` mit Teilterm und Hash, dann `dryrun ok|rejected`, dann die Schritte des Teilterms.
 - Ablehnungen mit Grund und dem Text, der ans Modell ging.
 - Abschluss: Schritte, Modellaufrufe, Ablehnungen pro Tor, geänderte Dateien, Tokens, Hinweise des Agenten, Pfad des Record-Logs, Hash des freigegebenen Terms.
-- `Explain` vor der Freigabe: Löcher als "Hier entscheidet der Agent" mit der Hülle im Klartext; Allowlist und explizit, was nicht darin ist (Liste `explainDenials` aus der Runner-Konfiguration, D#24); bei Flows die gebundenen Parameter.
+- `Explain` vor der Freigabe: Agentenschritte als "Hier entscheidet der Agent" mit der Hülle im Klartext; Allowlist und explizit, was nicht darin ist (Liste `explainDenials` aus der Runner-Konfiguration, D#24); bei Flows die gebundenen Parameter.
 
 ## Stil
 

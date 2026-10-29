@@ -3,7 +3,7 @@
 Technische Spezifikation. Das Warum steht in context.md §8, Entscheidungen in findings.md, Arbeitsregeln in CLAUDE.md.
 
 IDEE
-Ein LLM erzeugt Agentenprogramme als Terme einer Algebra. Terme dürfen Löcher enthalten: Stellen, an denen das Modell erst zur Laufzeit entscheidet, wenn Daten vorliegen. Jedes Loch trägt eine Hülle (Envelope), die festlegt, was dort maximal passieren darf. Die Engine prüft den bekannten Teil vorab (DryRun) und jeden zur Laufzeit gelieferten Teilterm gegen die Hülle seines Lochs, bevor sie ihn ausführt. Nichts wird ausgeführt, was nicht vorher geprüft wurde.
+Ein LLM erzeugt Agentenprogramme als Terme einer Algebra. Terme dürfen Agentenschritte enthalten: Stellen, an denen das Modell erst zur Laufzeit entscheidet, wenn Daten vorliegen. Jeder Agentenschritt (im Term `Hole`) trägt eine Hülle (Envelope), die festlegt, was dort maximal passieren darf. Die Engine prüft den bekannten Teil vorab (DryRun) und jeden zur Laufzeit gelieferten Teilterm gegen die Hülle seines Agentenschritts, bevor sie ihn ausführt. Nichts wird ausgeführt, was nicht vorher geprüft wurde.
 
 =====================================================================
 MODULE
@@ -37,9 +37,9 @@ Regeln:
 - Jeder Term-Knoten trägt ein Feld origin: Human | Model(callId); callId benennt den Modellaufruf (plan-n, fill-n) (D#19). Terme können auch aus Dateien (flows/) geladen statt vom Modell erzeugt werden; DryRun und Execute behandeln beide gleich. Eine Autoren-Oberfläche für Menschen ist v2, nicht v1.
 - Flow-Datei (D#22): case class Flow(description: String, params: Map[String, Regex], envelope: Envelope, term: Term). Laden: decodieren → jeden Parameterwert gegen seine Regex prüfen → ${name} nur in String-Blättern des Terms ersetzen (unbekannter oder ungebundener Name = Fehler) → flow.envelope muss die Wurzel-Hülle des Runners abschwächen → DryRun gegen flow.envelope. Der Hash geht über den gebundenen Term; Explain zeigt die Parameterwerte.
 - Gleitkommazahlen kommen im Term nicht vor (D#23).
-- Scope (D#9): Ein Hole erhält beim Fill die Ergebnisse aller vorangegangenen Schritte derselben Seq und der umschließenden Seqs als Kontext, gekürzt per Marshalling, gefiltert: nur Ergebnisse ohne Pfad (Shell-Aufrufe ohne Pfadargument, Exit-Codes, Done-Zusammenfassungen früherer Löcher) oder deren Pfade alle innerhalb des pathPrefix des Lochs liegen; die Pfade eines Shell-Aufrufs liefert die Argument-Policy (D#12); ohne Pfadargument ist das Ergebnis nur bei Workspace-Code und bei Befehlen aus CheckConfig.pathless (git log) pfadlos, sonst gilt "." (D#27, D#39). Explain rechnet mit den Pfaden im Term, Execute mit aufgelösten; Execute zeigt also höchstens, was Explain ankündigt (D#42). Eine Funktion für Explain und Execute: Scope.visible.
-- Done in einem Fill beendet nur das Loch; die Zusammenfassung ist das Ergebnis des Lochs ("Hinweis des Agenten", D#15).
-- Runden (D#55): Endet ein Fill ohne Done, mit mindestens einem ausgeführten Schritt und Restbudget, wird dasselbe Loch erneut gefüllt; der Scope enthält dann auch die Ergebnisse der Runden davor. Höchstens maxRoundsPerHole Runden; Versuche zählen je Runde, das Schrittbudget für alle Runden zusammen.
+- Scope (D#9): Ein Hole erhält beim Fill die Ergebnisse aller vorangegangenen Schritte derselben Seq und der umschließenden Seqs als Kontext, gekürzt per Marshalling, gefiltert: nur Ergebnisse ohne Pfad (Shell-Aufrufe ohne Pfadargument, Exit-Codes, Done-Zusammenfassungen früherer Agentenschritte) oder deren Pfade alle innerhalb des pathPrefix des Agentenschritts liegen; die Pfade eines Shell-Aufrufs liefert die Argument-Policy (D#12); ohne Pfadargument ist das Ergebnis nur bei Workspace-Code und bei Befehlen aus CheckConfig.pathless (git log) pfadlos, sonst gilt "." (D#27, D#39). Explain rechnet mit den Pfaden im Term, Execute mit aufgelösten; Execute zeigt also höchstens, was Explain ankündigt (D#42). Eine Funktion für Explain und Execute: Scope.visible.
+- Done in einem Fill beendet nur den Agentenschritt; die Zusammenfassung ist das Ergebnis des Agentenschritts ("Hinweis des Agenten", D#15).
+- Runden (D#55): Endet ein Fill ohne Done, mit mindestens einem ausgeführten Schritt und Restbudget, wird derselbe Agentenschritt erneut gefüllt; der Scope enthält dann auch die Ergebnisse der Runden davor. Höchstens maxRoundsPerHole Runden; Versuche zählen je Runde, das Schrittbudget für alle Runden zusammen.
 - JSON-Codec über circe-Json, von Hand (D#26): Diskriminator "type", strikt (unbekannte Felder sind Fehler), Mengen sortiert, origin als "Human" | "Model:<callId>". OriginMode.Required für Flows und Aufzeichnungen; OriginMode.Stamp(origin) für Modellantworten, die kein origin enthalten dürfen. Roundtrip-Garantie.
 - JSON-Schema für submit_term (D#10): von Hand als Scala-Funktion termSchema(nesting), ohne Bibliothek. `strict: true` erlaubt keine Rekursion, daher ausgerollt: $defs Term_k verweist nur auf Term_{k-1}, Term_0 ohne Kinder. Verschachtelungsgrenze (syntaktisch, nicht maxDepth) aus der Runner-Konfiguration, Standard 5; Decoder und DryRun lehnen tiefere Terme ab. Summe als anyOf, jeder Zweig mit "type": {"const": "<Fall>"}; kein oneOf, kein discriminator. additionalProperties: false an jedem Objekt, alle Felder required. Keine Zahlen-Constraints im Schema (minimum o. ä. nicht unterstützt); Grenzen prüft DryRun. Gesetz: jeder vom Generator erzeugte Term (bis zur Verschachtelungsgrenze) validiert gegen das Schema und überlebt den circe-Roundtrip.
 - structuralFingerprint(t: Term): ignoriert Prosa-Felder (goal, summary, question) und origin (D#19), behält Kontrollfluss, Operationsarten, Pfade und Envelope-Grenzen.
@@ -63,22 +63,24 @@ Capabilities (D#25): restrict(alg: AgentAlg[F], envelope): AgentAlg[F] reicht nu
 ToTerm: AgentAlg[TermWriter] schreibt Terme; fromTerm[F[_]](t: Term)(alg: AgentAlg[F]) faltet einen Term in jede Algebra-Instanz, ohne Constraint (D#28). Gesetze: toTerm(program(t)) == t für alle Terme; fromTerm(toTerm(p)) ≡ p, beobachtet über Deutungen.
 
 =====================================================================
-ENVELOPE (Hülle eines Lochs)
+ENVELOPE (Hülle eines Agentenschritts)
 =====================================================================
-case class Envelope(allowedOps: Set[OpKind], pathPrefix: Path, maxSteps: Int, maxDepth: Int, shellAllowlist: Set[AllowedCommand])
+case class Envelope(allowedOps: Set[OpKind], pathPrefix: Path, maxSteps: Int, maxDepth: Int, shellAllowlist: Set[AllowedCommand], scopePrefix: Option[Path])
+  -- scopePrefix: unter welchem Pfad der Agentenschritt Ergebnisse früherer Schritte sieht; ohne Angabe der pathPrefix (D#69)
 case class AllowedCommand(binary: String, requiredPrefixArgs: List[String])  -- "git" + List("status"), nicht nur "git"
 
 Attenuation-Gesetz (als Property-Test):
   child.allowedOps ⊆ parent.allowedOps
   child.pathPrefix liegt kanonisch unter parent.pathPrefix
+  Sicht (scopePrefix, sonst pathPrefix) des child liegt unter der Sicht des parent (D#69)
   für jedes c in child.shellAllowlist gibt es p in parent.shellAllowlist mit c.binary == p.binary und p.requiredPrefixArgs Präfix von c.requiredPrefixArgs (D#21)
   child.maxDepth < parent.maxDepth (strikt kleiner, sonst unendliche Rekursion möglich)
   WorstCaseSteps(Teilbaum) ≤ parent.maxSteps, wobei (D#14) WorstCaseSteps: Blattoperation = 1; Seq = Summe (leer = 0); If = max(then, else); RepeatUntil = max · steps(body); Hole = 1 + hole.maxSteps
-  Zur Laufzeit: ausgeführte Schritte aller Fills und Runden eines Lochs zusammen ≤ hole.maxSteps. Abgelehnte oder wiederholte Fills zählen gegen das Versuchslimit und das Modellaufruf-Limit, nicht gegen Schritte.
-  Tiefe (Explain): Loch auf oberster Ebene = 1 + maxDepth; Term-Tiefe = Maximum über alle Löcher.
+  Zur Laufzeit: ausgeführte Schritte aller Fills und Runden eines Agentenschritts zusammen ≤ hole.maxSteps. Abgelehnte oder wiederholte Fills zählen gegen das Versuchslimit und das Modellaufruf-Limit, nicht gegen Schritte.
+  Tiefe (Explain): Agentenschritt auf oberster Ebene = 1 + maxDepth; Term-Tiefe = Maximum über alle Agentenschritte.
 
-Well-Formedness jedes Hole: maxSteps ≥ 1, allowedOps nicht leer, maxDepth ≥ 0, Shell ∈ allowedOps ⇔ shellAllowlist nicht leer (D#21). Ein Loch, das formal monoton, aber unlösbar restringiert ist, wird abgelehnt.
-Ask und Hole sind OpKinds (D#8): im Loch nur, wenn in allowedOps; Standard aus.
+Well-Formedness jedes Hole: maxSteps ≥ 1, allowedOps nicht leer, maxDepth ≥ 0, Shell ∈ allowedOps ⇔ shellAllowlist nicht leer (D#21). Ein Agentenschritt, der formal monoton, aber unlösbar restringiert ist, wird abgelehnt.
+Ask und Hole sind OpKinds (D#8): im Agentenschritt nur, wenn in allowedOps; Standard aus.
 Die Wurzel-Hülle kommt aus der Runner-Konfiguration; pathPrefix wird relativ zum Arbeitsverzeichnis kanonisiert.
 Ausgabegrößen (maxBytesPerStep) gehören NICHT in die Envelope, sondern in Runner-Konfiguration und Marshalling.
 
@@ -88,7 +90,7 @@ INTERPRETER (alle über AgentAlg)
 - DryRun: führt nichts aus. Prüft statische Operationen gegen die Hülle, jedes Hole auf Attenuation und Well-Formedness, WorstCaseSteps gegen maxSteps, Shell-Argumente gegen die Argument-Policy, Prädikate auf Erfüllbarkeit: ein Pred, das statisch nie wahr werden kann (z. B. LastExitCode nach ListDir), ist ein Verstoß (D#20). Ergebnis bei ok ist ein Wert vom Typ CheckedTerm(term, rootEnvelope, termHash); CheckedTerm hat keinen öffentlichen Konstruktor, nur DryRun erzeugt ihn (parse, don't validate). Sonst Liste der Verstöße.
 - Approval (D#11): approve(checked: CheckedTerm, confirmedHash: TermHash): Either[ApprovalError, ApprovedTerm]. Einziger Weg zu einem ApprovedTerm; scheitert, wenn confirmedHash nicht checked.termHash ist. Der Runner übergibt den Hash, den Explain gezeigt hat; der Auto-Approver in Tests ebenso.
 - Cost: WorstCaseSteps und grobe Tokenschätzung, ohne Ausführung vollständig (der Term ist statisch).
-- Explain: CheckedTerm als Prosa zur Freigabe; Löcher als "hier entscheidet der Agent, begrenzt auf: …" und darunter "kann Ergebnisse von Schritt … sehen" nach Scope.visible (D#30, D#42); statische WriteFile- und EditFile-Inhalte vollständig, lange oder mehrzeilige als eingerückter Block (D#41); Prüfkonfiguration und Flow-Parameter aus dem CheckedTerm (D#40); zeigt termHash als Kurzform und darunter vollständig (`hash      <64 hex>`, D#38). Programme, die Workspace-Code ausführen, als solche gekennzeichnet; Hinweis, wenn ein Loch diesen Code vorher ändern darf (D#12). Zeile "nicht erlaubt, u. a.:" mit den Einträgen aus explainDenials (Runner-Konfiguration), die die Wurzel-Hülle nicht erlaubt; steht ein Eintrag doch in der Allowlist, eine Warnung (D#24). Bei Flows die gebundenen Parameterwerte (D#22).
+- Explain: CheckedTerm als Prosa zur Freigabe; Agentenschritte als "hier entscheidet der Agent, begrenzt auf: …" und darunter "kann Ergebnisse von Schritt … sehen" nach Scope.visible (D#30, D#42); statische WriteFile- und EditFile-Inhalte vollständig, lange oder mehrzeilige als eingerückter Block (D#41); Prüfkonfiguration und Flow-Parameter aus dem CheckedTerm (D#40); zeigt termHash als Kurzform und darunter vollständig (`hash      <64 hex>`, D#38). Programme, die Workspace-Code ausführen, als solche gekennzeichnet; Hinweis, wenn ein Agentenschritt diesen Code vorher ändern darf (D#12). Zeile "nicht erlaubt, u. a.:" mit den Einträgen aus explainDenials (Runner-Konfiguration), die die Wurzel-Hülle nicht erlaubt; steht ein Eintrag doch in der Allowlist, eine Warnung (D#24). Bei Flows die gebundenen Parameterwerte (D#22).
 - Execute[IO]: nur unter Linux (WSL oder CI); auf anderen Plattformen beim Start ein typisierter Fehler (D#29). Tests, die Execute brauchen, sind dort sichtbar übersprungen. Bei Zeitüberschreitung endet der Prozess samt allen Kindprozessen (ProcessHandle.descendants). Scope für Fill über Scope.visible (D#30).
   Kern und Ports (D#32): Engine deutet die Algebra über Tools, FillModel, AskHandler, Clock, Recorder; Execute und Replay unterscheiden sich nur in den Ports. Ablauf und Ausgang D#33, Zählung D#34, Record-Log D#35, Shell-Zusätze D#36, Dateien D#37.
   Nimmt ausschließlich ApprovedTerm. Fill-Teilterme laufen nur als CheckedFill (Ergebnis von Tor 2), intern, ohne eigene Freigabe (D#6).
@@ -107,11 +109,11 @@ INTERPRETER (alle über AgentAlg)
   Das AdversarialFill-Gesetz gilt für Syscalls der Engine, nicht für Kindprozesse erlaubter Programme.
   ListDir (D#61): breitenweise über eine Warteschlange, je Verzeichnis nach Namen sortiert, Einträge als Pfade unter dem angefragten Pfad, Verzeichnisse mit "/"; Symlinks gezeigt, nicht verfolgt; Verzeichnisse namens .git gezeigt, nicht betreten; höchstens 2000 Einträge, dann ein Hinweis. touched ist das angefragte Verzeichnis.
   Große Ausgaben: maxBytesPerStep aus der Runner-Konfiguration. Execute liest nicht die ganze Datei in den Heap; Marshalling liefert Ausschnitt (erste/letzte n Zeilen, Gesamtzeilen) mit Hinweis, gezielter zu suchen.
-  think: Modelladapter (Fill) mit Ziel, Hülle, Scope-Kontext → Teilterm → DryRun gegen die Hülle des Lochs (CheckedFill) → erst bei ok rekursiv ausführen, ohne erneute Nutzer-Freigabe (D#6). Tiefe mitzählen.
-  Laufzeitfehler im Teilterm (D#15): Fehler als Handlungsanweisung ans Modell, neuer Fill mit dem Fehler im Scope; Gelaufenes bleibt gelaufen; zählt gegen Versuche und das Schrittbudget des Lochs. Versuche erschöpft → Lauf endet mit Outcome aborted.
+  think: Modelladapter (Fill) mit Ziel, Hülle, Scope-Kontext → Teilterm → DryRun gegen die Hülle des Agentenschritts (CheckedFill) → erst bei ok rekursiv ausführen, ohne erneute Nutzer-Freigabe (D#6). Tiefe mitzählen.
+  Laufzeitfehler im Teilterm (D#15): Fehler als Handlungsanweisung ans Modell, neuer Fill mit dem Fehler im Scope; Gelaufenes bleibt gelaufen; zählt gegen Versuche und das Schrittbudget des Agentenschritts. Versuche erschöpft → Lauf endet mit Outcome aborted.
   Outcome eines Laufs: done | ask | aborted.
 - Replay: gegen Aufzeichnungen, derselbe Kern wie Execute; jeder aufgezeichnete Werkzeugaufruf wird erneut gegen seine Hülle geprüft (ToolCheck, D#32). Aufgezeichnet werden Werkzeugergebnisse UND Modellantworten (Teilterme). Execute im Record-Modus schreibt ein versioniertes Ereignislog. Gleichheit (D#16): dieselbe Ereignisfolge; die aufgezeichneten Schreibvorgänge, in eine frische Kopie des Fixtures gespielt, ergeben denselben Dateibaum.
-- BestOfN (D#63): nur für Pläne, eingeschaltet mit bestOfN > 1 in der Runner-Konfiguration (Standard 1). Jede Plan-Runde erzeugt n Kandidaten; ein Plan gilt, wenn mehr als die Hälfte aller n dieselbe Form hat (BestOfN.shape, D#65: Kontrollfluss, Operationsarten, Programmnamen, erlaubte Operationen der Löcher) (Kandidaten ohne Tor 1 zählen mit, gewählt ist der erste der Mehrheit); sonst ask statt raten (`ase plan` Exit 2). Die Abstimmung ist eine reine Funktion in core (BestOfN.vote), die Plan-Schleife im Runner erzeugt und prüft die Kandidaten.
+- BestOfN (D#63): nur für Pläne, eingeschaltet mit bestOfN > 1 in der Runner-Konfiguration (Standard 1). Jede Plan-Runde erzeugt n Kandidaten; ein Plan gilt, wenn mehr als die Hälfte aller n dieselbe Form hat (BestOfN.shape, D#65: Kontrollfluss, Operationsarten, Programmnamen, erlaubte Operationen der Agentenschritte) (Kandidaten ohne Tor 1 zählen mit, gewählt ist der erste der Mehrheit); sonst ask statt raten (`ase plan` Exit 2). Die Abstimmung ist eine reine Funktion in core (BestOfN.vote), die Plan-Schleife im Runner erzeugt und prüft die Kandidaten.
 Interpreter-Kombination (DryRun+Cost in einem Lauf) über ein handgeschriebenes Tuple2K-Produkt; kein cats-tagless (Makros in Scala 3 unzuverlässig), kein Selective (nicht in cats-core).
 Gesetz: Interpreter lesen den Term und verändern ihn nie. Kein Interpreter normalisiert, optimiert oder schreibt in den Term zurück; Transformationen eines Terms (falls je nötig) sind eigene Funktionen Term => Term mit eigenem DryRun danach. Dadurch sind Interpreter unabhängig voneinander testbar und ihr Produkt ist kommutativ (als Property-Test: product(A, B) ≡ product(B, A) in beiden Ergebnissen).
 
@@ -125,7 +127,7 @@ MODELLADAPTER (model)
 =====================================================================
 - Genau ein Tool: submit_term mit dem handgeschriebenen Term-JSON-Schema, `strict: true` (D#10).
 - tool_choice: auto (erzwungenes any/tool ist auf claude-opus-5-5 ein 400). Prompt weist an, submit_term zu benutzen; eine Antwort ohne submit_term zählt als Fehlversuch.
-- Plan (Aufgabe → Term, darf Löcher enthalten) und Fill (Loch: Ziel + Hülle + Scope-Kontext → Teilterm). Beim Fill steht die Hülle explizit im Prompt.
+- Plan (Aufgabe → Term, darf Agentenschritte enthalten) und Fill (Agentenschritt: Ziel + Hülle + Scope-Kontext → Teilterm). Beim Fill steht die Hülle explizit im Prompt.
 - Werkzeugbeschreibungen sind Prompts: Namen und Beschreibungen so, wie das Modell die Konzepte aus dem Training kennt.
 - Ungültiges JSON, fehlender submit_term-Aufruf oder DryRun-Verstoß: Fehler als Text zurück, max 3 Versuche, dann Abbruch mit Begründung.
 - API-Key aus Umgebungsvariable.
@@ -144,14 +146,14 @@ Sechs Aufgaben, Details und Eval 6 (Integrations-Use-Case, deterministisch und l
 TESTS
 =====================================================================
 - Gesetze (discipline/scalacheck): Attenuation; Well-Formedness; JSON-Roundtrip für zufällige Terme; Schema-Validierung aller generierten Terme; fromTerm(toTerm(p)) ≡ p; DryRun.ok ⇒ Execute verlässt nie Arbeitsverzeichnis/Allowlist und reißt nie maxSteps (über Replay prüfbar); Replay(Record(t)) == Execute(t).
-- AdversarialFill: Test-Modelladapter, der für jedes Hole sowohl gültige Teilterme als auch Ausbruchsversuche liefert (../ außerhalb des Workspace, Symlink nach außen, nicht erlaubte Shell-Befehle, allowedOps-Verletzung, Schachtelung tiefer als maxDepth, maxSteps überzogen). Gesetz: für beliebige generierte Terme und beliebige Adversarial-Antworten führt Execute nie einen Syscall außerhalb von Wurzel- oder Loch-Hülle aus (über Record nachweisbar). Das ist der Beweis der zentralen Invariante für dynamische Löcher.
+- AdversarialFill: Test-Modelladapter, der für jedes Hole sowohl gültige Teilterme als auch Ausbruchsversuche liefert (../ außerhalb des Workspace, Symlink nach außen, nicht erlaubte Shell-Befehle, allowedOps-Verletzung, Schachtelung tiefer als maxDepth, maxSteps überzogen). Gesetz: für beliebige generierte Terme und beliebige Adversarial-Antworten führt Execute nie einen Syscall außerhalb von Wurzel- oder Hülle des Agentenschritts aus (über Record nachweisbar). Das ist der Beweis der zentralen Invariante für dynamische Agentenschritte.
 - Ein Test: Hole mit zu weiter Hülle wird abgelehnt. Ein Test: Hole mit maxDepth ≥ parent wird abgelehnt. Ein Test: unlösbar restringiertes Hole wird abgelehnt.
 - Pfadtest: writeFile auf nicht existierende Datei innerhalb/außerhalb des Workspace, inkl. Symlink nach außen. RelPath: Doppelpunkt, Gerätenamen, Punkt/Leerzeichen am Ende abgelehnt; ähnliche harmlose Namen erlaubt.
-- Scope: Explain zeigt pro Loch genau die Schritte, die Scope.visible liefert; Shell-Ergebnisse tragen nur ausdrückliche Pfade.
+- Scope: Explain zeigt pro Agentenschritt genau die Schritte, die Scope.visible liefert; Shell-Ergebnisse tragen nur ausdrückliche Pfade.
 - Shell-Test: "git" + "push" wird abgelehnt, "git" + "status" akzeptiert. Argument-Policy: grep mit Pfad außerhalb des pathPrefix abgelehnt; git diff --output=x und --ext-diff abgelehnt; unbekanntes Flag abgelehnt.
 - editFile: expectedOld fehlt, mehrdeutig, genau einmal.
 - ApprovedTerm: Compile-Tests, dass Execute weder einen rohen Term noch einen CheckedTerm annimmt. approve mit falschem Hash scheitert.
-- Scope: Ergebnis mit Pfad außerhalb des pathPrefix eines Lochs erscheint nicht in dessen Fill-Kontext.
+- Scope: Ergebnis mit Pfad außerhalb des pathPrefix eines Agentenschritts erscheint nicht in dessen Fill-Kontext.
 - Schema: tiefer als die Verschachtelungsgrenze verschachtelter Term wird vom Decoder abgelehnt.
 - Fingerprint: zwei Terme mit gleicher Struktur und anderer Prosa oder anderem origin haben denselben Fingerprint; ein geänderter Pfad ändert ihn. termHash: anderes origin ändert ihn.
 - termHash: Schlüsselreihenfolge im Eingabe-JSON ändert den Hash nicht; String-Vektoren aus RFC 8785 werden exakt kanonisiert.
@@ -190,4 +192,4 @@ VORGEHEN
 5. BestOfN, Eval-Harness über alle sechs Aufgaben. · Code 2026-10-29 (D#63, D#64); Harness über claude --print: M#6 bis M#11, alle sechs Evals 10/10, Messbasis nach D#67.
 Nach jedem Schritt: sbt test grün, context.yaml und findings.md nachgeführt, kurze Zusammenfassung, offene Punkte. Keine Features über diese Liste hinaus ohne Rückfrage.
 
-OFFENE FRAGEN: entschieden als D#8 (Ask im Loch) und D#9 (Scope). Weitere offene Punkte in findings.md, Abschnitt Offen.
+OFFENE FRAGEN: entschieden als D#8 (Ask im Agentenschritt) und D#9 (Scope). Weitere offene Punkte in findings.md, Abschnitt Offen.

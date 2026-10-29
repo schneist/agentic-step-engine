@@ -17,7 +17,7 @@ object CoreLaws extends Laws:
     "Modellform ohne origin: Engine stempelt" -> forAll(terms, Gens.origin)((t, o) =>
       Codec.decodeTerm(Codec.term(t, withOrigin = false), OriginMode.Stamp(o), limits) == Right(TestSupport.stamp(t, o))
     ),
-    "jeder generierte Term validiert gegen das Schema" -> forAll(terms)(t =>
+    "jeder generierte Term ohne scopePrefix validiert gegen das Schema (D#69)" -> forAll(Gens.anyTerm(DecodeLimits.DefaultNesting, scope = false))(t =>
       TestSupport.schemaErrors(DecodeLimits.DefaultNesting, Json.obj("term" -> Codec.term(t, withOrigin = false))).isEmpty
     ),
     "toTerm(program(t)) == t" -> forAll(terms)(t => AgentAlg.toTerm(AgentAlg.program(t)) == t),

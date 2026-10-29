@@ -2,9 +2,9 @@
 
 Nur Entscheidungen mit echten Alternativen und Umkehrkosten. Alles andere ist eine Zeile in findings.md. Begründung im Detail: context.md §8.
 
-## D#1 Löcher statt Per-Schritt-Schleife
+## D#1 Agentenschritte statt Per-Schritt-Schleife
 
-Alternativen: (a) Per-Schritt: Modell liefert pro Runde einen kleinen Term, Engine führt aus, Ergebnis zurück. (b) Terme mit Löchern. (c) Hybrid, erst a, dann b.
+Alternativen: (a) Per-Schritt: Modell liefert pro Runde einen kleinen Term, Engine führt aus, Ergebnis zurück. (b) Terme mit Agentenschritten. (c) Hybrid, erst a, dann b.
 Gewählt: b. Nur so entsteht ein Plan, den man vorab prüfen und freigeben kann; a ist das heutige Tool-Use-Muster mit DryRun davor und bringt wenig Neues.
 Umkehrkosten: hoch. Die Hüllen-Semantik, Tor 2, Record/Replay und die Evals bauen darauf auf.
 
@@ -28,13 +28,13 @@ Umkehrkosten: hoch. Jeder Interpreter hängt daran.
 
 ## D#5 Statischer Baum ohne Fortsetzungen; Algebra verlangt nur Applicative
 
-Alternativen: (a) Monadische Programme mit flatMap, nicht serialisierbar. (b) Variablen/Let im Term. (c) Jede Datenabhängigkeit ist ein Loch; Term ist Seq/If/RepeatUntil/Hole.
-Gewählt: c für v1. Hält die Sprache klein, zwingt jede Datenabhängigkeit durch Tor 2. b ist Kandidat für v2, wenn Evals zeigen, dass zu viele Löcher nur Daten durchreichen.
+Alternativen: (a) Monadische Programme mit flatMap, nicht serialisierbar. (b) Variablen/Let im Term. (c) Jede Datenabhängigkeit ist ein Agentenschritt; Term ist Seq/If/RepeatUntil/Hole.
+Gewählt: c für v1. Hält die Sprache klein, zwingt jede Datenabhängigkeit durch Tor 2. b ist Kandidat für v2, wenn Evals zeigen, dass zu viele Agentenschritte nur Daten durchreichen.
 Umkehrkosten: mittel. Variablen hinzufügen ist additiv; Monad einführen würde die Serialisierung brechen.
 
 ## D#6 Fill-Teilterme laufen ohne erneute Nutzer-Freigabe
 
-Alternativen: (a) Jeden Fill vom Menschen freigeben lassen. (b) Fill läuft, wenn er die freigegebene Loch-Hülle einhält.
+Alternativen: (a) Jeden Fill vom Menschen freigeben lassen. (b) Fill läuft, wenn er die freigegebene Hülle des Agentenschritts einhält.
 Gewählt: b. Die Hülle ist das Sicherheitsversprechen; a würde den Nutzen der Engine aufheben (der Mensch sitzt wieder daneben). Der Mensch sieht beim Plan jede Hülle im Klartext und gibt damit alle Fills frei, die darin bleiben.
 Umkehrkosten: niedrig technisch (ein Hook im Runner), hoch konzeptionell.
 
@@ -44,16 +44,16 @@ Alternativen: (a) tapir oder anderes Schema-Framework. (b) Handgeschrieben mit `
 Gewählt: b. Elf Term-Knoten und sechs Prädikate, etwa hundert Zeilen pro Ebene, keine Abhängigkeit. Rekursion und strict: siehe D#10. Gesetz: jeder generierte Term validiert und überlebt den Codec-Roundtrip.
 Umkehrkosten: niedrig.
 
-## D#8 `Ask` im Loch nur als erlaubte Operation
+## D#8 `Ask` im Agentenschritt nur als erlaubte Operation
 
-Alternativen: (a) Ask nur auf oberster Ebene; das Loch endet mit einem Ergebnis, der Flow fragt per If. (b) Ask im Loch, wenn `Ask ∈ allowedOps`. (c) Ask überall.
-Gewählt: b. Eine Regel für alle Operationen; Eval 5 braucht ein Loch, das merkt, dass die Aufgabe nicht in die Hülle passt. Standard ist aus, Explain zeigt „darf nachfragen“.
+Alternativen: (a) Ask nur auf oberster Ebene; der Agentenschritt endet mit einem Ergebnis, der Flow fragt per If. (b) Ask im Agentenschritt, wenn `Ask ∈ allowedOps`. (c) Ask überall.
+Gewählt: b. Eine Regel für alle Operationen; Eval 5 braucht einen Agentenschritt, der merkt, dass die Aufgabe nicht in die Hülle passt. Standard ist aus, Explain zeigt „darf nachfragen“.
 Umkehrkosten: niedrig. Eine OpKind weniger.
 
 ## D#9 Scope: alle umschließenden Seqs, gefiltert nach pathPrefix
 
 Alternativen: (a) nur die eigene Seq. (b) alle umschließenden Seqs. (c) explizit benannte Schritte (braucht Referenzen, D#5).
-Gewählt: b mit Filter. Löcher brauchen oft Ausgaben von weiter oben (git log im Release-Flow); der Filter verhindert, dass ein Loch Dateiinhalte außerhalb seiner Hülle sieht.
+Gewählt: b mit Filter. Agentenschritte brauchen oft Ausgaben von weiter oben (git log im Release-Flow); der Filter verhindert, dass ein Agentenschritt Dateiinhalte außerhalb seiner Hülle sieht.
 Umkehrkosten: niedrig. Eine Funktion im Marshalling; messbar über die Evals.
 
 ## D#10 Strict-Schema, ausgerollt bis zu einer Verschachtelungsgrenze
@@ -100,8 +100,8 @@ Umkehrkosten: mittel. a ließe sich später als Schicht in der Runner-Konfigurat
 
 ## D#30 Sicht großzügig, Prüfung streng, Datenfluss im Explain
 
-Alternativen: (a) Scope nach D#9, Lücke dokumentiert. (b) Scope nach D#27, auch Ausgaben ohne Pfad gelten als ".". (c) Sicht pro Schritt im Flow markieren (braucht Verweise, D#5). (d) wie a, aber Explain zeigt pro Loch, was es sieht.
-Gewählt: d. b bricht das Diagnose-Loch in Eval 6; c ist v2. Mit d gibt der Mensch den Datenfluss bewusst frei.
+Alternativen: (a) Scope nach D#9, Lücke dokumentiert. (b) Scope nach D#27, auch Ausgaben ohne Pfad gelten als ".". (c) Sicht pro Schritt im Flow markieren (braucht Verweise, D#5). (d) wie a, aber Explain zeigt pro Agentenschritt, was er sieht.
+Gewählt: d. b bricht den Diagnoseschritt in Eval 6; c ist v2. Mit d gibt der Mensch den Datenfluss bewusst frei.
 Umkehrkosten: niedrig. Eine Funktion (Scope.visible) und eine Zeile im Explain.
 Nachtrag D#39: Ohne Pfadargument sind nur Workspace-Code und Befehle aus `pathless` (git log) pfadlos; grep, ls, git status zählen als ".".
 
@@ -117,15 +117,15 @@ Alternativen: (a) feste Teil-Traits pro erlaubter Teilmenge (ReadOnlyAlg …). (
 Gewählt: b. Fills kommen als JSON, der Compiler sieht sie nie; 2⁸ Teilmengen sind keine Traits. Die Sperre liegt trotzdem in der Struktur: Was der Decoder nicht annimmt, gibt es nicht.
 Umkehrkosten: niedrig. Beide Funktionen sind lokal.
 
-## D#55 Mehrrunden-Fill im Loch
+## D#55 Mehrrunden-Fill im Agentenschritt
 
-Alternativen: (a) Nichts ändern; Pläne und Flows lesen vor dem Loch (D#51, D#53). (b) Ergebnisse eines Lochs bleiben für spätere Geschwister-Löcher sichtbar. (c) Ein Fill ohne Done führt zu einer weiteren Runde desselben Lochs, die die Ergebnisse der Runden davor sieht.
-Gewählt: c. a geht für generische Flows nicht, wenn die Datei vorher unbekannt ist (Eval 6, Release-Flow); b heilt nicht, dass ein Loch lesen und dann per Compare-and-Swap ändern muss. c ändert weder Sprache noch Hüllen noch Freigabe: Jede Runde geht durch Decoder und Tor 2, alle Runden teilen das Budget des Lochs. Innerhalb der freigegebenen Hülle ist das eine begrenzte Per-Schritt-Schleife (vgl. D#1 a), der Plan bleibt statisch prüfbar.
+Alternativen: (a) Nichts ändern; Pläne und Flows lesen vor dem Agentenschritt (D#51, D#53). (b) Ergebnisse eines Agentenschritts bleiben für spätere Geschwister-Agentenschritte sichtbar. (c) Ein Fill ohne Done führt zu einer weiteren Runde desselben Agentenschritts, die die Ergebnisse der Runden davor sieht.
+Gewählt: c. a geht für generische Flows nicht, wenn die Datei vorher unbekannt ist (Eval 6, Release-Flow); b heilt nicht, dass ein Agentenschritt lesen und dann per Compare-and-Swap ändern muss. c ändert weder Sprache noch Hüllen noch Freigabe: Jede Runde geht durch Decoder und Tor 2, alle Runden teilen das Budget des Agentenschritts. Innerhalb der freigegebenen Hülle ist das eine begrenzte Per-Schritt-Schleife (vgl. D#1 a), der Plan bleibt statisch prüfbar.
 Umkehrkosten: mittel. Engine, Record-Log (Version 3), Replay, Cost, Fill-Prompt und die Messbasis ab M#1 hängen daran.
 
 ## D#61 ListDir listet rekursiv
 
-Alternativen: (a) ListDir mit einem Feld für die Tiefe (neues Feld im Term, ändert Sprache, Schema, Codec und alle Hashes). (b) Mehr Runden je Loch (kostet je Verzeichnisebene einen Modellaufruf und Schrittbudget). (c) Ein Hinweis im Plan-Prompt, die Struktur vorab zu listen (der Plan kennt die Tiefe nicht). (d) ListDir liefert das ganze Verzeichnis, breitenweise und begrenzt.
+Alternativen: (a) ListDir mit einem Feld für die Tiefe (neues Feld im Term, ändert Sprache, Schema, Codec und alle Hashes). (b) Mehr Runden je Agentenschritt (kostet je Verzeichnisebene einen Modellaufruf und Schrittbudget). (c) Ein Hinweis im Plan-Prompt, die Struktur vorab zu listen (der Plan kennt die Tiefe nicht). (d) ListDir liefert das ganze Verzeichnis, breitenweise und begrenzt.
 Gewählt: d. Nur d löst Eval 4 in einem Schritt, ohne die Sprache zu ändern; breitenweise und mit Obergrenze, damit große Build-Verzeichnisse die Übersicht nicht verdrängen.
 Umkehrkosten: niedrig im Code (LocalTools, ExecSupport, eine Zeile Prompt und Explain), mittel in der Messbasis: Serien ab D#61 sehen eine andere ListDir-Ausgabe als M#4 und M#5.
 
@@ -137,7 +137,7 @@ Umkehrkosten: niedrig. Eine reine Funktion in core, die Plan-Schleife und Versio
 
 ## D#65 BestOfN stimmt über die Form ab
 
-Alternativen: (a) Fingerprint wie in D#63. (b) Abstimmung über das Ergebnis: jeden Kandidaten ausführen und die Arbeitsverzeichnisse vergleichen (n Ausführungen, nur in Kopien möglich, und Fills machen auch das Ergebnis zufällig). (c) Eine gröbere Form: Kontrollfluss, Operationsarten, Programmnamen, erlaubte Operationen der Löcher.
+Alternativen: (a) Fingerprint wie in D#63. (b) Abstimmung über das Ergebnis: jeden Kandidaten ausführen und die Arbeitsverzeichnisse vergleichen (n Ausführungen, nur in Kopien möglich, und Fills machen auch das Ergebnis zufällig). (c) Eine gröbere Form: Kontrollfluss, Operationsarten, Programmnamen, erlaubte Operationen der Agentenschritte.
 Gewählt: c. a ist zu fein (O#30), b kostet n Läufe und braucht eine Sandbox. Die Form entscheidet nur über Einigkeit; was gilt, prüft Tor 1 am gewählten Kandidaten, freigegeben wird dessen Hash.
 Umkehrkosten: niedrig. Eine Funktion in core; die Plan-Datei speichert nur die Zahlen.
 

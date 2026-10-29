@@ -45,8 +45,8 @@ object RunLog:
 
   def reason(r: AbortReason): String = r match
     case AbortReason.StepFailed(at, e)        => s"Schritt ${at.show} gescheitert: ${Marshal(e)}"
-    case AbortReason.AttemptsExhausted(at, n) => s"Loch ${at.show}: $n Versuche erschöpft"
-    case AbortReason.BudgetExhausted(at, n)   => s"Loch ${at.show}: Schrittbudget $n aufgebraucht"
+    case AbortReason.AttemptsExhausted(at, n) => s"Agentenschritt ${at.show}: $n Versuche erschöpft"
+    case AbortReason.BudgetExhausted(at, n)   => s"Agentenschritt ${at.show}: Schrittbudget $n aufgebraucht"
     case AbortReason.LimitReached(l) =>
       l match
         case Limit.TotalSteps(max) => s"Schrittlimit $max erreicht"
@@ -111,7 +111,7 @@ object RunLog:
       Some(plural(s.changedFiles.size, "Datei", "Dateien") + " geändert"),
       Some(s"$tokens Tokens")
     ).flatten.mkString(" · ")
-    val hints = s.hints.map((at, h) => s"Hinweis des Agenten (Loch ${at.show}): $h")
+    val hints = s.hints.map((at, h) => s"Hinweis des Agenten (Agentenschritt ${at.show}): $h")
     val approved = events.collectFirst { case Event.Start(h, _, _) => s"approved ${h.short}" }
     val record = (footer.recordPath.toList ++ approved.toList).mkString(" · ")
     (compact ++ Vector(summary) ++ hints ++ Option.when(record.nonEmpty)(record)).mkString("\n")

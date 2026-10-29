@@ -167,7 +167,7 @@ class Eval6Suite extends munit.FunSuite:
       assert(runLog.contains("3  hole   „Finde die Ursache"), runLog)
       assert(runLog.contains("   dryrun rejected  "), runLog)
       assert(runLog.contains("→ an Modell:"), runLog)
-      assert(runLog.contains("Hinweis des Agenten (Loch 3): Tippfehler in src/Greeter.scala:2"), runLog)
+      assert(runLog.contains("Hinweis des Agenten (Agentenschritt 3): Tippfehler in src/Greeter.scala:2"), runLog)
       assert(runLog.contains("15 Schritte · 5 Modellaufrufe · 1 Ablehnung an Tor 1 · 1 Ablehnung an Tor 2"), runLog)
       assert(runLog.contains(s"record/eval6.log · approved ${approved.termHash.short}"), runLog)
 
