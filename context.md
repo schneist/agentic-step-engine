@@ -112,6 +112,10 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Rekursives ListDir**: ListDir liefert das ganze Verzeichnis samt Unterverzeichnissen, Ebene für Ebene, höchstens 2000 Einträge; Symlinks und .git werden gezeigt, aber nicht betreten (D#61).
 
 - **Form** (`BestOfN.shape`): Ein Term, reduziert auf Kontrollfluss, Operationsarten, Programmnamen, Prädikatarten und die erlaubten Operationen seiner Agentenschritte; gröber als der Fingerprint. Darüber stimmt BestOfN ab (D#65).
+- **Reguläre Baumgrammatik**: Grammatik über Bäumen mit festen Knotenarten, ohne Bedingungen zwischen entfernten Knoten. So ist die Term-Sprache gebaut; alles Kontextabhängige (Pfade, Budgets, Attenuation) prüft DryRun.
+- **Totale Sprache**: Jedes Programm endet; die Term-Sprache erreicht das ohne Variablen und Rekursion und mit begrenztem RepeatUntil (D#5, D#14). Bewusst nicht Turing-vollständig.
+- **Getyptes Loch** (typed hole): Begriff aus Agda und Haskell für eine offene Stelle im Programm, die später gefüllt wird; Vorbild des Agentenschritts.
+- **Gestuftes Programm**: Ein Programm in Stufen; hier Stufe eins der freigegebene Plan, Stufe zwei die Teilterme der Agentenschritte, je mit eigener Prüfung (Tor 1, Tor 2).
 - **scopePrefix**: Optionales Feld der Hülle: unter welchem Pfad ein Agentenschritt Ergebnisse früherer Schritte sieht, wenn das weiter sein soll als sein pathPrefix (D#69).
 - **programs**: Feld der Runner-Konfiguration für weitere Programme, je mit Argument-Policy und `runsCode`, den Pfaden, deren Code es ausführt (D#68).
 - **Messbasis**: Die Serien, gegen die eine Änderung an Algebra, Hüllen oder Werkzeugbeschreibungen gemessen wird; seit D#67 M#6 bis M#11 über Claude Code.

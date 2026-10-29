@@ -5,13 +5,14 @@
 `ase` lässt ein Sprachmodell wiederkehrende Arbeiten an einem Repository erledigen: ein Release vorbereiten, einen roten Test reparieren, Doku nachziehen. Das Modell ruft dabei keine Werkzeuge einzeln auf, die sofort wirken. Es schreibt zuerst ein kleines Programm aus festen Schritten, mit **Agentenschritten** an den Stellen, an denen es erst zur Laufzeit entscheiden kann. Jeder Agentenschritt trägt eine **Hülle**: welche Operationen, unter welchem Pfad, wie viele Schritte. Du liest das Programm im Klartext und gibst seinen Hash frei. Danach läuft genau dieses Programm, und auch was das Modell später in einen Agentenschritt setzt, wird vor der Ausführung gegen dessen Hülle geprüft.
 
 - **Der Plan ist das Programm.** Freigegeben wird kein Prosaplan, sondern ein Term mit Hash und fester Obergrenze für die Schrittzahl.
-- **Rechte pro Agentenschritt.** Im selben Lauf darf ein Agentenschritt nur `CHANGELOG.md` ändern, ein anderes nur unter `docs/`.
+- **Rechte pro Agentenschritt.** Im selben Lauf darf ein Agentenschritt nur `CHANGELOG.md` ändern, ein anderer nur unter `docs/`.
+- **Vorhersagbar.** Die Sprache ist klein und total: Jeder Lauf endet, und wie viele Schritte er höchstens braucht, steht vor dem Start fest ([Einordnung](#einordnung)).
 - **Einmal freigeben, oft laufen lassen.** Ein Flow hat einen stabilen Hash und läuft mit `--approve <hash> --no-ask` auch in CI.
 - **Erprobt.** Mit Claude bestand jede der sechs Testaufgaben 10 von 10 Läufen ([Zahlen](#wie-zuverlässig-es-ist)).
 
 Prototyp in Scala 3 mit Kommandozeile, Apache License 2.0. Gedacht für Abläufe, die man einmal festlegt und oft laufen lässt, nicht als Ersatz für Claude Code oder Cursor im Alltag.
 
-> **In English.** `ase` lets a language model do recurring chores on a repository, such as preparing a release or fixing a failing test. The model does not call tools one by one. It first writes a small program in a checked language, with *holes* where it decides at run time. Each hole carries an *envelope* that limits which operations, paths and steps are allowed there. Nothing runs before it has been checked, and nothing runs before a human has approved the program's hash. Prototype in Scala 3 under the Apache License 2.0. The documentation is in German.
+> **In English.** `ase` lets a language model do recurring chores on a repository, such as preparing a release or fixing a failing test. The model does not call tools one by one. It first writes a small program in a checked language, with *holes* where it decides at run time. Each hole carries an *envelope* that limits which operations, paths and steps are allowed there. Nothing runs before it has been checked, and nothing runs before a human has approved the program's hash. The language is total, a bounded-depth regular tree grammar without variables or recursion: every run terminates, and its worst-case step count is known before it starts. Prototype in Scala 3 under the Apache License 2.0. The documentation is in German.
 
 ## Wie es funktioniert
 
@@ -251,6 +252,25 @@ Pred ::= FileExists(path) | LastExitCode(code) | LastOutputContains(text) | Last
 ```
 
 Die Sprache hat keine Fortsetzungen, Lambdas oder Variablen. Alles, was den Inhalt eines Ergebnisses verarbeiten muss, ist ein Agentenschritt. Jeder Knoten trägt `origin: Human | Model(callId)`, und Flows und Modellpläne werden gleich behandelt. Wer prüft oder erklärt, sieht beide Zweige von `If` und `RepeatUntil`; nur die Ausführung wählt. `Ask` kann auch mitten im Lauf eine Frage stellen.
+
+### Einordnung
+
+Formal ist die Term-Sprache eine **reguläre Baumgrammatik** mit begrenzter Tiefe: feste Knotenarten, JSON als Schreibweise, standardmäßig höchstens fünf Ebenen Verschachtelung. Sie ist **total**. Es gibt keine Variablen, keine Funktionen und keine Rekursion, und jede Schleife hat eine feste Obergrenze. Damit ist sie bewusst nicht Turing-vollständig. Am nächsten liegt sie einem Workflow-Modell wie BPMN: Sequenz, exklusive Verzweigung, begrenzte Schleife, Aufruf eines Programms, Frage an den Menschen, und dazu als neue Art die Aufgabe für einen Agenten.
+
+Ein Agentenschritt ist ein **getyptes Loch** wie in Agda oder Haskell: Das Programm ist an dieser Stelle offen und wird zur Laufzeit ergänzt, hier von einem Modell und in derselben Sprache. Jeder Lauf ist damit ein **gestuftes Programm**. Stufe eins ist der freigegebene Plan, Stufe zwei sind die Teilterme, die das Modell in die Agentenschritte setzt. Für jeden Agentenschritt gilt eine eigene Teilgrammatik: Der Decoder kennt nur die Knotenarten, die seine Hülle erlaubt, und eine engere Hülle heißt eine kleinere Sprache. Was die Grammatik nicht ausdrücken kann, etwa ob ein Pfad unter dem Präfix liegt oder das Budget reicht, prüft danach der DryRun, so wie ein Typprüfer nach dem Parser.
+
+In der Implementierung steht die Sprache zweimal: als Datentyp, der sich speichern, hashen und vergleichen lässt, und als Algebra im Stil Tagless Final, die nur `Applicative` verlangt und kein `Monad`. Kein fester Schritt hängt vom Inhalt eines früheren Ergebnisses ab; das geht nur über einen Agentenschritt. Die Form des Programms steht also fest, bevor etwas läuft.
+
+Was das bringt:
+
+- **Vorhersagbarkeit.** Jeder Lauf endet. Wie viele Schritte er im schlechtesten Fall braucht, steht vor dem Start im Explain, und die Ausführung zählt mit und hält an dieser Grenze hart an. Modellaufrufe sind je Agentenschritt durch Versuche und Runden gedeckelt, dazu kommen Obergrenzen für den ganzen Lauf. Der feste Teil läuft genau so, wie er freigegeben wurde. Zwei Läufe desselben Flows unterscheiden sich nur in den Agentenschritten, und dort nur innerhalb ihrer Hüllen.
+- **Vollständige Prüfung vor dem Lauf.** Beide Zweige jedes `If` liegen als Werte vor. Der DryRun sieht also jeden möglichen Weg, nicht nur den, der später läuft. Es gibt keinen Code, der erst zur Laufzeit entsteht und ungeprüft bliebe.
+- **Erklärbarkeit.** Explain ist nur eine weitere Deutung desselben Terms. Was dort steht, ist das Programm selbst und keine Beschreibung davon, einschließlich der Frage, welcher Agentenschritt welche Ergebnisse sieht.
+- **Freigabe per Hash.** Ein Term ist Daten. Gleicher Term und gleiche Hülle ergeben denselben Hash, und ein Flow lässt sich einmal freigeben und oft laufen lassen.
+- **Sicherheit durch Konstruktion.** Rechte werden nicht nur nachträglich geprüft, sie stecken in der Grammatik. Was eine Hülle verbietet, kann ein Agentenschritt nicht einmal hinschreiben.
+- **Wiederholbar und vergleichbar.** Ein Lauf lässt sich aufzeichnen und ohne Modell und Dateisystem abspielen. Pläne lassen sich auf ihre Form reduzieren und vergleichen; darauf beruht die Abstimmung über mehrere Pläne.
+
+Der Preis: Jede Datenabhängigkeit kostet einen Agentenschritt und damit einen Modellaufruf, auch wenn nur ein Wert weitergereicht werden müsste. Schleifen brauchen eine Obergrenze. Eine Struktur, die von Daten abhängt, etwa ein eigener Schritt für jede gescheiterte Datei, geht nur über einen Agentenschritt. Variablen und Schritte, deren Teilterm ein Programm statt eines Modells liefert, wären die naheliegenden Erweiterungen; beide ließen die Sprache total.
 
 ### Hüllen
 
