@@ -40,8 +40,16 @@ object ExecSupport:
               val p = norm(raw)
               if !dirs(p) then (files, err(List(p), ToolError.NotFound(raw)))
               else
-                val inDir = (files.keySet ++ dirs).filter(k => k != p && parent(k) == p).toList.sorted
-                (files, ok(List(p), StepResult(None, Some(inDir.mkString("\n")))))
+                // breitenweise wie LocalTools (D#61): Pfade unter p, Verzeichnisse mit "/"
+                val all = files.keySet ++ dirs
+                def kids(d: String) = all.filter(k => k != d && parent(k) == d).toVector.sorted
+                @scala.annotation.tailrec
+                def bfs(queue: Vector[String], acc: Vector[String]): Vector[String] = queue match
+                  case d +: rest =>
+                    val ks = kids(d)
+                    bfs(rest ++ ks.filter(dirs), acc ++ ks.map(k => if dirs(k) then k + "/" else k))
+                  case _ => acc
+                (files, ok(List(p), StepResult(None, Some(bfs(Vector(p), Vector.empty).mkString("\n")))))
             case Call.WriteFile(raw, content) =>
               val p = norm(raw)
               if files.contains(p) || dirs(p) then (files, err(List(p), ToolError.AlreadyExists(raw)))

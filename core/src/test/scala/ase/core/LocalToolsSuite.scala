@@ -167,6 +167,39 @@ class LocalToolsSuite extends munit.FunSuite:
       assertEquals(call(ws, Call.FileExists("src/A.scala")).result.map(_.output), Right(Some("true")))
       assertEquals(call(ws, Call.FileExists("src/fehlt")).result.map(_.output), Right(Some("false")))
 
+  withWs("listDir: breitenweise samt Unterverzeichnissen, Symlinks nicht verfolgt, .git nicht betreten, Grenze (D#61)"): (ws, _) =>
+      Files.writeString(ws.resolve("README.md"), "r\n")
+      Files.createDirectories(ws.resolve("src/main/deep"))
+      Files.writeString(ws.resolve("src/main/deep/B.scala"), "b\n")
+      Files.createDirectories(ws.resolve(".git"))
+      Files.writeString(ws.resolve(".git/config"), "[core]\n")
+      Files.createDirectories(ws.resolve("sub/.GIT"))
+      Files.writeString(ws.resolve("sub/.GIT/x"), "x\n")
+      val all = call(ws, Call.ListDir("."))
+      assertEquals(all.touched, List("."))
+      assertEquals(
+        all.result.map(_.output.getOrElse("")),
+        Right(
+          List(
+            ".git/", "README.md", "src/", "sub/",
+            // src/out ist ein Symlink auf ein Verzeichnis außerhalb: gezeigt, nicht verfolgt
+            "src/A.scala", "src/inner.scala", "src/main/", "src/out", "src/secret.txt",
+            "sub/.GIT/",
+            "src/main/deep/",
+            "src/main/deep/B.scala"
+          ).mkString("\n")
+        )
+      )
+      // unter einem Unterverzeichnis: Pfade, wie ReadFile sie nimmt
+      val src = call(ws, Call.ListDir("src/"))
+      assertEquals(src.result.map(_.output.getOrElse("").linesIterator.toList.takeRight(2)), Right(List("src/main/deep/", "src/main/deep/B.scala")))
+      Files.createDirectories(ws.resolve("many"))
+      (0 to LocalTools.MaxEntries).foreach(i => Files.writeString(ws.resolve(f"many/f$i%04d"), ""))
+      val many = call(ws, Call.ListDir("many"))
+      assertEquals(many.note, s"${LocalTools.MaxEntries} Einträge, unvollständig")
+      assert(many.result.exists(_.output.exists(_.contains(s"mehr als ${LocalTools.MaxEntries} Einträge"))), many)
+
+
 class PlatformSuite extends munit.FunSuite:
   test("Execute auf anderer Plattform: typisierter Fehler beim Start (D#29)"):
     assertEquals(Platform.check("Windows 10"), Left(ExecuteError.UnsupportedPlatform("Windows 10")))

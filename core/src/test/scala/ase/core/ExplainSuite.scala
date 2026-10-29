@@ -14,7 +14,7 @@ class ExplainSuite extends munit.FunSuite:
          |hash      ${c.termHash.hex}
          |
          |1  führt aus: ./run-tests.sh (führt Workspace-Code aus)
-         |2  listet src
+         |2  listet src samt Unterverzeichnissen
          |3  Hier entscheidet der Agent: „Finde die Ursache des roten Tests. Ändere nichts; beende mit Done und …“ (gekürzt, 101 Zeichen)
          |   darf ReadFile, Shell · unter src/ · max 6 Schritte · Tiefe 0 · shell: grep
          |   kann Ergebnisse von Schritt 1, 2 sehen
@@ -55,7 +55,18 @@ class ExplainSuite extends munit.FunSuite:
       ),
       Origin.Human
     )
-    assert(Explain.render(checked(t, root)).contains("Hinweis: darf Code ändern, der im Lauf ausgeführt wird"))
+    // der Hinweis nennt, welcher ausgeführte Code unter dem pathPrefix liegt (D#62)
+    assert(Explain.render(checked(t, root)).contains("Hinweis: darf Code ändern, der im Lauf ausgeführt wird (src)"))
+    val wide = Term.Seq(
+      List(Term.Hole("repariere", Envelope(Set(OpKind.EditFile), ".", 3, 0, Set.empty), Origin.Human), Term.Shell("sbt", List("test"), Origin.Human)),
+      Origin.Human
+    )
+    assert(Explain.render(checked(wide, root)).contains("(build.sbt, project, src)"), Explain.render(checked(wide, root)))
+    val readOnly = Term.Seq(
+      List(Term.Hole("lies", Envelope(Set(OpKind.ReadFile), ".", 3, 0, Set.empty), Origin.Human), Term.Shell("sbt", List("test"), Origin.Human)),
+      Origin.Human
+    )
+    assert(!Explain.render(checked(readOnly, root.copy(allowedOps = root.allowedOps + OpKind.ReadFile))).contains("Hinweis: darf Code ändern"))
 
   test("Warnung, wenn explainDenials doch erlaubt sind (D#24)"):
     val root = Envelope(Set(OpKind.Shell), ".", 5, 0, Set(AllowedCommand("git", Nil)))

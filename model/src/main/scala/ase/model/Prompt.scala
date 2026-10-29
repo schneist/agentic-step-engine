@@ -20,7 +20,8 @@ object Prompt:
        |in einer kleinen, statischen Sprache. Du lieferst ihn ausschließlich über das Werkzeug $toolName.
        |
        |# Operationen
-       |- ReadFile(path): liest eine Datei. ListDir(path): listet ein Verzeichnis.
+       |- ReadFile(path): liest eine Datei. ListDir(path): listet ein Verzeichnis samt allen Unterverzeichnissen,
+       |  Ebene für Ebene; jeder Eintrag ist ein Pfad, wie ReadFile ihn nimmt, Verzeichnisse enden auf "/".
        |- WriteFile(path, content): legt eine neue Datei an; überschreibt nie.
        |- EditFile(path, expectedOld, replacement): ersetzt expectedOld durch replacement. expectedOld muss genau
        |  einmal in der Datei vorkommen, Zeichen für Zeichen (Compare-and-Swap); sonst scheitert der Schritt.
@@ -60,6 +61,11 @@ object Prompt:
        |  Seq Summe, If Maximum der Zweige, RepeatUntil max mal Rumpf, Loch 1 plus sein maxSteps.
        |- maxSteps mindestens 1, allowedOps nicht leer, Shell in allowedOps genau dann, wenn shellAllowlist nicht leer.
        |Gib jedem Loch genau die Rechte, die sein Ziel braucht, nicht mehr.
+       |Lesen und Ändern teilen sich den pathPrefix. Ein Loch, das ändern darf (WriteFile, EditFile, MoveFile), bekommt
+       |keinen pathPrefix, unter dem ein Skript liegt, das der Term ausführt (etwa ./run-tests.sh), es sei denn, die
+       |Aufgabe verlangt genau diese Änderung: sonst könnte das Loch ändern, was danach läuft. Muss ein Loch weiter
+       |lesen, als es ändern darf, teile es in zwei: ein Loch liest unter dem weiten pathPrefix, ändert nichts und nennt
+       |in Done, was zu ändern ist; ein späteres Loch ändert unter dem engsten pathPrefix, der die Änderung zulässt.
        |
        |# Pfade
        |Relativ zum Arbeitsverzeichnis, "/" als Trenner, kein "..", kein ".git", nicht absolut. pathPrefix "." ist das

@@ -2,6 +2,8 @@
 
 Sechs Aufgaben mit bekanntem Ergebnis. Jede hat ein Verzeichnis `evals/<nr>-<slug>/` mit `fixture/` (Arbeitsverzeichnis-Vorlage), `task.md` (Aufgabentext für das Modell), `envelope.json` (Wurzel-Hülle) und `check.sh` (Exit 0 = Erfolg).
 
+Serien: `evals/series.sh <eval-verzeichnis> <n> <ausgabe>` für eine Eval, `evals/harness.sh <n> <ausgabe>` für alle sechs (D#64); beide mit `--config` für den Anbieter.
+
 ## Vertrag (D#17)
 
 - Vor jedem Lauf wird `fixture/` frisch in ein Arbeitsverzeichnis kopiert; nie in-place.

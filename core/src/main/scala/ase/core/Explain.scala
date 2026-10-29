@@ -95,7 +95,7 @@ object Explain:
       (Vector(f"${s.next}%-3d" + pad(s.indent) + Text.visible(text)) ++ details(s.indent), s.next + 1, s.prior :+ Scope.Seen(s.next, paths))
 
     def readFile(path: String, origin: Origin): Out[StepResult] = step(s"liest $path", List(path))
-    def listDir(path: String, origin: Origin): Out[StepResult] = step(s"listet $path", List(path))
+    def listDir(path: String, origin: Origin): Out[StepResult] = step(s"listet $path samt Unterverzeichnissen", List(path))
     def writeFile(path: String, content: String, origin: Origin): Out[StepResult] =
       if content.isEmpty then step(s"legt $path neu an (leer)", List(path))
       else step(s"legt $path neu an (${content.length} Zeichen)", List(path), block("Inhalt", content, _))
@@ -112,7 +112,10 @@ object Explain:
 
     def think(goal: String, envelope: Envelope, origin: Origin): Out[StepResult] = s =>
       val prefix = RelPath.parse(envelope.pathPrefix).toOption
-      val changesCode = envelope.allowedOps.exists(writes) && prefix.exists(p => code.exists(RelPath.overlaps(p, _)))
+      // welcher ausgeführte Code unter dem pathPrefix eines ändernden Lochs liegt (D#12, D#62)
+      val changesCode =
+        if !envelope.allowedOps.exists(writes) then Nil
+        else prefix.toList.flatMap(p => code.filter(RelPath.overlaps(p, _))).map(c => RelPath.show(c)).distinct.sorted
       val seen = Scope.visible(s.prior, envelope).map(_.step)
       val runsCode = envelope.shellAllowlist.toList.filter(c => check.runsWorkspaceCode(c.binary).isDefined).map(_.show).sorted
       // Execute filtert nach aufgelösten Pfaden und zeigt höchstens diese Ergebnisse, nie mehr (D#42)
@@ -123,7 +126,7 @@ object Explain:
         f"${s.next}%-3d" + pad(s.indent) + s"Hier entscheidet der Agent: ${quote(goal, 70)}",
         note(envelopeText(envelope), s.indent),
         note(sees, s.indent)
-      ) ++ Option.when(changesCode)(note("Hinweis: darf Code ändern, der im Lauf ausgeführt wird", s.indent)) ++
+      ) ++ Option.when(changesCode.nonEmpty)(note(s"Hinweis: darf Code ändern, der im Lauf ausgeführt wird (${changesCode.mkString(", ")})", s.indent)) ++
         Option.when(runsCode.nonEmpty)(note(s"Hinweis: darf Workspace-Code ausführen (${runsCode.mkString(", ")})", s.indent))
       // Das Ergebnis eines Lochs ist seine Done-Zusammenfassung, pfadlos (D#9)
       (lines, s.next + 1, s.prior :+ Scope.Seen(s.next, Nil))

@@ -16,7 +16,7 @@ MODULE
 TERM-ADT (core): die einzige Sprache zwischen Modell und Engine
 =====================================================================
 enum Term:
-  ReadFile(path), ListDir(path),
+  ReadFile(path), ListDir(path),               -- ListDir: samt Unterverzeichnissen, breitenweise, begrenzt (D#61)
   WriteFile(path, content)                      -- nur für neue Dateien
   EditFile(path, expectedOld, replacement)      -- CAS: expectedOld muss genau einmal vorkommen, sonst Abbruch mit Handlungsanweisung
   MoveFile(from, to)                            -- D#18: from normale Datei, to existiert nicht, Elternverzeichnis von to existiert
@@ -104,12 +104,13 @@ INTERPRETER (alle über AgentAlg)
     sbt test    keine                                  keine
   Ohne Pfadargument berührt ein Aufruf das Arbeitsverzeichnis "." (D#27); kombinierte Kurz-Flags (-rn) sind erlaubt, wenn jedes einzelne erlaubt ist.
   Das AdversarialFill-Gesetz gilt für Syscalls der Engine, nicht für Kindprozesse erlaubter Programme.
+  ListDir (D#61): breitenweise über eine Warteschlange, je Verzeichnis nach Namen sortiert, Einträge als Pfade unter dem angefragten Pfad, Verzeichnisse mit "/"; Symlinks gezeigt, nicht verfolgt; Verzeichnisse namens .git gezeigt, nicht betreten; höchstens 2000 Einträge, dann ein Hinweis. touched ist das angefragte Verzeichnis.
   Große Ausgaben: maxBytesPerStep aus der Runner-Konfiguration. Execute liest nicht die ganze Datei in den Heap; Marshalling liefert Ausschnitt (erste/letzte n Zeilen, Gesamtzeilen) mit Hinweis, gezielter zu suchen.
   think: Modelladapter (Fill) mit Ziel, Hülle, Scope-Kontext → Teilterm → DryRun gegen die Hülle des Lochs (CheckedFill) → erst bei ok rekursiv ausführen, ohne erneute Nutzer-Freigabe (D#6). Tiefe mitzählen.
   Laufzeitfehler im Teilterm (D#15): Fehler als Handlungsanweisung ans Modell, neuer Fill mit dem Fehler im Scope; Gelaufenes bleibt gelaufen; zählt gegen Versuche und das Schrittbudget des Lochs. Versuche erschöpft → Lauf endet mit Outcome aborted.
   Outcome eines Laufs: done | ask | aborted.
 - Replay: gegen Aufzeichnungen, derselbe Kern wie Execute; jeder aufgezeichnete Werkzeugaufruf wird erneut gegen seine Hülle geprüft (ToolCheck, D#32). Aufgezeichnet werden Werkzeugergebnisse UND Modellantworten (Teilterme). Execute im Record-Modus schreibt ein versioniertes Ereignislog. Gleichheit (D#16): dieselbe Ereignisfolge; die aufgezeichneten Schreibvorgänge, in eine frische Kopie des Fixtures gespielt, ergeben denselben Dateibaum.
-- BestOfN (Wrapper über den Modelladapter): Term n-mal erzeugen; Terme gelten als übereinstimmend, wenn die Mehrheit denselben structuralFingerprint hat; sonst ask statt raten.
+- BestOfN (D#63): nur für Pläne, eingeschaltet mit bestOfN > 1 in der Runner-Konfiguration (Standard 1). Jede Plan-Runde erzeugt n Kandidaten; ein Plan gilt, wenn mehr als die Hälfte aller n denselben structuralFingerprint hat (Kandidaten ohne Tor 1 zählen mit, gewählt ist der erste der Mehrheit); sonst ask statt raten (`ase plan` Exit 2). Die Abstimmung ist eine reine Funktion in core (BestOfN.vote), die Plan-Schleife im Runner erzeugt und prüft die Kandidaten.
 Interpreter-Kombination (DryRun+Cost in einem Lauf) über ein handgeschriebenes Tuple2K-Produkt; kein cats-tagless (Makros in Scala 3 unzuverlässig), kein Selective (nicht in cats-core).
 Gesetz: Interpreter lesen den Term und verändern ihn nie. Kein Interpreter normalisiert, optimiert oder schreibt in den Term zurück; Transformationen eines Terms (falls je nötig) sind eigene Funktionen Term => Term mit eigenem DryRun danach. Dadurch sind Interpreter unabhängig voneinander testbar und ihr Produkt ist kommutativ (als Property-Test: product(A, B) ≡ product(B, A) in beiden Ergebnissen).
 
@@ -131,12 +132,12 @@ MODELLADAPTER (model)
 =====================================================================
 RUNNER
 =====================================================================
-Aufgabe → Plan → DryRun (CheckedTerm) → bei Verstoß zurück ans Modell (max 3 Runden) → Explain mit termHash → Freigabe: approve(checked, gezeigter Hash) (ApprovedTerm) → Execute (Record) → Ergebnis und Outcome. Harte Limits: Gesamtschritte, Modellaufrufe, Zeit, Tiefe, maxBytesPerStep; aus Konfigurationsdatei.
+Aufgabe → Plan (mit bestOfN n Kandidaten je Runde, D#63) → DryRun (CheckedTerm) → bei Verstoß zurück ans Modell (max 3 Runden) → Explain mit termHash → Freigabe: approve(checked, gezeigter Hash) (ApprovedTerm) → Execute (Record) → Ergebnis und Outcome. Harte Limits: Gesamtschritte, Modellaufrufe, Zeit, Tiefe, maxBytesPerStep; aus Konfigurationsdatei. `ase plan --summary` legt die Kennzahlen des Plans in jedem Ausgang ab (D#64).
 
 =====================================================================
 EVALS
 =====================================================================
-Sechs Aufgaben, Details und Eval 6 (Integrations-Use-Case, deterministisch und live) in evals/README.md. Erfolgsquote über n Läufe; Ergebnis als M#-Eintrag nach playbook/evals.md. Prüfvertrag: check.sh WORKDIR OUTCOME (D#17).
+Sechs Aufgaben, Details und Eval 6 (Integrations-Use-Case, deterministisch und live) in evals/README.md. Erfolgsquote über n Läufe; Ergebnis als M#-Eintrag nach playbook/evals.md. evals/series.sh misst eine Eval, evals/harness.sh alle sechs mit derselben Konfiguration (D#64). Prüfvertrag: check.sh WORKDIR OUTCOME (D#17).
 
 =====================================================================
 TESTS
@@ -185,7 +186,7 @@ VORGEHEN
 2. core: Term-ADT (mit MoveFile), Pred, JSON-Codec, decoderFor, handgeschriebenes Schema (D#10), Algebra mit Kontrolloperationen, restrict, ToTerm/fromTerm, DryRun mit CheckedTerm, Approval mit ApprovedTerm, Cost, Explain, structuralFingerprint, termHash (JCS), Flow-Format mit Parameterbindung, Term-Generator und AdversarialFill-Generator. Tests grün. Kein Execute, kein Modell.
 3. core: Execute (Pfad- und Shell-Prüfung zuerst, mit Tests), Record/Replay, AdversarialFill-Gesetz grün, Eval 6 im deterministischen Modus grün. Läuft und wird getestet in WSL (D#29); Java 17 und sbt 1.10.7 sind dort installiert (O#15). · erledigt 2026-10-27 (D#32–D#38), zwei Reviews eingearbeitet.
 4. model + runner mit submit_term, Plan und Fill. Erste Serie (n=10) gegen Eval 1 als M#1, Eval 6 live als M#2. · Code 2026-10-28 (D#44–D#46); M#1 und M#2 offen.
-5. BestOfN, Eval-Harness über alle sechs Aufgaben.
+5. BestOfN, Eval-Harness über alle sechs Aufgaben. · Code 2026-10-29 (D#63, D#64); Serien über claude --print siehe findings.md, M#1 und M#2 über die Messages API weiter offen.
 Nach jedem Schritt: sbt test grün, context.yaml und findings.md nachgeführt, kurze Zusammenfassung, offene Punkte. Keine Features über diese Liste hinaus ohne Rückfrage.
 
 OFFENE FRAGEN: entschieden als D#8 (Ask im Loch) und D#9 (Scope). Weitere offene Punkte in findings.md, Abschnitt Offen.

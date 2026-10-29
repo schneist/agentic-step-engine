@@ -18,7 +18,9 @@ operations:
     type: operation
     status: implemented
     source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.listDir
-    verified: 2026-10-27
+    verified: 2026-10-29
+    decided_by: ["D#61"]
+    note: samt Unterverzeichnissen, breitenweise, höchstens LocalTools.MaxEntries (2000); Symlinks und .git nicht betreten (Execute)
   - id: op.writeFile
     type: operation
     status: implemented
@@ -248,6 +250,14 @@ policies:
     source: core/src/main/scala/ase/core/Explain.scala#ExplainConfig
     verified: 2026-10-27
     decided_by: ["D#24"]
+  - id: policy.bestOfN
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/BestOfN.scala#BestOfN.vote
+    verified: 2026-10-29
+    decided_by: ["D#63"]
+    tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite]
+    note: Mehrheit über alle n Kandidaten nach Fingerprint, abgelehnte zählen mit; nur für Pläne, Runner-Konfiguration bestOfN (Standard 1)
   - id: policy.capabilities
     type: policy
     status: implemented
@@ -286,8 +296,9 @@ interpreters:
     type: interpreter
     status: implemented
     source: core/src/main/scala/ase/core/Explain.scala#Explain.render
-    verified: 2026-10-27
-    note: Ausgabeformat golden in ExplainSuite
+    verified: 2026-10-29
+    decided_by: ["D#62"]
+    note: Ausgabeformat golden in ExplainSuite; Code-Hinweis nennt den ausgeführten Code unter dem pathPrefix
   - id: int.product
     type: interpreter
     status: implemented
@@ -318,9 +329,9 @@ interpreters:
     type: interpreter
     status: implemented
     source: core/src/main/scala/ase/core/LocalTools.scala#LocalTools
-    verified: 2026-10-27
-    decided_by: ["D#29", "D#31"]
-    note: Pfadprüfung über toRealPath, Shell ohne Shell, Timeout samt Kindprozessen, git gehärtet
+    verified: 2026-10-29
+    decided_by: ["D#29", "D#31", "D#61"]
+    note: Pfadprüfung über toRealPath, Shell ohne Shell, Timeout samt Kindprozessen, git gehärtet; ListDir rekursiv (walk)
   - id: int.toolCheck
     type: interpreter
     status: implemented
@@ -388,25 +399,39 @@ interpreters:
     type: runner
     status: implemented
     source: runner/src/main/scala/ase/runner/Planner.scala#Planner.run
-    verified: 2026-10-28
-    decided_by: ["D#45"]
+    verified: 2026-10-29
+    decided_by: ["D#45", "D#63"]
     tested_by: [ase.runner.RunnerSuite]
-    note: Plan-Schleife mit Tor 1, höchstens planRounds
+    note: Plan-Schleife mit Tor 1, höchstens planRounds; mit bestOfN n Kandidaten je Runde und Abstimmung (BestOfN.vote)
   - id: runner.cli
     type: runner
     status: implemented
     source: runner/src/main/scala/ase/runner/Main.scala#Main
-    verified: 2026-10-28
-    decided_by: ["D#45", "D#46"]
+    verified: 2026-10-29
+    decided_by: ["D#45", "D#46", "D#63", "D#64"]
     tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite]
-    note: "ase plan / ase run; PlanFile.scala, RunnerConfig.scala, Summary"
+    note: "ase plan / ase run; PlanFile.scala (Version 2, liest 1), RunnerConfig.scala (bestOfN), Summary, PlanSummary (ase plan --summary); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
+  - id: runner.launcher
+    type: runner
+    status: implemented
+    source: bin/ase
+    verified: 2026-10-29
+    decided_by: ["D#60"]
+    note: "baut beim ersten Aufruf und nach Änderungen (Klassenpfad in target/ase-classpath.txt), startet dann java"
   - id: runner.series
     type: runner
     status: implemented
     source: evals/series.sh
     verified: 2026-10-28
     decided_by: ["D#45", "D#46"]
-    note: "Serie für M#; Standard-Konfiguration evals/runner.json; --reference zählt Pläne mit dem Fingerprint eines Referenzflows (ase plan druckt fingerprint); Zusammenfassung im Format der M#-Zeile"
+    note: "Serie für M#; Standard-Konfiguration evals/runner.json; --reference zählt Pläne mit dem Fingerprint eines Referenzflows (ase plan druckt fingerprint); Plan-Kennzahlen aus plan-summary.json, wenn kein Lauf stattfand (D#64); Spalte code_hint (D#62); Zusammenfassung im Format der M#-Zeile"
+  - id: runner.harness
+    type: runner
+    status: implemented
+    source: evals/harness.sh
+    verified: 2026-10-29
+    decided_by: ["D#64"]
+    note: "series.sh für jede Eval, Eval 6 mit flows/red-test.json als Referenz; M#-Zeilen in harness.md"
 
 invariants:
   - id: inv.nothingUnchecked
@@ -540,6 +565,11 @@ decisions:
   - { id: "D#57", type: decision, status: decided, source: "findings.md#D#57", verified: 2026-10-28, title: "Bericht-Loch im red-test-Flow mit 2 Schritten", tested_by: [ase.core.FlowSuite, ase.core.ExplainSuite, ase.core.Eval6Suite] }
   - { id: "D#58", type: decision, status: decided, source: "findings.md#D#58", verified: 2026-10-28, title: "Vierter Anbieter claudecode (claude --print, Abo)", tested_by: [ase.model.ClaudeCodeSuite, ase.model.AgySuite] }
   - { id: "D#59", type: decision, status: decided, source: "findings.md#D#59", verified: 2026-10-28, title: "agy: Fehlversuch ohne Term nennt den Anfang des Freitexts", tested_by: [ase.model.AgySuite] }
+  - { id: "D#60", type: decision, status: decided, source: "findings.md#D#60", verified: 2026-10-29, title: "Lizenz Apache 2.0, Startskript bin/ase" }
+  - { id: "D#61", type: decision, status: decided, source: "findings.md#D#61", verified: 2026-10-29, title: "ListDir rekursiv, breitenweise, begrenzt", tested_by: [ase.core.LocalToolsSuite, ase.core.ExplainSuite] }
+  - { id: "D#62", type: decision, status: decided, source: "findings.md#D#62", verified: 2026-10-29, title: "Ändernde Löcher nicht über ausgeführtem Code: Prompt, Code-Hinweis mit Namen, Zählung", tested_by: [ase.core.ExplainSuite] }
+  - { id: "D#63", type: decision, status: decided, source: "findings.md#D#63", verified: 2026-10-29, title: "BestOfN nur für Pläne, Standard aus", tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite] }
+  - { id: "D#64", type: decision, status: decided, source: "findings.md#D#64", verified: 2026-10-29, title: "Plan-Kennzahlen ohne Lauf, Harness, Exit 3 für abgelehnte Flows", tested_by: [ase.runner.RunnerSuite] }
 
 open:
   - { id: "O#1", type: open, status: resolved, source: "findings.md#O#1", verified: 2026-10-27, resolved_by: "D#8" }
@@ -564,13 +594,14 @@ open:
   - { id: "O#20", type: open, status: resolved, source: "findings.md#O#20", verified: 2026-10-27, resolved_by: "D#42" }
   - { id: "O#21", type: open, status: resolved, source: "findings.md#O#21", verified: 2026-10-27, resolved_by: "D#43" }
   - { id: "O#22", type: open, status: open, source: "findings.md#O#22", verified: 2026-10-28, title: "Argument-Policies nicht in der Runner-Konfiguration" }
-  - { id: "O#23", type: open, status: open, source: "findings.md#O#23", verified: 2026-10-28, title: "Plan-Kennzahlen ohne Lauf nicht abgelegt" }
+  - { id: "O#23", type: open, status: resolved, source: "findings.md#O#23", verified: 2026-10-29, resolved_by: "D#64" }
   - { id: "O#24", type: open, status: open, source: "findings.md#O#24", verified: 2026-10-28, title: "Fill sieht eigene Schritte nicht; Schreib-Loch braucht weiten pathPrefix für Sicht" }
   - { id: "O#25", type: open, status: resolved, source: "findings.md#O#25", verified: 2026-10-28, resolved_by: "D#55" }
   - { id: "O#26", type: open, status: resolved, source: "findings.md#O#26", verified: 2026-10-28, resolved_by: "D#56" }
   - { id: "O#27", type: open, status: resolved, source: "findings.md#O#27", verified: 2026-10-28, resolved_by: "D#57" }
-  - { id: "O#28", type: open, status: open, source: "findings.md#O#28", verified: 2026-10-28, title: "Lochhüllen in Modellplänen weiter als nötig (EditFile unter .)" }
-  - { id: "O#29", type: open, status: open, source: "findings.md#O#29", verified: 2026-10-28, title: "Verzeichnistiefe kostet je Ebene eine Runde (ListDir nicht rekursiv)" }
+  - { id: "O#28", type: open, status: resolved, source: "findings.md#O#28", verified: 2026-10-29, resolved_by: "D#62" }
+  - { id: "O#29", type: open, status: resolved, source: "findings.md#O#29", verified: 2026-10-29, resolved_by: "D#61" }
+  - { id: "O#30", type: open, status: open, source: "findings.md#O#30", verified: 2026-10-29, title: "Fingerprint für BestOfN zu fein" }
 
 evals:
   - id: eval.1

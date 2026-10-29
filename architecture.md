@@ -122,3 +122,15 @@ Umkehrkosten: niedrig. Beide Funktionen sind lokal.
 Alternativen: (a) Nichts ändern; Pläne und Flows lesen vor dem Loch (D#51, D#53). (b) Ergebnisse eines Lochs bleiben für spätere Geschwister-Löcher sichtbar. (c) Ein Fill ohne Done führt zu einer weiteren Runde desselben Lochs, die die Ergebnisse der Runden davor sieht.
 Gewählt: c. a geht für generische Flows nicht, wenn die Datei vorher unbekannt ist (Eval 6, Release-Flow); b heilt nicht, dass ein Loch lesen und dann per Compare-and-Swap ändern muss. c ändert weder Sprache noch Hüllen noch Freigabe: Jede Runde geht durch Decoder und Tor 2, alle Runden teilen das Budget des Lochs. Innerhalb der freigegebenen Hülle ist das eine begrenzte Per-Schritt-Schleife (vgl. D#1 a), der Plan bleibt statisch prüfbar.
 Umkehrkosten: mittel. Engine, Record-Log (Version 3), Replay, Cost, Fill-Prompt und die Messbasis ab M#1 hängen daran.
+
+## D#61 ListDir listet rekursiv
+
+Alternativen: (a) ListDir mit einem Feld für die Tiefe (neues Feld im Term, ändert Sprache, Schema, Codec und alle Hashes). (b) Mehr Runden je Loch (kostet je Verzeichnisebene einen Modellaufruf und Schrittbudget). (c) Ein Hinweis im Plan-Prompt, die Struktur vorab zu listen (der Plan kennt die Tiefe nicht). (d) ListDir liefert das ganze Verzeichnis, breitenweise und begrenzt.
+Gewählt: d. Nur d löst Eval 4 in einem Schritt, ohne die Sprache zu ändern; breitenweise und mit Obergrenze, damit große Build-Verzeichnisse die Übersicht nicht verdrängen.
+Umkehrkosten: niedrig im Code (LocalTools, ExecSupport, eine Zeile Prompt und Explain), mittel in der Messbasis: Serien ab D#61 sehen eine andere ListDir-Ausgabe als M#4 und M#5.
+
+## D#63 BestOfN nur für Pläne, standardmäßig aus
+
+Alternativen: (a) BestOfN für Plan und Fill, wie SPEC es offenlässt. (b) Nur für Pläne, Mehrheit über alle n Kandidaten, abgelehnte zählen mit. (c) Nur für Pläne, Mehrheit nur unter den geprüften Kandidaten.
+Gewählt: b, mit bestOfN = 1 als Standard. a braucht ask mitten im Lauf (Engine, Record-Log, Replay); c würde einen einzigen geprüften von drei Kandidaten als Mehrheit nehmen, obwohl zwei Antworten unbrauchbar waren. Standard aus, weil der Fingerprint für Claude zu fein ist (O#30).
+Umkehrkosten: niedrig. Eine reine Funktion in core, die Plan-Schleife und Version 2 der Plan-Datei.

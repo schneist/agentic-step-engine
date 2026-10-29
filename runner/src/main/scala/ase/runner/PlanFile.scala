@@ -10,6 +10,8 @@ import java.security.MessageDigest
 
 /** Was `ase plan` ablegt und `ase run` liest (zweiphasiges CLI): der Term mit origin, die Hülle, gegen die er geprüft
   * wurde, die gebundenen Flow-Parameter, der Fingerabdruck der Runner-Konfiguration und die Kosten des Plans.
+  * candidates und agreeing: wie viele Pläne die letzte Runde hatte und wie viele davon den Fingerprint des gewählten
+  * teilen (BestOfN, D#63); ohne Abstimmung 1 und 1. Version 2; Version 1 (ohne die beiden Felder) wird weiter gelesen.
   * Kein CheckedTerm: `ase run` prüft neu (DryRun) und gibt nur frei, was dabei herauskommt (D#11).
   */
 final case class PlanFile(
@@ -21,11 +23,13 @@ final case class PlanFile(
     calls: Int,
     rejections: Int,
     unusable: Int,
-    tokens: Long
+    tokens: Long,
+    candidates: Int = 1,
+    agreeing: Int = 1
 )
 
 object PlanFile:
-  val Version = 1
+  val Version = 2
 
   def encode(p: PlanFile): Json = Json.obj(
     "v" -> Json.fromInt(Version),
@@ -38,7 +42,9 @@ object PlanFile:
       "calls" -> Json.fromInt(p.calls),
       "rejections" -> Json.fromInt(p.rejections),
       "unusable" -> Json.fromInt(p.unusable),
-      "tokens" -> Json.fromLong(p.tokens)
+      "tokens" -> Json.fromLong(p.tokens),
+      "candidates" -> Json.fromInt(p.candidates),
+      "agreeing" -> Json.fromInt(p.agreeing)
     )
   )
 
@@ -48,7 +54,7 @@ object PlanFile:
       o <- json.asObject.toRight("Plan-Datei: erwartet ein Objekt")
       _ <- o.keys.find(k => !Set("v", "source", "configSha", "envelope", "params", "term", "plan")(k)).map(k => s"Plan-Datei: Feld „$k“ ist nicht vorgesehen").toLeft(())
       v <- o("v").flatMap(_.asNumber).flatMap(_.toInt).toRight("Plan-Datei: v fehlt")
-      _ <- Either.cond(v == Version, (), s"Plan-Datei Version $v wird nicht unterstützt (erwartet $Version)")
+      _ <- Either.cond(v == 1 || v == Version, (), s"Plan-Datei Version $v wird nicht unterstützt (erwartet 1 oder $Version)")
       source <- str(o, "source")
       configSha <- str(o, "configSha")
       envelope <- o("envelope").toRight("envelope fehlt").flatMap(Codec.decodeEnvelope(_, Location.root / "envelope").leftMap(_.message))
@@ -61,7 +67,9 @@ object PlanFile:
       rejections <- int(plan, "rejections")
       unusable <- int(plan, "unusable")
       tokens <- plan("tokens").flatMap(_.asNumber).flatMap(_.toLong).toRight("plan.tokens fehlt")
-    yield PlanFile(source, configSha, envelope, params, term, calls, rejections, unusable, tokens)
+      candidates <- if v == 1 then Right(1) else int(plan, "candidates")
+      agreeing <- if v == 1 then Right(1) else int(plan, "agreeing")
+    yield PlanFile(source, configSha, envelope, params, term, calls, rejections, unusable, tokens, candidates, agreeing)
 
   /** Fingerabdruck der Runner-Konfiguration: SHA-256 der Datei, ohne Datei "default". Plan und Lauf müssen mit
     * derselben Konfiguration geprüft werden (D#40).

@@ -38,6 +38,9 @@ object LocalTools:
   private val KillWaitSeconds = 5L
   private val nofollow = LinkOption.NOFOLLOW_LINKS
 
+  /** Höchstens so viele Einträge liefert ein ListDir (D#61); danach hört der Lauf durch die Verzeichnisse auf. */
+  private[core] val MaxEntries = 2000
+
   /** Tiefstes existierendes Elternverzeichnis (oder der Pfad selbst) mit toRealPath, Rest normalisiert angehängt;
     * toRealPath nie auf etwas, das nicht existiert. Für Pfade außerhalb der Hüllen (Record-Datei, PATH).
     */
@@ -190,6 +193,12 @@ object LocalTools:
               Reply(t, Right(StepResult(None, Some(r.text))), lines(r.lines) + (if r.truncated then ", gekürzt" else ""))
           }
 
+    /** ListDir listet das Verzeichnis samt Unterverzeichnissen, breitenweise (D#61): erst alle Einträge der ersten
+      * Ebene, dann die der zweiten. Jeder Eintrag als Pfad, wie ihn ReadFile nimmt (unter dem angefragten Pfad),
+      * Verzeichnisse mit "/". Symlinks werden gezeigt, aber nicht verfolgt; in ein Git-Verzeichnis geht der Lauf nicht
+      * hinein (D#37). Nach MaxEntries Einträgen hört er auf; so bleibt die Zahl der Syscalls begrenzt, und eine
+      * Kürzung trifft die tiefen Ebenen zuerst.
+      */
     private def list(raw: String, env: Envelope): Reply =
       resolve(raw, env) match
         case Left(e) => fail(Nil, e)
@@ -199,14 +208,34 @@ object LocalTools:
             if !Files.exists(p) then fail(t, ToolError.NotFound(raw))
             else if !Files.isDirectory(p) then fail(t, ToolError.NotADirectory(raw))
             else
-              val stream = Files.list(p)
-              val names =
-                try stream.iterator.asScala.map(e => e.getFileName.toString + (if Files.isDirectory(e, nofollow) then "/" else "")).toVector.sorted
-                finally stream.close()
-              val text = names.mkString("\n")
-              val r = Marshal.excerpt(text, config.maxBytesPerStep, config.excerptHeadLines, config.excerptTailLines)
-              Reply(t, Right(StepResult(None, Some(r.text))), s"${names.size} Einträge")
+              val base = ToolCheck.path(raw, env).map(RelPath.show).getOrElse(raw)
+              val (entries, complete) = walk(p)
+              val shown = entries.map(e => if base == "." then e else s"$base/$e")
+              val more = Option.when(!complete)(s"… mehr als ${LocalTools.MaxEntries} Einträge; liste ein engeres Verzeichnis")
+              val r = Marshal.excerpt((shown ++ more).mkString("\n"), config.maxBytesPerStep, config.excerptHeadLines, config.excerptTailLines)
+              Reply(t, Right(StepResult(None, Some(r.text))), s"${entries.size} Einträge" + (if complete then "" else ", unvollständig"))
           }
+
+    /** Einträge unter dir, relativ zu dir: breitenweise über eine Warteschlange, je Verzeichnis nach Namen sortiert.
+      * Jeder Schritt liest genau ein Verzeichnis; false, wenn MaxEntries erreicht ist.
+      */
+    private def walk(dir: Path): (Vector[String], Boolean) =
+      def children(d: String): Vector[(String, Boolean)] =
+        val stream = Files.list(if d.isEmpty then dir else dir.resolve(d))
+        try
+          stream.iterator.asScala.map(e => (e.getFileName.toString, Files.isDirectory(e, nofollow))).toVector.sortBy(_._1)
+            .map((name, isDir) => (if d.isEmpty then name else s"$d/$name", isDir))
+        finally stream.close()
+      @tailrec def go(queue: Vector[String], acc: Vector[String]): (Vector[String], Boolean) =
+        queue match
+          case d +: rest =>
+            val cs = children(d)
+            val room = LocalTools.MaxEntries - acc.size
+            val next = acc ++ cs.take(room).map((e, isDir) => if isDir then e + "/" else e)
+            if cs.size > room then (next, false)
+            else go(rest ++ cs.collect { case (e, true) if !e.split('/').last.equalsIgnoreCase(".git") => e }, next)
+          case _ => (acc, true)
+      go(Vector(""), Vector.empty)
 
     private def write(raw: String, content: String, env: Envelope): Reply =
       resolveEntry(raw, env) match

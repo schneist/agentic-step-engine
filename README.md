@@ -8,6 +8,8 @@ Gedacht ist es für Abläufe, die man einmal festlegt und oft laufen lässt: ein
 
 **Status:** Engine, Modellanbindung und CLI sind gebaut. Mit Claude über `claude --print` sind zwei der sechs Testaufgaben gemessen, beide mit 10 von 10 Läufen. Die übrigen vier sind bisher nur in Probeläufen gelaufen, und die Messung über die Anthropic-API steht noch aus ([Details](#evals-und-status)).
 
+> **In English.** `ase` lets a language model do recurring chores on a repository, such as preparing a release or diagnosing a failing test. The model does not call tools one by one. It first writes a small program in a checked language, with *holes* where it decides at run time. Each hole carries an *envelope* that limits which operations, paths and steps are allowed there. Nothing runs before it has been checked, and nothing runs before a human has approved the program's hash. Prototype in Scala 3 under the Apache License 2.0. The documentation is in German.
+
 ## Wie es funktioniert
 
 Das Modell schreibt einen **Term**: ein Programm als JSON in einer kleinen, festen Sprache. Sie kennt Datei lesen, ändern, anlegen und verschieben, erlaubte Shell-Befehle, Sequenz, Bedingung und begrenzte Wiederholung. Variablen gibt es nicht. Wo das Modell Daten braucht, die es beim Planen noch nicht hat, setzt es ein **Loch**: „hier entscheide ich später“. Jedes Loch trägt eine **Hülle** (envelope). Sie legt fest, welche Operationen unter welchem Pfad erlaubt sind, wie viele Schritte und welche Shell-Befehle.
@@ -146,10 +148,9 @@ Die Befehle sind bash (Linux, WSL, Git Bash).
 
 ```
 git clone https://github.com/schneist/agentic-step-engine.git && cd agentic-step-engine
-sbt test                                        # außerhalb von Linux sind die Execute-Tests sichtbar übersprungen
-sbt runner/compile
-cp=$(sbt -batch -error "export runner/Runtime/fullClasspath" | tail -1)
-ase() { java -cp "$cp" ase.runner.Main "$@"; }  # so ruft auch evals/series.sh den Runner auf
+sbt test                 # außerhalb von Linux sind die Execute-Tests sichtbar übersprungen
+export PATH="$PWD/bin:$PATH"
+ase plan …               # bin/ase baut beim ersten Aufruf und nach Änderungen, danach startet es nur java
 ```
 
 **Ohne Modell:** Ein Flow wird ohne Modell geprüft und erklärt.
@@ -173,16 +174,16 @@ ase run  --plan todo.plan.json --envelope evals/1-todos/envelope.json --config $
 ### CLI-Referenz
 
 ```
-ase plan --envelope E (--task T | --flow F [name=wert …]) --out P [--config C]
+ase plan --envelope E (--task T | --flow F [name=wert …]) --out P [--summary S] [--config C]
 ase run  --plan P --envelope E --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
 ```
 
 - `--approve` nimmt die 64 Hex-Zeichen der Zeile `hash` und gibt ohne Rückfrage frei. Ohne Terminal immer damit aufrufen.
 - `--no-ask` beantwortet `Ask`-Fragen nicht; der Lauf endet dann mit `ask`.
-- `--summary` schreibt Kennzahlen als JSON.
+- `--summary` schreibt Kennzahlen als JSON, bei `plan` auch dann, wenn kein Plan zustande kam.
 - `plan` und `run` brauchen dieselbe `--config`.
-- Exit-Codes von `run`: 0 done, 2 ask, 3 aborted, 4 nicht freigegeben, 1 Fehler. Von `plan`: 0 geprüft, 3 abgelehnt, 1 Fehler.
-- Messserien: `evals/series.sh <eval-verzeichnis> <n> <ausgabe> [--config datei]`.
+- Exit-Codes von `run`: 0 done, 2 ask, 3 aborted, 4 nicht freigegeben, 1 Fehler. Von `plan`: 0 geprüft, 2 keine Mehrheit (nur mit `bestOfN`), 3 abgelehnt, 1 Fehler.
+- Messserien: `evals/series.sh <eval-verzeichnis> <n> <ausgabe> [--config datei]` für eine Eval, `evals/harness.sh <n> <ausgabe> [--config datei]` für alle sechs.
 
 Die Konfiguration (`--config`) ist JSON; jedes Feld ist optional, unbekannte Felder sind Fehler. `model.provider` legt fest, wer plant und füllt:
 
@@ -193,7 +194,7 @@ Die Konfiguration (`--config`) ist JSON; jedes Feld ist optional, unbekannte Fel
 | `agy` | Antigravity-CLI | angemeldete CLI | gemini-3.8-flash-medium | `evals/runner-agy.json`, `evals/runner-agy-argon.json` |
 | `ollama` | lokal, Port 11434 | keine | qwen3:4b-instruct | `evals/runner-ollama.json` |
 
-Dazu kommen `limits`, `scripts`, `explainDenials`, `nestingLimit` und `planRounds`; Einzelheiten in [RunnerConfig.scala](runner/src/main/scala/ase/runner/RunnerConfig.scala).
+Dazu kommen `limits`, `scripts`, `explainDenials`, `nestingLimit`, `planRounds` und `bestOfN`. Mit `bestOfN` größer 1 erzeugt jede Plan-Runde so viele Pläne, und einer gilt nur, wenn die Mehrheit dieselbe Struktur hat; sonst entscheidet der Mensch (D#63). Standard ist 1, denn Claude schreibt dieselbe Lösung selten zweimal gleich (O#30). Einzelheiten in [RunnerConfig.scala](runner/src/main/scala/ase/runner/RunnerConfig.scala).
 
 ## Einen Flow schreiben
 
@@ -213,7 +214,7 @@ Was ein Flow wie der Release-Flow im eigenen Repository braucht: `ase.json` mit 
 ### Die Term-Sprache
 
 ```
-Term ::= ReadFile(path) | ListDir(path)
+Term ::= ReadFile(path) | ListDir(path)                -- ListDir samt Unterverzeichnissen, Ebene für Ebene
        | WriteFile(path, content)                    -- nur neue Dateien
        | EditFile(path, expectedOld, replacement)    -- Compare-and-Swap, expectedOld genau einmal
        | MoveFile(from, to)                          -- Ziel darf nicht existieren
@@ -254,3 +255,7 @@ Sechs Aufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Eval 
 - Ohne Messung: Je ein Probelauf mit Gemini 4 Argon (`evals/runner-agy-argon.json`) bestand Eval 1 bis 4 (D#59). Eval 4 blieb mit Claude an tiefen Verzeichnissen hängen (O#29).
 
 Weiterlesen: [SPEC.md](SPEC.md) (Spezifikation, Grenzen und Limits), [findings.md](findings.md) (Entscheidungen, Messungen, offene Punkte), [context.md](context.md) mit [Glossar](context.md#7-glossar) und dem [Warum jeder Entscheidung](context.md#8-warum), [architecture.md](architecture.md), [CLAUDE.md](CLAUDE.md) (Arbeitsregeln).
+
+## Lizenz
+
+Apache License 2.0, siehe [LICENSE](LICENSE).

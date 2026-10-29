@@ -13,7 +13,15 @@ import java.time.format.DateTimeFormatter
 
 /** Befehle des CLI, zweiphasig: `plan` prüft und legt den Term ab, `run` prüft neu, gibt frei und führt aus. */
 enum Command:
-  case Plan(envelope: Path, task: Option[Path], flow: Option[Path], values: Map[String, String], out: Path, config: Option[Path])
+  case Plan(
+      envelope: Path,
+      task: Option[Path],
+      flow: Option[Path],
+      values: Map[String, String],
+      out: Path,
+      config: Option[Path],
+      summary: Option[Path] = None
+  )
   case Run(
       plan: Path,
       envelope: Path,
@@ -27,10 +35,10 @@ enum Command:
 
 object Cli:
   val usage: String =
-    """ase plan --envelope E (--task T | --flow F [name=wert …]) --out P [--config C]
+    """ase plan --envelope E (--task T | --flow F [name=wert …]) --out P [--summary S] [--config C]
       |ase run  --plan P --envelope E --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
       |
-      |Exit-Codes von run: 0 done, 2 ask, 3 aborted, 4 nicht freigegeben, 1 Fehler. plan: 0 geprüft, 3 abgelehnt, 1 Fehler.""".stripMargin
+      |Exit-Codes von run: 0 done, 2 ask, 3 aborted, 4 nicht freigegeben, 1 Fehler. plan: 0 geprüft, 2 keine Mehrheit (bestOfN), 3 abgelehnt, 1 Fehler.""".stripMargin
 
   def parse(args: List[String]): Either[String, Command] =
     def opts(rest: List[String], acc: Map[String, String], flags: Set[String], free: List[String]): Either[String, (Map[String, String], Set[String], List[String])] =
@@ -48,7 +56,7 @@ object Cli:
       case "plan" :: rest =>
         for
           (o, _, free) <- opts(rest, Map.empty, Set.empty, Nil)
-          _ <- known(o, "envelope", "task", "flow", "out", "config")
+          _ <- known(o, "envelope", "task", "flow", "out", "config", "summary")
           envelope <- need(o, "envelope")
           out <- need(o, "out")
           _ <- Either.cond(o.contains("task") != o.contains("flow"), (), "genau eines von --task und --flow")
@@ -57,7 +65,15 @@ object Cli:
               case Array(k, v) if o.contains("flow") => Right(k -> v)
               case _                                 => Left(s"unerwartetes Argument „$a“")
           )
-        yield Command.Plan(envelope, o.get("task").map(Path.of(_)), o.get("flow").map(Path.of(_)), values.toMap, out, o.get("config").map(Path.of(_)))
+        yield Command.Plan(
+          envelope,
+          o.get("task").map(Path.of(_)),
+          o.get("flow").map(Path.of(_)),
+          values.toMap,
+          out,
+          o.get("config").map(Path.of(_)),
+          o.get("summary").map(Path.of(_))
+        )
       case "run" :: rest =>
         for
           (o, flags, free) <- opts(rest, Map.empty, Set.empty, Nil)
@@ -108,40 +124,57 @@ object Main extends IOApp:
   private def loadEnvelope(path: Path): IO[Envelope] =
     read(path).flatMap(t => orFail(parser.parse(t).leftMap(_.message).flatMap(Codec.decodeEnvelope(_, Location.root).leftMap(_.message))))
 
+  /** Exit-Codes: 0 geprüft, 2 keine Mehrheit unter den Kandidaten (BestOfN, D#63), 3 von Tor 1 abgelehnt. Die
+    * Kennzahlen des Plans gehen mit --summary in jedem dieser Fälle in eine Datei (O#23).
+    */
   private def plan(cmd: Command.Plan): IO[ExitCode] =
     for
       (config, sha) <- loadConfig(cmd.config)
       root <- loadEnvelope(cmd.envelope)
-      result <- (cmd.task, cmd.flow) match
-        case (Some(task), _) => planTask(task, root, config)
-        case (_, Some(flow)) => planFlow(flow, cmd.values, root, config).map(Some(_))
+      (planned, source) <- (cmd.task, cmd.flow) match
+        case (Some(task), _) => planTask(task, root, config).map(_ -> task.toString)
+        case (_, Some(flow)) => planFlow(flow, cmd.values, root, config).map(_ -> flow.toString)
         case _               => IO.raiseError(Failure(Cli.usage))
-      code <- result match
-        case None => IO.pure(ExitCode(3))
-        case Some((checked, planned, source)) =>
-          val file = PlanFile(source, sha, checked.rootEnvelope, checked.params, checked.term, planned.calls, planned.rejections, planned.unusable, planned.tokens)
+      _ <- cmd.summary.traverse_(p => IO.blocking(Files.writeString(p, PlanSummary.of(planned).spaces2 + "\n", UTF_8)))
+      code <- planned.checked match
+        case Some(checked) =>
+          val (candidates, agreeing) = planned.vote match
+            case Some(BestOfN.Vote.Majority(_, agreeing, of)) => (of, agreeing)
+            case _                                            => (1, 1)
+          val file = PlanFile(source, sha, checked.rootEnvelope, checked.params, checked.term, planned.calls, planned.rejections, planned.unusable, planned.tokens, candidates, agreeing)
           // fingerprint: Struktur ohne origin (D#19), für den Vergleich mit einem Referenzflow (playbook/evals.md)
           IO.blocking(Files.writeString(cmd.out, PlanFile.encode(file).spaces2 + "\n", UTF_8)) >>
             IO.println(Explain.render(checked, config.explain)) >>
             IO.println(s"fingerprint ${Fingerprint.of(checked.term).hex}").as(ExitCode.Success)
+        case None if planned.split =>
+          IO.println("Keine Mehrheit unter den Plänen; nichts abgelegt. Aufgabe schärfen oder erneut planen.").as(ExitCode(2))
+        case None => IO.pure(ExitCode(3))
     yield code
 
-  private def planTask(task: Path, root: Envelope, config: RunnerConfig): IO[Option[(CheckedTerm, Planned, String)]] =
+  private def planTask(task: Path, root: Envelope, config: RunnerConfig): IO[Planned] =
     for
       text <- read(task)
       transport <- JdkTransport.open[IO](config.model).flatMap(e => IO.fromEither(e.leftMap(ModelUnavailable(_))))
       model = ModelAdapter[IO](transport, config.model, config.check)
-      planned <- Planner.run[IO](model, text, root, config.check, config.planRounds)
+      planned <- Planner.run[IO](model, text, root, config.check, config.planRounds, config.bestOfN)
       _ <- IO.println(planned.log.mkString("\n"))
       _ <- IO.println(s"plan      ${planned.calls} Modellaufrufe · ${planned.rejections} Ablehnungen an Tor 1 · ${planned.tokens} Tokens")
-    yield planned.checked.map(c => (c, planned, task.toString))
+    yield planned
 
-  private def planFlow(flow: Path, values: Map[String, String], root: Envelope, config: RunnerConfig): IO[(CheckedTerm, Planned, String)] =
+  /** Ein Flow braucht kein Modell. Ein Verstoß an Tor 1 ist eine Ablehnung (Exit 3); Fehler beim Binden der Parameter
+    * sind Eingabefehler (Exit 1).
+    */
+  private def planFlow(flow: Path, values: Map[String, String], root: Envelope, config: RunnerConfig): IO[Planned] =
     for
       text <- read(flow)
       bound <- orFail(Flow.parse(text, config.check.nestingLimit).flatMap(Flow.bind(_, values, root)).leftMap(_.toString))
-      checked <- orFail(DryRun.plan(bound.term, bound.envelope, config.check, values).leftMap(_.toList.map(_.render).mkString("\n")))
-    yield (checked, Planned(Some(checked), 0, 0, 0, 0L, Vector.empty), flow.toString)
+      planned <- DryRun.plan(bound.term, bound.envelope, config.check, values) match
+        case Right(checked) => IO.pure(Planned(Some(checked), 0, 0, 0, 0L, Vector.empty))
+        case Left(vs) =>
+          val reasons = vs.toList.map(_.render)
+          val lines = s"flow     dryrun  rejected  ${reasons.head}" :: reasons.tail.map(" " * 26 + _)
+          IO.println(lines.mkString("\n")).as(Planned(None, 0, 1, 0, 0L, Vector.empty))
+    yield planned
 
   private def execute(cmd: Command.Run): IO[ExitCode] =
     for
@@ -207,6 +240,8 @@ object Summary:
       "planFingerprint" -> Json.fromString(Fingerprint.of(file.term).hex),
       "steps" -> Json.fromLong(s.steps),
       "planCalls" -> Json.fromInt(file.calls),
+      "planCandidates" -> Json.fromInt(file.candidates),
+      "planAgreeing" -> Json.fromInt(file.agreeing),
       "fillCalls" -> Json.fromInt(s.modelCalls),
       "gate1Rejections" -> Json.fromInt(file.rejections),
       "gate2Rejections" -> Json.fromInt(s.gate2Rejections),
@@ -218,3 +253,23 @@ object Summary:
       "changedFiles" -> Json.arr(s.changedFiles.map(Json.fromString)*),
       "fillFingerprints" -> Json.arr(result.events.collect { case e: Event.FillAccepted => Json.fromString(Fingerprint.of(e.term).hex) }*)
     )
+
+/** Kennzahlen des Plans allein (O#23), auch wenn kein Plan Tor 1 bestanden hat oder keine Mehrheit zustande kam.
+  * Dieselben Schlüssel wie in Summary, damit series.sh beide gleich liest; planFingerprint fehlt ohne Plan.
+  */
+object PlanSummary:
+  def of(p: Planned): Json =
+    val outcome = if p.checked.isDefined then "checked" else if p.split then "split" else "rejected"
+    val (candidates, agreeing) = p.vote match
+      case Some(BestOfN.Vote.Majority(_, a, of)) => (of, a)
+      case Some(BestOfN.Vote.Split(_, _, of))    => (of, 0)
+      case None                                  => (1, if p.checked.isDefined then 1 else 0)
+    Json.obj(
+      "planOutcome" -> Json.fromString(outcome),
+      "planCalls" -> Json.fromInt(p.calls),
+      "planCandidates" -> Json.fromInt(candidates),
+      "planAgreeing" -> Json.fromInt(agreeing),
+      "gate1Rejections" -> Json.fromInt(p.rejections),
+      "unusableAnswers" -> Json.fromInt(p.unusable),
+      "tokens" -> Json.fromLong(p.tokens)
+    ).deepMerge(Json.obj(p.checked.map(c => "planFingerprint" -> Json.fromString(Fingerprint.of(c.term).hex)).toList*))

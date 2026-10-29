@@ -58,7 +58,13 @@ class RunnerSuite extends munit.FunSuite:
     val file = PlanFile("evals/1-todos/task.md", "default", root, Map("v" -> "1.0"), Term.Seq(List(Term.ReadFile("a", Origin.Model("plan-2"))), h), 2, 1, 0, 4200L)
     val text = PlanFile.encode(file).spaces2
     assertEquals(PlanFile.parse(text, 5), Right(file))
-    assert(PlanFile.parse(text.replace("\"v\" : 1", "\"v\" : 0"), 5).isLeft)
+    assert(PlanFile.parse(text.replace("\"v\" : 2", "\"v\" : 0"), 5).isLeft)
+    // Version 1 ohne candidates und agreeing wird weiter gelesen (D#63)
+    val v1 = PlanFile.encode(file).hcursor.downField("plan").withFocus(_.mapObject(_.remove("candidates").remove("agreeing"))).top.get
+      .deepMerge(Json.obj("v" -> Json.fromInt(1)))
+    assertEquals(PlanFile.parse(v1.noSpaces, 5), Right(file))
+    val voted = file.copy(candidates = 3, agreeing = 2)
+    assertEquals(PlanFile.parse(PlanFile.encode(voted).noSpaces, 5), Right(voted))
     assert(PlanFile.parse(PlanFile.encode(file).deepMerge(Json.obj("extra" -> Json.True)).noSpaces, 5).isLeft)
 
   test("Konfiguration: Standards, Überschreiben, unbekannte Felder und ungültiger Effort abgelehnt"):
@@ -67,6 +73,8 @@ class RunnerSuite extends munit.FunSuite:
       .fold(fail(_), identity)
     assertEquals((c.model.effort, c.model.model, c.exec.maxModelCalls, c.exec.shellTimeout, c.check.nestingLimit, c.planRounds), ("xhigh", ModelConfig.default.model, 7, 5.seconds, 4, 2))
     assert(RunnerConfig.parse("""{"limits":{"maxSteps":3}}""").isLeft)
+    assertEquals(RunnerConfig.parse("""{"bestOfN":3}""").map(_.bestOfN), Right(3))
+    assert(RunnerConfig.parse("""{"bestOfN":0}""").isLeft)
     assert(RunnerConfig.parse("""{"model":{"effort":"turbo"}}""").isLeft)
     val d = RunnerConfig.parse("""{"explainDenials":[{"binary":"git","requiredPrefixArgs":["push"]}]}""").fold(fail(_), identity)
     assertEquals(d.explain.explainDenials, List(AllowedCommand("git", List("push"))))
@@ -83,6 +91,38 @@ class RunnerSuite extends munit.FunSuite:
     assertEquals(s.check.argPolicies, CheckConfig.default.argPolicies :+ ArgPolicy.script("./run-tests.sh"))
     List("run-tests.sh", "./bin/x.sh", "./..", "../x.sh").foreach(bad => assert(RunnerConfig.parse(s"""{"scripts":["$bad"]}""").isLeft, bad))
 
+  private val other = Term.Seq(List(Term.ListDir("docs", h), Term.Hole("Schreibe a.md", Envelope(Set(OpKind.WriteFile), "a.md", 2, 0, Set.empty), h)), h)
+
+  test("BestOfN: zwei von drei gleich ist eine Mehrheit, gewählt der erste davon; Aufrufe und Tokens aller drei zählen"):
+    val replies = List(answer(other), answer(good), answer(good))
+    val ((_, seen), p) = Planner.run[S](scripted, "Aufgabe", root, check, 3, bestOf = 3).run((replies, Vector.empty)).value
+    assertEquals(seen.map(_.callId), Vector("plan-1.1", "plan-1.2", "plan-1.3"))
+    assertEquals(p.checked.map(_.term.origin), Some(Origin.Model("plan-1.2")))
+    assertEquals((p.calls, p.tokens, p.split), (3, 3000L, false))
+    assert(p.log.exists(_.startsWith("bestof   2 von 3")), p.log)
+
+  test("BestOfN: ohne Mehrheit kein Plan, sondern der Mensch; abgelehnte Kandidaten stimmen mit keinem überein"):
+    val replies = List(answer(other), answer(tooDeep), answer(good))
+    val p = Planner.run[S](scripted, "Aufgabe", root, check, 3, bestOf = 3).runA((replies, Vector.empty)).value
+    assertEquals((p.checked, p.split, p.calls, p.rejections), (None, true, 3, 1))
+    assert(p.log.exists(_.contains("keine Mehrheit unter 3")), p.log)
+    assertEquals(PlanSummary.of(p).hcursor.get[String]("planOutcome"), Right("split"))
+    assertEquals(PlanSummary.of(p).hcursor.get[Int]("planAgreeing"), Right(0))
+
+  test("BestOfN: eine Runde ohne geprüften Kandidaten geht mit den Gründen an das Modell zurück"):
+    val replies = List.fill(3)(answer(tooDeep)) ++ List(answer(good), answer(good), answer(other))
+    val ((_, seen), p) = Planner.run[S](scripted, "Aufgabe", root, check, 3, bestOf = 3).run((replies, Vector.empty)).value
+    assertEquals(seen.map(_.errors.size), Vector(0, 0, 0, 1, 1, 1))
+    assertEquals((p.checked.map(_.term.origin), p.rejections, p.calls), (Some(Origin.Model("plan-2.1")), 3, 6))
+
+  test("Plan-Kennzahlen ohne Lauf (O#23): auch ohne geprüften Plan, Fingerprint nur mit Plan"):
+    val rejected = Planner.run[S](scripted, "Aufgabe", root, check, 2).runA((List.fill(2)(answer(tooDeep)), Vector.empty)).value
+    val r = PlanSummary.of(rejected).hcursor
+    assertEquals((r.get[String]("planOutcome"), r.get[Int]("planCalls"), r.get[Int]("gate1Rejections")), (Right("rejected"), Right(2), Right(2)))
+    assert(r.downField("planFingerprint").failed)
+    val ok = PlanSummary.of(Planner.run[S](scripted, "Aufgabe", root, check, 1).runA((List(answer(good)), Vector.empty)).value).hcursor
+    assertEquals((ok.get[String]("planOutcome"), ok.get[String]("planFingerprint")), (Right("checked"), Right(Fingerprint.of(good).hex)))
+
   test("Lauf-Log zählt Aufrufe und Tokens des Plans mit"):
     val log = RunLog.render(Vector(Event.End(Outcome.Done, 0L)), RunLog.Footer(1, None, planCalls = 2, planTokens = 2500L))
     assert(log.contains("2 Modellaufrufe"), log)
@@ -96,6 +136,10 @@ class RunnerSuite extends munit.FunSuite:
     )
     assert(Cli.parse(List("plan", "--envelope", "e", "--task", "t", "--flow", "f", "--out", "p")).isLeft)
     assert(Cli.parse(List("plan", "--envelope", "e", "--task", "t", "--out", "p", "x=y")).isLeft)
+    assertEquals(
+      Cli.parse(List("plan", "--envelope", "e", "--task", "t", "--out", "p", "--summary", "s.json")).map { case p: Command.Plan => p.summary; case _ => None },
+      Right(Some(Path.of("s.json")))
+    )
     Cli.parse(List("run", "--plan", "p", "--envelope", "e", "--workspace", "w", "--approve", "ab", "--no-ask")) match
       case Right(r: Command.Run) => assertEquals((r.approve, r.noAsk), (Some("ab"), true))
       case other                 => fail(other.toString)

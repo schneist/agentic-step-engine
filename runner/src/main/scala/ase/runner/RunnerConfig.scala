@@ -9,10 +9,11 @@ import io.circe.parser
 import scala.concurrent.duration.*
 
 /** Runner-Konfiguration (SPEC RUNNER): Modell, harte Limits, Verschachtelungsgrenze, Plan-Runden, explainDenials und
-  * Skripte im Arbeitsverzeichnis (scripts, D#46). Jedes Feld ist optional (sonst der Standard), unbekannte Felder sind
+  * Skripte im Arbeitsverzeichnis (scripts, D#46). bestOfN: Pläne je Runde, über deren Fingerprints abgestimmt wird
+  * (BestOfN, D#63); 1 heißt ohne Abstimmung. Jedes Feld ist optional (sonst der Standard), unbekannte Felder sind
   * Fehler. Die übrigen Argument-Policies, workspaceCode und pathless bleiben die Standards aus core (O#22).
   */
-final case class RunnerConfig(model: ModelConfig, exec: ExecConfig, check: CheckConfig, explain: ExplainConfig, planRounds: Int)
+final case class RunnerConfig(model: ModelConfig, exec: ExecConfig, check: CheckConfig, explain: ExplainConfig, planRounds: Int, bestOfN: Int = 1)
 
 object RunnerConfig:
   val default: RunnerConfig = RunnerConfig(ModelConfig.default, ExecConfig.default, CheckConfig.default, ExplainConfig.default, 3)
@@ -24,20 +25,22 @@ object RunnerConfig:
     val d = default
     for
       o <- obj(json, "Konfiguration")
-      _ <- only(o, "Konfiguration", "model", "limits", "nestingLimit", "planRounds", "explainDenials", "scripts")
+      _ <- only(o, "Konfiguration", "model", "limits", "nestingLimit", "planRounds", "bestOfN", "explainDenials", "scripts")
       m <- o("model").fold(d.model.asRight[String])(modelConfig(_, d.model))
       e <- o("limits").fold(d.exec.asRight[String])(limits(_, d.exec))
       nesting <- int(o, "nestingLimit", d.check.nestingLimit)
       rounds <- int(o, "planRounds", d.planRounds)
+      bestOf <- int(o, "bestOfN", d.bestOfN)
       scripts <- o("scripts").fold(List.empty[String].asRight[String])(scriptList)
       denials <- o("explainDenials").fold(d.explain.explainDenials.asRight[String])(commands)
-      _ <- Either.cond(nesting >= 1 && rounds >= 1, (), "nestingLimit und planRounds müssen mindestens 1 sein")
+      _ <- Either.cond(nesting >= 1 && rounds >= 1 && bestOf >= 1, (), "nestingLimit, planRounds und bestOfN müssen mindestens 1 sein")
     yield RunnerConfig(
       m,
       e,
       d.check.copy(nestingLimit = nesting, argPolicies = d.check.argPolicies ++ scripts.map(ArgPolicy.script)),
       ExplainConfig(denials),
-      rounds
+      rounds,
+      bestOf
     )
 
   /** provider bestimmt die Standards der übrigen Felder (D#47). */

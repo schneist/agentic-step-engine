@@ -104,6 +104,13 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **think** (Denken vor dem Schema): Ein lokales Modell überlegt erst frei und schreibt danach den Term im Schema; nur die Antwort wird ausgewertet (D#48). Fehlt der Wert, gilt der Standard des Modells; false schaltet das Denken hybrider Modelle ab (D#50).
 - **Runde** (Mehrrunden-Fill): Ein Fill ohne Done, der Schritte ausgeführt hat, führt zu einer weiteren Runde desselben Lochs, die deren Ergebnisse sieht; höchstens `maxRoundsPerHole`, alle Runden teilen das Schrittbudget des Lochs (D#55).
 
+- **BestOfN**: Ein Plan wird n-mal erzeugt; er gilt nur, wenn mehr als die Hälfte der n **Kandidaten** denselben Fingerprint hat (**Mehrheit**). Sonst entscheidet der Mensch, `ase plan` endet mit Exit 2 (D#63). Standard aus.
+- **Kandidat**: Einer der n Pläne einer BestOfN-Runde. Ein Kandidat, der Tor 1 nicht besteht, zählt mit und stimmt mit keinem überein (D#63).
+- **Plan-Kennzahlen** (`plan-summary.json`): Was `ase plan --summary` in jedem Ausgang ablegt, auch ohne geprüften Plan: Ausgang, Aufrufe, Kandidaten, Ablehnungen, Tokens, Fingerprint (D#64).
+- **Harness** (`evals/harness.sh`): Eine Serie je Eval über alle sechs Aufgaben, mit derselben Konfiguration und demselben Commit; sammelt die M#-Zeilen (D#64).
+- **Code-Hinweis**: Die Zeile „Hinweis: darf Code ändern, der im Lauf ausgeführt wird (…)“ im Explain eines Lochs, das unter seinem pathPrefix Code ändern darf, den der Term danach ausführt. series.sh zählt sie je Plan (D#12, D#62).
+- **Rekursives ListDir**: ListDir liefert das ganze Verzeichnis samt Unterverzeichnissen, Ebene für Ebene, höchstens 2000 Einträge; Symlinks und .git werden gezeigt, aber nicht betreten (D#61).
+
 ## 8. Warum
 
 Ein Eintrag pro Entwurfsentscheidung. Geschrieben für Leser, die Workflow-Engines kennen, aber keine Sprachmodelle.
@@ -331,6 +338,26 @@ Die Basis soll Claude messen, und bis ein API-Schlüssel da ist, gibt es Claude 
 ### Warum eine Antwort ohne Term ihren Text zeigt (D#59)
 
 Mit Gemini Flash scheiterten Eval 3 und 4 daran, dass agy mehrfach SUCCESS ohne Term meldete. Was stattdessen kam, wusste niemand: Der Adapter warf den Freitext weg, das Record-Log hatte nur die allgemeine Ablehnung, und das Modell bekam dieselbe Rückmeldung, egal was es falsch gemacht hatte. Ein Fehler, den man nicht sieht, lässt sich nicht beheben. Der Anfang des Texts in der Ablehnung macht ihn im Log sichtbar und gibt dem Modell eine Rückmeldung, die sich auf seine Antwort bezieht. Die Regel selbst ändert sich nicht: Ohne Term bleibt es ein Fehlversuch.
+
+### Warum eine Lizenz und ein Startskript (D#60)
+
+Ohne Lizenzdatei darf niemand den Code benutzen, auch wer ihn nur ausprobieren will; GitHub zeigt dann „No license“. Apache 2.0 erlaubt Nutzung und Änderung wie MIT, gibt aber zusätzlich eine ausdrückliche Patentlizenz, was für Werkzeuge im Firmenumfeld zählt. Das Startskript ersetzt vier Zeilen Klassenpfad im Schnellstart durch einen Befehl; es baut nur, wenn sich Quellen oder Build geändert haben.
+
+### Warum ListDir rekursiv listet (D#61)
+
+Ein Loch, das ein Projekt erkunden soll, sah bisher nur eine Ebene pro Schritt, und weil es die Ergebnisse seiner eigenen Schritte erst in der nächsten Runde sieht (D#55), kostete jede Verzeichnisebene eine Runde. In Eval 4 liegen die Quellen vier Ebenen tief; mit drei Runden war das nicht zu schaffen, und eine Hülle ohne Shell hat kein `ls -R`. Ein rekursives Listing gibt die ganze Struktur in einem Schritt. Breitenweise, damit eine Kürzung die tiefen Ebenen trifft und die Übersicht bleibt; mit fester Obergrenze, damit ein großes Build-Verzeichnis die Engine nicht beschäftigt. Sprache, Schema und Hash bleiben, was es ist: Geändert hat sich nur, was die Operation liefert.
+
+### Warum ein Loch nicht ändern soll, was danach läuft (D#62)
+
+Eine Hülle hat einen pathPrefix für Lesen und Ändern. Ein Loch, das Tests lesen und Quellen ändern soll, bekommt deshalb leicht "." und damit auch das Recht, `./run-tests.sh` zu ändern. Läuft das Skript danach, führt die Engine Code aus, den das Modell geschrieben hat, ohne dass Tor 2 ihn je als Shell-Befehl gesehen hat. In M#5 war das in jedem Plan so. Ein Verbot an Tor 1 wäre zu grob (ein Flow darf ein Build-Skript reparieren sollen), also zwei leichtere Mittel: Der Prompt sagt, wie man das Loch teilt, und Explain nennt den betroffenen Code beim Namen, damit der Mensch es vor der Freigabe sieht. Ob der Prompt wirkt, zeigt die Spalte code_hint der Serien.
+
+### Warum BestOfN nur für Pläne und standardmäßig aus (D#63)
+
+BestOfN soll Zufall im Plan erkennen: Liefert das Modell bei gleicher Aufgabe verschiedene Pläne, ist keiner davon verlässlich, und der Mensch soll entscheiden, statt dass die Engine rät. Der Plan ist die Stelle, an der ein Mensch ohnehin freigibt; ein Fill läuft schon gegen die Hülle seines Lochs, und eine Abstimmung mitten im Lauf hätte Engine und Record-Log geändert. Standard aus, weil die Messungen zeigen, dass Claude dieselbe Lösung selten zweimal gleich schreibt: Mit dem Fingerprint als Maß stimmten drei Pläne nur in gut einem Drittel der Fälle überein, obwohl alle zehn Läufe bestanden. Das Werkzeug ist da; das richtige Maß für Übereinstimmung ist offen (O#30).
+
+### Warum Plan-Kennzahlen auch ohne Plan (D#64)
+
+Eine Serie, in der ein Plan an Tor 1 scheitert, hatte für diesen Lauf keine Zahlen außer dem Text der Ausgabe. Gerade diese Läufe sind die interessanten: wie oft, mit wie vielen Aufrufen, wie vielen Tokens. Der Harness braucht sie für alle sechs Evals in derselben Form. Dass ein abgelehnter Flow jetzt Exit 3 liefert wie ein abgelehnter Modellplan, macht beide Wege für Skripte gleich.
 
 ### Warum Explain eine konfigurierte Verbotsliste zeigt (D#24)
 

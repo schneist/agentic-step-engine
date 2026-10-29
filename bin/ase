@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Startet den Runner aus diesem Repository: bin/ase plan … oder bin/ase run … (Optionen im README).
+# Beim ersten Aufruf und nach Änderungen an Quellen oder Build fragt das Skript sbt nach dem Klassenpfad und legt ihn
+# in target/ase-classpath.txt ab; danach startet es nur noch java.
+set -euo pipefail
+
+repo=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+cache="$repo/target/ase-classpath.txt"
+
+stale() {
+  [ ! -s "$cache" ] && return 0
+  [ -n "$(find "$repo/build.sbt" "$repo/project" "$repo/core/src/main" "$repo/model/src/main" "$repo/runner/src/main" \
+    \( -name '*.scala' -o -name '*.sbt' -o -name 'build.properties' \) -newer "$cache" -print -quit)" ]
+}
+
+if stale; then
+  echo "ase: baue den Runner (sbt), einmalig nach Änderungen …" >&2
+  mkdir -p "$repo/target"
+  cp=$(cd "$repo" && sbt -batch -error "export runner/Runtime/fullClasspath" | tail -1)
+  case "$cp" in
+    *scala3-library*) printf '%s\n' "$cp" > "$cache" ;;
+    *) echo "ase: sbt lieferte keinen Klassenpfad: $cp" >&2; exit 1 ;;
+  esac
+fi
+
+exec java -cp "$(cat "$cache")" ase.runner.Main "$@"
