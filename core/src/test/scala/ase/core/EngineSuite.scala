@@ -92,6 +92,14 @@ class EngineSuite extends munit.ScalaCheckSuite:
     assertEquals(requests.head.scope.map(_.at), Vector("2"))
     assert(!requests.head.scope.exists(_.text.contains("geheim")))
 
+  test("Scope: ein Agentenschritt nach einem If sieht die ausgeführten Schritte des gewählten Zweigs (O#33)"):
+    val branch = Term.If(Pred.FileExists("src/A.scala"), Term.ReadFile("src/A.scala", h), Term.ReadFile("src/B.scala", h), h)
+    val t = holeTerm(branch, Term.Hole("ändere", src, h))
+    var requests = Vector.empty[FillRequest]
+    run(t, req => { requests :+= req; ModelReply.Answer(submission(Term.Done("x", fill)), 1) })
+    assertEquals(requests.head.scope.map(_.at), Vector("1"))
+    assert(requests.head.scope.head.text.contains("val a = 1"))
+
   test("Top-Level-Fehler bricht ab; das Limit der Modellaufrufe ebenso"):
     val (_, _, failed) = run(holeTerm(Term.EditFile("README.md", "fehlt", "x", h), Term.Done("nie", h)), script())
     assertEquals(failed.outcome, Outcome.Aborted(AbortReason.StepFailed(StepId(Vector(1)), ToolError.CasMissing("README.md"))))

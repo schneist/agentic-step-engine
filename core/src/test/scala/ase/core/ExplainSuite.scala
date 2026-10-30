@@ -4,6 +4,14 @@ class ExplainSuite extends munit.FunSuite:
   private def checked(t: Term, env: Envelope) =
     DryRun.plan(t, env, TestSupport.config).fold(v => fail(v.toList.map(_.render).mkString("\n")), identity)
 
+  test("Sicht nach einem If: beide Zweige gelten als mögliche frühere Ergebnisse (O#33)"):
+    val h = Origin.Human
+    val env = Envelope(Set(OpKind.ReadFile, OpKind.Hole), ".", 10, 1, Set.empty)
+    val hole = Term.Hole("Bericht", Envelope(Set(OpKind.ReadFile), ".", 2, 0, Set.empty), h)
+    val branch = Term.If(Pred.FileExists("a.txt"), Term.ReadFile("a.txt", h), Term.ReadFile("b.txt", h), h)
+    val out = Explain.render(checked(Term.Seq(List(branch, hole), h), env))
+    assert(out.contains("kann Ergebnisse von Schritt 1, 2 sehen"), out)
+
   test("red-test: Ausgabe zur Freigabe"):
     val f = Flow.parse(TestSupport.repoFile("flows/red-test.json")).toOption.get
     val c = checked(f.term, f.envelope)

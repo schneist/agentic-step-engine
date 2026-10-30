@@ -614,7 +614,7 @@ open:
   - { id: "O#31", type: open, status: resolved, source: "findings.md#O#31", verified: 2026-10-29, resolved_by: "D#66" }
   - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }
   - { id: "O#34", type: open, status: open, source: "findings.md#O#34", verified: 2026-10-29, title: "runsCode als Pfadpräfix: in flachen Repos gilt jede Datei als Code" }
-  - { id: "O#33", type: open, status: open, source: "findings.md#O#33", verified: 2026-10-29, title: "Ergebnisse in If-Zweigen für spätere Löcher unsichtbar" }
+  - { id: "O#33", type: open, status: resolved, source: "findings.md#O#33", verified: 2026-10-30, title: "Ergebnisse in If-Zweigen für spätere Agentenschritte unsichtbar (Befund falsch; Ursache war der pathPrefix, D#69)", resolved_by: "D#69" }
   - { id: "O#32", type: open, status: open, source: "findings.md#O#32", verified: 2026-10-29, title: "BestOfN fragt bei mehreren guten Wegen meist den Menschen" }
 
 evals:
