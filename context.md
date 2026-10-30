@@ -123,6 +123,11 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Einengen** (`ase tighten`): Aus vergangenen Läufen eine engere Hülle je Agentenschritt vorschlagen und als neuen Flow schreiben; jedes Feld wird nur enger, die Sicht bleibt (D#75).
 - **Kandidat für feste Schritte**: Ein Agentenschritt, der in jedem ausgewerteten Aufruf denselben Teilterm geliefert hat; ob er fest werden kann, entscheidet der Mensch (D#74).
 - **Messbasis**: Die Serien, gegen die eine Änderung an Algebra, Hüllen oder Werkzeugbeschreibungen gemessen wird; seit D#67 M#6 bis M#11 über Claude Code.
+- **Serie**: n Läufe derselben Eval oder desselben Flows unter denselben Bedingungen, als Datensatz in measurements/M<n>.json (D#77).
+- **Serienschlüssel** (`SeriesKey`): Was gleich sein muss, damit zwei Serien vergleichbar sind: Fassung, Hülle, Fixture als Tree-Hash, Prüfskript, Anbieter, Modell, Effort (D#77).
+- **Tree-Hash**: SHA-256 über die sortierten relativen Pfade eines Verzeichnisses und den SHA-256 jeder Datei darin, ohne `.git/`; erkennt ein Fixture am Inhalt (D#77).
+- **Zählt / zählt nicht** (`Standing`): Ob eine Serie die Regeln aus playbook/evals.md erfüllt; wenn nicht, mit Gründen (D#77).
+- **Rauschen** (`Noise`): Urteil eines Vergleichs, wenn sich die Intervalle oder Spannen zweier Serien überlappen; der Unterschied ist mit diesem n nicht belegt (D#77).
 
 ## 8. Warum
 
@@ -379,6 +384,10 @@ Mit dem Fingerprint als Maß waren sich drei Pläne oft nicht einig, obwohl jede
 ### Warum die Teilungsregel nur bei ausgeführtem Code gilt (D#66)
 
 Die Regel aus D#62 sollte verhindern, dass ein Agentenschritt ein Skript ändert, das danach läuft. Das Modell wandte sie überall an und teilte auch dort, wo kein Code läuft, in Eval 1 in jedem Plan. Das kostete fast die Hälfte mehr Tokens, ohne dort etwas sicherer zu machen. Die Regel nennt jetzt ihre Bedingung.
+
+### Warum eine Serie einen Schlüssel hat und ein Vergleich ein Typ ist (D#77)
+
+Eine Zahl wie „Erfolg 5/5“ sagt nur im Vergleich etwas, und ein Vergleich nur, wenn sich zwischen den beiden Serien genau eine Sache geändert hat. Welche Dinge gleich sein müssen, stand bisher nirgends als Feld: Fixture und Prüfskript fehlten ganz, Modell und Effort standen als Prosa da, und ob zwei Zeilen vergleichbar sind, musste man aus den Anmerkungen erschließen. Dieselbe Frage hat die Engine für Terme schon beantwortet: Was dasselbe ist, erkennt man am Hash der Eingaben, nicht an der Beschreibung. Ein Schlüssel aus Hashes macht das für Serien. Der Vergleich ist ein Typ, der nur aus einer Prüfung entsteht, aus demselben Grund, aus dem `ApprovedTerm` einer ist: Eine Regel, die nur im Playbook steht, wird irgendwann übergangen, wie bei M#16 und M#17. Das Urteil „Rauschen“ ist der Normalfall, weil 10 von 10 bei einem 95-%-Intervall nur heißt, dass die wahre Quote über etwa 72 % liegt, und 5 von 5 nur über etwa 57 %. Das verlangte n hängt an der Eval, weil ein Lauf von 15 Minuten nicht dasselbe kostet wie einer von Sekunden; das Intervall zeigt, was ein kleineres n weniger belegt. Parallelität ist eine Bedingung und kein Schlüssel, weil sie die Dauer ändert, nicht, was der Agent tut. Die Typen leben in ase, das Vorgehen nicht: ase baut und vergleicht Datensätze, startet aber keine Läufe und gibt nichts frei, damit das Messgerät nicht aus dem gebaut ist, was es misst, und keine Freigabe ohne Menschen entsteht.
 
 ### Warum die Auswertung nur liest (D#74)
 

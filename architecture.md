@@ -146,3 +146,9 @@ Umkehrkosten: niedrig. Eine Funktion in core; die Plan-Datei speichert nur die Z
 Alternativen: (a) Die Basis bleibt für die Messages API reserviert, bis ein Schlüssel da ist. (b) Die Serien über `claude --print` sind die Basis.
 Gewählt: b. a ließ Änderungen ohne Vergleich zu, weil die Basis nie gemessen wurde; nach den Serien über Claude Code wurde ohnehin entschieden.
 Umkehrkosten: niedrig. Eine Serie über die Messages API ist ein Vergleich; wer die API als Basis will, misst neu und notiert es als D#.
+
+## D#77 Serien als Datensatz mit Schlüssel
+
+Alternativen: (a) Handgeschriebene M#-Zeile wie bisher, Regeln nur im Playbook. (b) Datensatz, aber außerhalb von ase, gebaut von series.sh (awk, jq). (c) Datensatz mit Typen in ase (`SeriesKey`, `Standing`, `Comparison`); series.sh führt weiter die Läufe aus. (d) Die ganze Serie als Befehl in ase, samt Freigabe der Pläne.
+Gewählt: c. a ist nicht vergleichbar (D#77, Basis). b hält die Hashes nicht kanonisch wie termHash und prüft „Was nicht zählt“ in einer Sprache ohne Typen. d hieße, dass ase Terme freigibt, deren Hash erst zur Laufzeit feststeht (D#11).
+Umkehrkosten: mittel. Das Schema wird committet und versioniert; wer zurück will, rendert die Zeilen weiter aus den Datensätzen und lässt `ase compare` fallen.
