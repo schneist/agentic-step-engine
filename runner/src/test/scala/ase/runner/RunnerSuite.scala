@@ -58,14 +58,93 @@ class RunnerSuite extends munit.FunSuite:
     val file = PlanFile("evals/1-todos/task.md", "default", root, Map("v" -> "1.0"), Term.Seq(List(Term.ReadFile("a", Origin.Model("plan-2"))), h), 2, 1, 0, 4200L)
     val text = PlanFile.encode(file).spaces2
     assertEquals(PlanFile.parse(text, 5), Right(file))
-    assert(PlanFile.parse(text.replace("\"v\" : 2", "\"v\" : 0"), 5).isLeft)
+    assert(PlanFile.parse(text.replace("\"v\" : 3", "\"v\" : 0"), 5).isLeft)
+    assert(PlanFile.parse(text.replace("\"v\" : 3", "\"v\" : 4"), 5).isLeft)
     // Version 1 ohne candidates und agreeing wird weiter gelesen (D#63)
     val v1 = PlanFile.encode(file).hcursor.downField("plan").withFocus(_.mapObject(_.remove("candidates").remove("agreeing"))).top.get
       .deepMerge(Json.obj("v" -> Json.fromInt(1)))
     assertEquals(PlanFile.parse(v1.noSpaces, 5), Right(file))
     val voted = file.copy(candidates = 3, agreeing = 2)
     assertEquals(PlanFile.parse(PlanFile.encode(voted).noSpaces, 5), Right(voted))
+    // sourceSha seit Version 3 (D#74); ohne das Feld, wie in Version 2, bleibt es leer
+    val hashed = file.copy(sourceSha = Some("ab" * 32))
+    assertEquals(PlanFile.parse(PlanFile.encode(hashed).noSpaces, 5), Right(hashed))
+    assert(!PlanFile.encode(file).noSpaces.contains("sourceSha"))
+    assertEquals(PlanFile.parse(PlanFile.encode(file).deepMerge(Json.obj("v" -> Json.fromInt(2))).noSpaces, 5), Right(file))
     assert(PlanFile.parse(PlanFile.encode(file).deepMerge(Json.obj("extra" -> Json.True)).noSpaces, 5).isLeft)
+
+  test("ase stats: gruppiert nach Quelle und Fassung, stellt je Agentenschritt Erlaubtes und Genutztes gegenüber (D#74)"):
+    val wide = Envelope(Set(OpKind.ReadFile, OpKind.EditFile), ".", 4, 0, Set.empty)
+    val fillTerm = Term.Seq(List(Term.ReadFile("src/A.scala", Origin.Model("fill-1")), Term.Done("ok", Origin.Model("fill-1"))), Origin.Model("fill-1"))
+    val term = Term.Seq(List(Term.Hole("prüfe", wide, h)), h)
+    def events(tokens: Long) = Vector(
+      Event.Start(TermHash.of(term, root), root, term),
+      Event.Hole(StepId(Vector(1)), "prüfe", wide),
+      Event.Fill(StepId(Vector(1)), 1, "fill-1", ModelReply.Answer("{}", tokens)),
+      Event.FillAccepted(StepId(Vector(1)), 1, TermHash.of(fillTerm, wide), 2, 4, fillTerm),
+      Event.Step(StepId(Vector(1, 1, 1)), Call.ReadFile("src/A.scala"), Reply(List("src/A.scala"), Right(StepResult(None, Some("x"))), "")),
+      Event.Finished(StepId(Vector(1, 1, 2)), "ok"),
+      Event.HoleDone(StepId(Vector(1)), "ok"),
+      Event.End(Outcome.Done, 3)
+    )
+    def summary(tokens: Long, seconds: Double, source: Boolean) =
+      Json.obj(
+        "outcome" -> Json.fromString("done"),
+        "tokens" -> Json.fromLong(tokens),
+        "seconds" -> Json.fromDoubleOrNull(seconds),
+        "fillCalls" -> Json.fromInt(1),
+        "planFingerprint" -> Json.fromString("f1")
+      ).deepMerge(if source then Json.obj("source" -> Json.fromString("flows/pruefe.json"), "sourceSha" -> Json.fromString("abcdef0123456789")) else Json.obj())
+    val runs = Vector(
+      RunStats.Run("a", summary(1000, 10, true), Some(events(1000))),
+      RunStats.Run("b", summary(3000, 30, true), Some(events(3000))),
+      RunStats.Run("c", summary(500, 5, false), Some(events(500)))
+    )
+    val groups = RunStats.group(runs)
+    assertEquals(groups.map(_.runs.size), Vector(2, 1))
+    val out = RunStats.render(groups)
+    assert(out.contains("== pruefe.json · Fassung abcdef01 · 2 Läufe"), out)
+    assert(out.contains("Median 2.0k · 1.0k bis 3.0k"), out)
+    assert(out.contains("Median 20 s · 10 s bis 30 s"), out)
+    assert(out.contains("Agentenschritt 1 · 2 Aufrufe in 2 Läufen"), out)
+    assert(out.contains("nie genutzt: EditFile"), out)
+    assert(out.contains("alle Pfade enger als erlaubt, etwa unter src/A.scala statt ."), out)
+    assert(out.contains("höchstens 2 von 4 Schritten genutzt"), out)
+    assert(out.contains("1 Form und 1 Inhalt in 2 Teiltermen"), out)
+    assert(out.contains("in allen 2 Teiltermen derselbe Teilterm; Kandidat für feste Schritte statt Agentenschritt"), out)
+    assert(out.contains("== ohne Flow-Kennung · Form "), out)
+
+  test("ase tighten: engere Hülle aus Läufen derselben Form, Probe gegen den gebundenen Term, Flow sonst gleich (D#75)"):
+    val wide = Envelope(Set(OpKind.ReadFile, OpKind.WriteFile), ".", 5, 0, Set.empty)
+    val flowRoot = Envelope(Set(OpKind.ReadFile, OpKind.WriteFile, OpKind.Hole), ".", 10, 1, Set.empty)
+    val flow = Flow("Bericht", Map("v" -> "^[0-9]+$"), flowRoot, Term.Seq(List(Term.ReadFile("in/${v}.txt", h), Term.Hole("schreibe", wide, h)), h))
+    def events(v: Int) =
+      val bound = Term.Seq(List(Term.ReadFile(s"in/$v.txt", h), Term.Hole("schreibe", wide, h)), h)
+      val fillTerm = Term.Seq(List(Term.WriteFile(s"out/$v.md", "x", Origin.Model("fill-1")), Term.Done("ok", Origin.Model("fill-1"))), Origin.Model("fill-1"))
+      Vector(
+        Event.Start(TermHash.of(bound, flowRoot), flowRoot, bound),
+        Event.Step(StepId(Vector(1)), Call.ReadFile(s"in/$v.txt"), Reply(List(s"in/$v.txt"), Right(StepResult(None, Some("x"))), "")),
+        Event.Hole(StepId(Vector(2)), "schreibe", wide),
+        Event.Fill(StepId(Vector(2)), 1, "fill-1", ModelReply.Answer("{}", 100)),
+        Event.FillAccepted(StepId(Vector(2)), 1, TermHash.of(fillTerm, wide), 2, 5, fillTerm),
+        Event.Step(StepId(Vector(2, 1, 1)), Call.WriteFile(s"out/$v.md", "x"), Reply(List(s"out/$v.md"), Right(StepResult(None, None)), "")),
+        Event.Finished(StepId(Vector(2, 1, 2)), "ok"),
+        Event.HoleDone(StepId(Vector(2)), "ok"),
+        Event.End(Outcome.Done, 4)
+      )
+    val other = Vector(Event.Start(TermHash.of(Term.Done("x", h), flowRoot), flowRoot, Term.Done("x", h)), Event.End(Outcome.Done, 1))
+    val runs = Vector(1, 2, 3).map(v => RunStats.Run(s"r$v", Json.obj("outcome" -> Json.fromString("done")), Some(events(v)))) :+
+      RunStats.Run("fremd", Json.obj("outcome" -> Json.fromString("done")), Some(other))
+    val r = FlowTighten.run(flow, runs, 3, check).fold(fail(_), identity)
+    assertEquals(r.runs, 3)
+    val neu = Tighten.holes(r.flow.term).head._2.envelope
+    assertEquals(neu, Envelope(Set(OpKind.WriteFile), "out", 2, 0, Set.empty, Some(".")))
+    assertEquals(r.flow.term match { case Term.Seq(first :: _, _) => first; case other => other }, Term.ReadFile("in/${v}.txt", h))
+    assertEquals(Flow.parse(Flow.encode(r.flow).noSpaces).map(_.term), Right(r.flow.term))
+    assert(r.probe.contains("DryRun ok gegen den Term aus r3"), r.probe)
+    val out = FlowTighten.render(flow, r)
+    assert(out.contains("1 von 1 Agentenschritten enger") && out.contains("ReadFile nie genutzt"), out)
+    assert(FlowTighten.run(flow, runs.takeRight(1), 3, check).isLeft)
 
   test("Konfiguration: Standards, Überschreiben, unbekannte Felder und ungültiger Effort abgelehnt"):
     assertEquals(RunnerConfig.parse("{}"), Right(RunnerConfig.default))

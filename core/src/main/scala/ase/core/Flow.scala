@@ -38,6 +38,14 @@ object Flow:
         .flatMap(Codec.decodeTerm(_, OriginMode.Required, DecodeLimits.all(nestingLimit)).leftMap(err))
     yield Flow(description, params.toMap, envelope, term)
 
+  /** Ein Flow als JSON, wie decode ihn liest; Terme mit origin. Für Flows, die ein Werkzeug schreibt (D#75). */
+  def encode(f: Flow): Json = Json.obj(
+    "description" -> Json.fromString(f.description),
+    "params" -> Json.obj(f.params.toList.sorted.map((k, v) => k -> Json.fromString(v))*),
+    "envelope" -> Codec.envelope(f.envelope),
+    "term" -> Codec.term(f.term)
+  )
+
   /** Bindet die Parameter nach dem Decodieren, nur in Textfeldern des Terms, und prüft die Flow-Hülle gegen die
     * Hülle des Runners. Danach kommt DryRun gegen flow.envelope.
     */

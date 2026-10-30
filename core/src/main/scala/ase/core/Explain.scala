@@ -88,7 +88,8 @@ object Explain:
 
   private val writes = Set(OpKind.WriteFile, OpKind.EditFile, OpKind.MoveFile)
 
-  private def envelopeText(e: Envelope): String =
+  /** Eine Hülle in einer Zeile, wie unter einem Agentenschritt; auch für den Vergleich in `ase tighten` (D#75). */
+  def envelopeText(e: Envelope): String =
     val ops = e.allowedOps.toList.sortBy(_.ordinal).mkString(", ")
     val shell = Option.when(e.shellAllowlist.nonEmpty)(s" · shell: ${e.shellAllowlist.toList.map(_.show).sorted.mkString(", ")}")
     val steps = if e.maxSteps == 1 then "1 Schritt" else s"${e.maxSteps} Schritte"

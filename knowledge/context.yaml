@@ -408,9 +408,25 @@ interpreters:
     status: implemented
     source: runner/src/main/scala/ase/runner/Main.scala#Main
     verified: 2026-10-29
-    decided_by: ["D#45", "D#46", "D#63", "D#64"]
+    decided_by: ["D#45", "D#46", "D#63", "D#64", "D#74", "D#75"]
     tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite]
-    note: "ase plan / ase run; PlanFile.scala (Version 2, liest 1), RunnerConfig.scala (bestOfN, programs D#68), Summary, PlanSummary (ase plan --summary); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
+    note: "ase plan / ase run / ase stats; PlanFile.scala (Version 3 mit sourceSha, liest 1 und 2), RunnerConfig.scala (bestOfN, programs D#68), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
+  - id: core.usage
+    type: interpreter
+    status: implemented
+    source: core/src/main/scala/ase/core/Usage.scala#Usage.of
+    verified: 2026-10-30
+    decided_by: ["D#74"]
+    tested_by: [ase.core.UsageSuite, ase.core.EngineSuite]
+    note: "Nutzung je Aufruf eines Agentenschritts aus dem Record-Log: Operationen, Pfade, Programme, Schritte, gebrauchtes Budget (needed), Formen, Fingerprints, Fills, Tokens, Ablehnungen; verschachtelte zählen für den äußeren"
+  - id: core.tighten
+    type: transformation
+    status: implemented
+    source: core/src/main/scala/ase/core/Tighten.scala#Tighten.apply
+    verified: 2026-10-30
+    decided_by: ["D#75"]
+    tested_by: [ase.core.TightenSuite, ase.runner.RunnerSuite]
+    note: "Term => Term: propose leitet je Agentenschritt eine engere Hülle aus Usage ab, apply setzt sie ein, holes nummeriert wie Explain; DryRun und Attenuation danach im Runner"
   - id: runner.launcher
     type: runner
     status: implemented
@@ -572,6 +588,8 @@ decisions:
   - { id: "D#65", type: decision, status: decided, source: "findings.md#D#65", verified: 2026-10-29, title: "BestOfN stimmt über die Form ab", measured_by: [eval.1, eval.6], tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite] }
   - { id: "D#66", type: decision, status: decided, source: "findings.md#D#66", verified: 2026-10-29, title: "Teilungsregel nur bei ausgeführtem Code", measured_by: [eval.1, eval.6] }
   - { id: "D#67", type: decision, status: decided, source: "findings.md#D#67", verified: 2026-10-29, title: "Messbasis über Claude Code (M#6 bis M#11)" }
+  - { id: "D#75", type: decision, status: decided, source: "findings.md#D#75", verified: 2026-10-30, title: "ase tighten: engere Hüllen aus Läufen als neuer Flow", tested_by: [core.TightenSuite, runner.RunnerSuite] }
+  - { id: "D#74", type: decision, status: decided, source: "findings.md#D#74", verified: 2026-10-30, title: "ase stats: Flow-Kennung, Läufe je Fassung, erlaubt gegen genutzt je Agentenschritt", tested_by: [core.UsageSuite, core.EngineSuite, runner.RunnerSuite, runner.Eval1Suite] }
   - { id: "D#73", type: decision, status: decided, source: "findings.md#D#73", verified: 2026-10-29, title: "Ask zeigt das Ergebnis des Schritts davor", tested_by: [core.EngineSuite, runner.RunnerSuite] }
   - { id: "D#72", type: decision, status: decided, source: "findings.md#D#72", verified: 2026-10-29, title: "scripts auch in Unterverzeichnissen", tested_by: [runner.RunnerSuite] }
   - { id: "D#71", type: decision, status: decided, source: "findings.md#D#71", verified: 2026-10-29, title: "Explain zeigt Ziel und Frage vollständig, umbrochen statt gekürzt", tested_by: [core.ExplainSuite, core.ReviewRegressionSuite] }

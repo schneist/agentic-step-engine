@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import scala.jdk.CollectionConverters.*
 
 /** Befehle des CLI, zweiphasig: `plan` prüft und legt den Term ab, `run` prüft neu, gibt frei und führt aus. */
 enum Command:
@@ -32,11 +33,15 @@ enum Command:
       noAsk: Boolean,
       config: Option[Path]
   )
+  case Stats(paths: List[Path])
+  case Tighten(flow: Path, out: Path, runs: List[Path], minCalls: Int, config: Option[Path])
 
 object Cli:
   val usage: String =
     """ase plan --envelope E (--task T | --flow F [name=wert …]) --out P [--summary S] [--config C]
       |ase run  --plan P --envelope E --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
+      |ase stats PFAD …
+      |ase tighten --flow F --out NEU [--min-calls N] [--config C] PFAD …
       |
       |Exit-Codes von run: 0 done, 2 ask, 3 aborted, 4 nicht freigegeben, 1 Fehler. plan: 0 geprüft, 2 keine Mehrheit (bestOfN), 3 abgelehnt, 1 Fehler.""".stripMargin
 
@@ -92,6 +97,21 @@ object Cli:
           flags("no-ask"),
           o.get("config").map(Path.of(_))
         )
+      case "stats" :: rest =>
+        rest match
+          case Nil                                     => Left("ase stats braucht mindestens einen Pfad")
+          case _ if rest.exists(_.startsWith("--"))    => Left(s"unbekannte Option ${rest.find(_.startsWith("--")).get}")
+          case paths                                   => Right(Command.Stats(paths.map(Path.of(_))))
+      case "tighten" :: rest =>
+        for
+          (o, flags, free) <- opts(rest, Map.empty, Set.empty, Nil)
+          _ <- known(o, "flow", "out", "min-calls", "config")
+          _ <- flags.headOption.map(f => s"unbekannte Option --$f").toLeft(())
+          flow <- need(o, "flow")
+          out <- need(o, "out")
+          min <- o.get("min-calls").fold(Right(3))(v => v.toIntOption.filter(_ >= 1).toRight(s"--min-calls: „$v“ ist keine Zahl ab 1"))
+          _ <- Either.cond(free.nonEmpty, (), "ase tighten braucht mindestens einen Pfad mit Läufen")
+        yield Command.Tighten(flow, out, free.map(Path.of(_)), min, o.get("config").map(Path.of(_)))
       case _ => Left(usage)
 
 object Main extends IOApp:
@@ -102,6 +122,8 @@ object Main extends IOApp:
         val go = cmd match
           case p: Command.Plan => plan(p)
           case r: Command.Run  => execute(r)
+          case s: Command.Stats => stats(s)
+          case t: Command.Tighten => tighten(t)
         go.handleErrorWith {
           case ModelUnavailable(e) => IO.println(s"Fehler: ${e.message}").as(ExitCode(1))
           case Failure(message)    => IO.println(s"Fehler: $message").as(ExitCode(1))
@@ -131,9 +153,9 @@ object Main extends IOApp:
     for
       (config, sha) <- loadConfig(cmd.config)
       root <- loadEnvelope(cmd.envelope)
-      (planned, source) <- (cmd.task, cmd.flow) match
-        case (Some(task), _) => planTask(task, root, config).map(_ -> task.toString)
-        case (_, Some(flow)) => planFlow(flow, cmd.values, root, config).map(_ -> flow.toString)
+      (planned, source, text) <- (cmd.task, cmd.flow) match
+        case (Some(task), _) => read(task).flatMap(t => planTask(t, root, config).map((_, task.toString, t)))
+        case (_, Some(flow)) => read(flow).flatMap(t => planFlow(t, cmd.values, root, config).map((_, flow.toString, t)))
         case _               => IO.raiseError(Failure(Cli.usage))
       _ <- cmd.summary.traverse_(p => IO.blocking(Files.writeString(p, PlanSummary.of(planned).spaces2 + "\n", UTF_8)))
       code <- planned.checked match
@@ -141,7 +163,7 @@ object Main extends IOApp:
           val (candidates, agreeing) = planned.vote match
             case Some(BestOfN.Vote.Majority(_, agreeing, of)) => (of, agreeing)
             case _                                            => (1, 1)
-          val file = PlanFile(source, sha, checked.rootEnvelope, checked.params, checked.term, planned.calls, planned.rejections, planned.unusable, planned.tokens, candidates, agreeing)
+          val file = PlanFile(source, sha, checked.rootEnvelope, checked.params, checked.term, planned.calls, planned.rejections, planned.unusable, planned.tokens, candidates, agreeing, Some(Canonical.sha256Hex(text)))
           // fingerprint: Struktur ohne origin (D#19), für den Vergleich mit einem Referenzflow (playbook/evals.md)
           IO.blocking(Files.writeString(cmd.out, PlanFile.encode(file).spaces2 + "\n", UTF_8)) >>
             IO.println(Explain.render(checked, config.explain)) >>
@@ -151,9 +173,8 @@ object Main extends IOApp:
         case None => IO.pure(ExitCode(3))
     yield code
 
-  private def planTask(task: Path, root: Envelope, config: RunnerConfig): IO[Planned] =
+  private def planTask(text: String, root: Envelope, config: RunnerConfig): IO[Planned] =
     for
-      text <- read(task)
       transport <- JdkTransport.open[IO](config.model).flatMap(e => IO.fromEither(e.leftMap(ModelUnavailable(_))))
       model = ModelAdapter[IO](transport, config.model, config.check)
       planned <- Planner.run[IO](model, text, root, config.check, config.planRounds, config.bestOfN)
@@ -164,9 +185,8 @@ object Main extends IOApp:
   /** Ein Flow braucht kein Modell. Ein Verstoß an Tor 1 ist eine Ablehnung (Exit 3); Fehler beim Binden der Parameter
     * sind Eingabefehler (Exit 1).
     */
-  private def planFlow(flow: Path, values: Map[String, String], root: Envelope, config: RunnerConfig): IO[Planned] =
+  private def planFlow(text: String, values: Map[String, String], root: Envelope, config: RunnerConfig): IO[Planned] =
     for
-      text <- read(flow)
       bound <- orFail(Flow.parse(text, config.check.nestingLimit).flatMap(Flow.bind(_, values, root)).leftMap(_.toString))
       planned <- DryRun.plan(bound.term, bound.envelope, config.check, values) match
         case Right(checked) => IO.pure(Planned(Some(checked), 0, 0, 0, 0L, Vector.empty))
@@ -175,6 +195,69 @@ object Main extends IOApp:
           val lines = s"flow     dryrun  rejected  ${reasons.head}" :: reasons.tail.map(" " * 26 + _)
           IO.println(lines.mkString("\n")).as(Planned(None, 0, 1, 0, 0L, Vector.empty))
     yield planned
+
+  /** `ase stats` (D#74). Exit 1, wenn kein Lauf gefunden wurde. */
+  private def stats(cmd: Command.Stats): IO[ExitCode] =
+    loadRuns(cmd.paths).flatMap { runs =>
+      if runs.isEmpty then IO.println("Keine Läufe gefunden (summary*.json mit outcome).").as(ExitCode(1))
+      else IO.println(RunStats.render(RunStats.group(runs))).as(ExitCode.Success)
+    }
+
+  /** `ase tighten` (D#75): schreibt einen Flow mit engeren Hüllen nach --out und zeigt alt gegen neu; wird nichts
+    * enger, schreibt es nichts. Gibt nichts frei; der neue Flow geht durch `ase plan`. Exit 1 ohne passende Läufe oder
+    * wenn die Probe scheitert. Schreibt nie über den Flow selbst.
+    */
+  private def tighten(cmd: Command.Tighten): IO[ExitCode] =
+    for
+      (config, _) <- loadConfig(cmd.config)
+      _ <- orFail(Either.cond(cmd.out.toAbsolutePath.normalize != cmd.flow.toAbsolutePath.normalize, (), "--out darf nicht der Flow selbst sein"))
+      text <- read(cmd.flow)
+      flow <- orFail(Flow.parse(text, config.check.nestingLimit).left.map(_.toString))
+      runs <- loadRuns(cmd.runs)
+      code <- FlowTighten.run(flow, runs, cmd.minCalls, config.check) match
+        case Left(message) => IO.println(message).as(ExitCode(1))
+        case Right(result) if result.proposals.forall(_.change.isEmpty) =>
+          IO.println(FlowTighten.render(flow, result)) >> IO.println("nichts enger; nichts geschrieben").as(ExitCode.Success)
+        case Right(result) =>
+          IO.blocking(Files.writeString(cmd.out, Flow.encode(result.flow).spaces2 + "\n", UTF_8)) >>
+            IO.println(FlowTighten.render(flow, result)) >>
+            IO.println(s"geschrieben ${cmd.out}; weiter mit ase plan --flow ${cmd.out} … und dem Explain").as(ExitCode.Success)
+    yield code
+
+  /** Jede summary*.json unter den Pfaden mit Ausgang eines Laufs; Kennzahlen eines Plans ohne Lauf (planOutcome)
+    * zählen nicht. Das Record-Log ist das aus dem Feld record, sonst das einzige record*.log im selben Verzeichnis.
+    */
+  private def loadRuns(paths: List[Path]): IO[Vector[RunStats.Run]] =
+    def files(p: Path): IO[List[Path]] = IO.blocking {
+      if Files.isRegularFile(p) then List(p)
+      else if Files.isDirectory(p) then
+        val s = Files.walk(p)
+        try s.iterator.asScala.filter(f => Files.isRegularFile(f) && f.getFileName.toString.matches("summary.*\\.json")).toList.sorted
+        finally s.close()
+      else throw Failure(s"$p: Datei nicht gefunden")
+    }
+    def recordOf(summary: Path, json: Json): IO[Option[Path]] = IO.blocking {
+      val named = json.hcursor.get[String]("record").toOption.map(Path.of(_)).filter(Files.isRegularFile(_))
+      named.orElse {
+        val dir = Option(summary.toAbsolutePath.getParent).getOrElse(Path.of("."))
+        val s = Files.list(dir)
+        try s.iterator.asScala.filter(f => f.getFileName.toString.matches("record.*\\.log")).toList match
+          case one :: Nil => Some(one)
+          case _          => None
+        finally s.close()
+      }
+    }
+    def load(summary: Path): IO[Option[RunStats.Run]] =
+      read(summary).flatMap { text =>
+        parser.parse(text).toOption.filter(_.hcursor.downField("outcome").succeeded) match
+          case None => IO.pure(None)
+          case Some(json) =>
+            recordOf(summary, json).flatMap(_.traverse(read)).map { log =>
+              val events = log.flatMap(RecordLog.parse(_).toOption)
+              Some(RunStats.Run(Option(summary.toAbsolutePath.getParent).fold(".")(_.toString), json, events))
+            }
+      }
+    paths.flatTraverse(files).flatMap(found => found.distinct.traverse(load).map(_.flatten.toVector))
 
   private def execute(cmd: Command.Run): IO[ExitCode] =
     for
@@ -219,9 +302,14 @@ object Main extends IOApp:
       model = transport.fold[FillModel[IO]](e => _ => IO.raiseError(ModelUnavailable(e)), t => ModelAdapter[IO](t, config.model, config.check))
       ask = if cmd.noAsk then AskHandler.nonInteractive[IO] else interactiveAsk
       _ <- IO.println(s"approved  ${approved.termHash.short}  → $record\n")
+      started <- IO.monotonic
       result <- Execute.local[IO](approved, cmd.workspace, model, ask, config.exec, Some(record)).flatMap(e => orFail(e.leftMap(_.message)))
+      ended <- IO.monotonic
       _ <- IO.println(RunLog.render(result.events, RunLog.Footer(file.rejections, Some(record.toString), file.calls, file.tokens)))
-      _ <- cmd.summary.traverse_(p => IO.blocking(Files.writeString(p, Summary.of(file, approved, result).spaces2 + "\n", UTF_8)))
+      seconds = (ended - started).toMillis / 1000.0
+      _ <- cmd.summary.traverse_(p =>
+        IO.blocking(Files.writeString(p, Summary.of(file, approved, result, seconds, record.toAbsolutePath.normalize.toString).spaces2 + "\n", UTF_8))
+      )
     yield result.outcome match
       case Outcome.Done       => ExitCode.Success
       case Outcome.Ask(_)     => ExitCode(2)
@@ -249,12 +337,18 @@ object AskContext:
           else (lines.take(HeadLines) :+ s"… ${lines.size - HeadLines - TailLines} Zeilen ausgelassen …") ++ lines.takeRight(TailLines)
         s"\nErgebnis des Schritts davor$code, ${lines.size} Zeilen:\n" + shown.map(l => "  │ " + Text.visible(l)).mkString("\n") + "\n"
 
-/** Kennzahlen eines Laufs für Serien (playbook/evals.md): Plan und Ausführung zusammen. */
+/** Kennzahlen eines Laufs für Serien (playbook/evals.md) und `ase stats`: Plan und Ausführung zusammen. source,
+  * sourceSha, seconds und record seit D#74; sourceSha fehlt bei Plan-Dateien älter als Version 3.
+  */
 object Summary:
-  def of(file: PlanFile, approved: ApprovedTerm, result: RunResult): Json =
+  def of(file: PlanFile, approved: ApprovedTerm, result: RunResult, seconds: Double, record: String): Json =
     val s = result.stats
     Json.obj(
       "outcome" -> Json.fromString(result.outcome.label),
+      "source" -> Json.fromString(file.source),
+      "sourceSha" -> file.sourceSha.fold(Json.Null)(Json.fromString),
+      "seconds" -> Json.fromDoubleOrNull(seconds),
+      "record" -> Json.fromString(record),
       "termHash" -> Json.fromString(approved.termHash.hex),
       "planFingerprint" -> Json.fromString(Fingerprint.of(file.term).hex),
       "steps" -> Json.fromLong(s.steps),
@@ -271,7 +365,7 @@ object Summary:
       "tokens" -> Json.fromLong(file.tokens + s.tokens),
       "changedFiles" -> Json.arr(s.changedFiles.map(Json.fromString)*),
       "fillFingerprints" -> Json.arr(result.events.collect { case e: Event.FillAccepted => Json.fromString(Fingerprint.of(e.term).hex) }*)
-    )
+    ).dropNullValues
 
 /** Kennzahlen des Plans allein (O#23), auch wenn kein Plan Tor 1 bestanden hat oder keine Mehrheit zustande kam.
   * Dieselben Schlüssel wie in Summary, damit series.sh beide gleich liest; planFingerprint fehlt ohne Plan.

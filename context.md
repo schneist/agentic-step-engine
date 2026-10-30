@@ -118,6 +118,10 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Gestuftes Programm**: Ein Programm in Stufen; hier Stufe eins der freigegebene Plan, Stufe zwei die Teilterme der Agentenschritte, je mit eigener Prüfung (Tor 1, Tor 2).
 - **scopePrefix**: Optionales Feld der Hülle: unter welchem Pfad ein Agentenschritt Ergebnisse früherer Schritte sieht, wenn das weiter sein soll als sein pathPrefix (D#69).
 - **programs**: Feld der Runner-Konfiguration für weitere Programme, je mit Argument-Policy und `runsCode`, den Pfaden, deren Code es ausführt (D#68).
+- **Fassung**: Ein Flow oder eine Aufgabe in einem bestimmten Textstand, erkannt am SHA-256 des Texts (`sourceSha`). `ase stats` fasst Läufe derselben Fassung zusammen (D#74).
+- **Nutzung** (`Usage`): Was ein Aufruf eines Agentenschritts tatsächlich getan hat, aus dem Record-Log: Operationen, Programme, Pfade, Schritte, Formen und Inhalte seiner Teilterme. `ase stats` stellt sie der Hülle gegenüber (D#74).
+- **Einengen** (`ase tighten`): Aus vergangenen Läufen eine engere Hülle je Agentenschritt vorschlagen und als neuen Flow schreiben; jedes Feld wird nur enger, die Sicht bleibt (D#75).
+- **Kandidat für feste Schritte**: Ein Agentenschritt, der in jedem ausgewerteten Aufruf denselben Teilterm geliefert hat; ob er fest werden kann, entscheidet der Mensch (D#74).
 - **Messbasis**: Die Serien, gegen die eine Änderung an Algebra, Hüllen oder Werkzeugbeschreibungen gemessen wird; seit D#67 M#6 bis M#11 über Claude Code.
 
 ## 8. Warum
@@ -375,6 +379,14 @@ Mit dem Fingerprint als Maß waren sich drei Pläne oft nicht einig, obwohl jede
 ### Warum die Teilungsregel nur bei ausgeführtem Code gilt (D#66)
 
 Die Regel aus D#62 sollte verhindern, dass ein Agentenschritt ein Skript ändert, das danach läuft. Das Modell wandte sie überall an und teilte auch dort, wo kein Code läuft, in Eval 1 in jedem Plan. Das kostete fast die Hälfte mehr Tokens, ohne dort etwas sicherer zu machen. Die Regel nennt jetzt ihre Bedingung.
+
+### Warum die Auswertung nur liest (D#74)
+
+Eine Hülle wird beim Schreiben des Flows geschätzt, meist zu weit, weil niemand vorher weiß, was der Agent braucht. Nach einigen Läufen weiß man es: Das Record-Log zeigt jede Operation und jeden Pfad. Die Gegenüberstellung macht aus einer Schätzung eine Messung, und ein Agentenschritt, der jedes Mal dasselbe liefert, zeigt, wo der Flow fest werden kann. Die Auswertung ändert trotzdem nichts selbst. Eine engere Hülle aus vergangenen Läufen ist eine Vermutung über künftige, und was ausgeführt wird, muss vorher ein Mensch gesehen haben. Also schlägt sie vor, und der Vorschlag geht als neuer Flow durch dieselben Tore wie jeder andere.
+
+### Warum Einengen einen neuen Flow schreibt (D#75)
+
+Aus Läufen lässt sich ablesen, welche Rechte ein Agentenschritt gebraucht hat, aber nicht, welche der nächste brauchen wird. Ein Vorschlag aus drei Läufen kann den vierten ausbremsen, etwa wenn der Fehler diesmal in einer anderen Datei liegt. Deshalb ändert das Werkzeug keinen Flow, sondern schreibt einen neuen, und der geht durch dieselbe Prüfung und Freigabe wie jeder andere. Das Budget folgt dem schlechtesten Fall der Teilterme, nicht nur dem, was lief, weil Tor 2 sonst einen Teilterm ablehnen würde, den es früher angenommen hat. Die Sicht bleibt, wie sie war, weil sie nicht dasselbe ist wie das Recht: Ein Berichtsschritt, der eine Datei schreibt, muss trotzdem alles sehen, worüber er berichtet.
 
 ### Warum Ask das Ergebnis davor zeigt (D#73)
 

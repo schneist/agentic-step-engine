@@ -216,12 +216,16 @@ Was ein Flow wie der Release-Flow im eigenen Repository braucht: `ase.json` mit 
 ```
 ase plan --envelope E (--task T | --flow F [name=wert …]) --out P [--summary S] [--config C]
 ase run  --plan P --envelope E --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
+ase stats PFAD …
+ase tighten --flow F --out NEU [--min-calls N] [--config C] PFAD …
 ```
 
 - `--approve` nimmt die 64 Hex-Zeichen der Zeile `hash` und gibt ohne Rückfrage frei. Ohne Terminal immer damit aufrufen.
 - `--no-ask` beantwortet `Ask`-Fragen nicht; der Lauf endet dann mit `ask`.
 - `--summary` schreibt Kennzahlen als JSON, bei `plan` auch dann, wenn kein Plan zustande kam.
 - `plan` und `run` brauchen dieselbe `--config`.
+- `stats` liest alle `summary*.json` unter den Pfaden samt Record-Log und fasst die Läufe je Flow und Fassung zusammen: Ausgänge, Tokens, Dauer, Ablehnungen, und je Agentenschritt, was die Hülle erlaubt und was er genutzt hat. Hinweise nennen nie genutzte Rechte und Agentenschritte, die jedes Mal denselben Teilterm liefern. Es ändert nichts; eine engere Hülle wird ein neuer Flow mit eigener Freigabe.
+- `tighten` schreibt diesen neuen Flow: je Agentenschritt nur die genutzten Operationen und Programme, das gebrauchte Budget und den engsten gemeinsamen Pfad, aus mindestens `--min-calls` Aufrufen (Standard 3). Die Sicht bleibt, Pfade mit Parametern bleiben. Vorher prüft es den Vorschlag mit DryRun am Term des neuesten Laufs. Es schreibt nie über den Flow selbst und gibt nichts frei; danach `ase plan --flow NEU …` und den Explain lesen.
 - Exit-Codes von `run`: 0 done, 2 ask, 3 aborted, 4 nicht freigegeben, 1 Fehler. Von `plan`: 0 geprüft, 2 keine Mehrheit (nur mit `bestOfN`), 3 abgelehnt, 1 Fehler.
 
 Die Konfiguration (`--config`) ist JSON; jedes Feld ist optional, unbekannte Felder sind Fehler. `model.provider` legt fest, wer plant und füllt:

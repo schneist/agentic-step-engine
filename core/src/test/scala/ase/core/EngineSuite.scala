@@ -100,6 +100,17 @@ class EngineSuite extends munit.ScalaCheckSuite:
     assertEquals(requests.head.scope.map(_.at), Vector("1"))
     assert(requests.head.scope.head.text.contains("val a = 1"))
 
+  test("Usage: erlaubt und genutzt je Aufruf eines Agentenschritts, aus dem Record-Log eines echten Laufs (D#74)"):
+    val t = holeTerm(Term.Hole("prüfe", src, h), Term.ReadFile("README.md", h))
+    val f = Term.Seq(List(Term.ReadFile("src/A.scala", fill), Term.Done("gelesen", fill)), fill)
+    val (_, _, r) = run(t, script(("1", 1, f)))
+    val calls = Usage.of(r.events)
+    assertEquals(calls.map(_.at.show), Vector("1"))
+    val c = calls.head
+    assertEquals((c.ops, c.paths, c.steps, c.fills, c.tokens), (Set(OpKind.ReadFile), Set("src/A.scala"), 2, 1, 100L))
+    assertEquals(c.shapes, Vector(BestOfN.shape(f)))
+    assertEquals(c.envelope, src)
+
   test("Top-Level-Fehler bricht ab; das Limit der Modellaufrufe ebenso"):
     val (_, _, failed) = run(holeTerm(Term.EditFile("README.md", "fehlt", "x", h), Term.Done("nie", h)), script())
     assertEquals(failed.outcome, Outcome.Aborted(AbortReason.StepFailed(StepId(Vector(1)), ToolError.CasMissing("README.md"))))
