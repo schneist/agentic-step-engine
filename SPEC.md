@@ -140,7 +140,7 @@ Aufgabe → Plan (mit bestOfN n Kandidaten je Runde, D#63) → DryRun (CheckedTe
 =====================================================================
 EVALS
 =====================================================================
-Sechs Aufgaben, Details und Eval 6 (Integrations-Use-Case, deterministisch und live) in evals/README.md. Erfolgsquote über n Läufe; Ergebnis als M#-Eintrag nach playbook/evals.md. evals/series.sh misst eine Eval, evals/harness.sh alle sechs mit derselben Konfiguration (D#64). Prüfvertrag: check.sh WORKDIR OUTCOME (D#17).
+Sechs Aufgaben, Details und Eval 6 (Integrations-Use-Case, deterministisch und live) in evals/README.md. Erfolgsquote über n Läufe; Ergebnis als Datensatz measurements/M<n>.json und M#-Eintrag nach playbook/evals.md (D#77). evals/series.sh misst eine Eval (ase series begin und end), evals/harness.sh alle sechs mit derselben Konfiguration (D#64); ase compare vergleicht zwei Serien nur bei gleichem Schlüssel. Prüfvertrag: check.sh WORKDIR OUTCOME (D#17).
 
 =====================================================================
 TESTS

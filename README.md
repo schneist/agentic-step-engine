@@ -218,6 +218,10 @@ ase plan --envelope E (--task T | --flow F [name=wert …]) --out P [--summary S
 ase run  --plan P --envelope E --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
 ase stats PFAD …
 ase tighten --flow F --out NEU [--min-calls N] [--config C] PFAD …
+ase series begin --eval DIR [--flow F] --commit C --status S --n N [--parallel] [--reference FP] [--config C] --out I
+ase series end --input I --out DATENSATZ PFAD …
+ase series show DATENSATZ
+ase compare BASIS KANDIDAT
 ```
 
 - `--approve` nimmt die 64 Hex-Zeichen der Zeile `hash` und gibt ohne Rückfrage frei. Ohne Terminal immer damit aufrufen.
@@ -226,6 +230,7 @@ ase tighten --flow F --out NEU [--min-calls N] [--config C] PFAD …
 - `plan` und `run` brauchen dieselbe `--config`.
 - `stats` liest alle `summary*.json` unter den Pfaden samt Record-Log und fasst die Läufe je Flow und Fassung zusammen: Ausgänge, Tokens, Dauer, Ablehnungen, und je Agentenschritt, was die Hülle erlaubt und was er genutzt hat. Hinweise nennen nie genutzte Rechte und Agentenschritte, die jedes Mal denselben Teilterm liefern. Es ändert nichts; eine engere Hülle wird ein neuer Flow mit eigener Freigabe.
 - `tighten` schreibt diesen neuen Flow: je Agentenschritt nur die genutzten Operationen und Programme, das gebrauchte Budget und den engsten gemeinsamen Pfad, aus mindestens `--min-calls` abgeschlossenen Aufrufen (Standard 3) von Läufen derselben Fassung des Flows. Die Sicht bleibt, Pfade und Programme mit Parametern bleiben, ebenso das Budget, wenn ein Aufruf abbrach. Vorher prüft es den Vorschlag mit DryRun am Term des jüngsten Laufs. Es schreibt nie über den Flow selbst und gibt nichts frei; danach `ase plan --flow NEU …` und den Explain lesen.
+- `series` und `compare` gehören zu Messserien (playbook/evals.md); `evals/series.sh` ruft `series begin` und `series end` selbst. `begin` hält vor dem ersten Lauf fest, was gleich sein muss, damit zwei Serien vergleichbar sind: Fassung, Hülle, Fixture, Prüfskript, Modell. `end` baut daraus und aus den Läufen einen Datensatz und druckt die Zeile für `findings.md`, `show` druckt sie erneut. `compare` vergleicht zwei Datensätze nur, wenn das übereinstimmt und beide zählen, und nennt einen Unterschied nur, wenn er über dem Rauschen liegt. Keiner dieser Befehle startet einen Lauf oder gibt etwas frei.
 - Exit-Codes von `run`: 0 done, 2 ask, 3 aborted, 4 nicht freigegeben, 1 Fehler. Von `plan`: 0 geprüft, 2 keine Mehrheit (nur mit `bestOfN`), 3 abgelehnt, 1 Fehler.
 
 Die Konfiguration (`--config`) ist JSON; jedes Feld ist optional, unbekannte Felder sind Fehler. `model.provider` legt fest, wer plant und füllt:

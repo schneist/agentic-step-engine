@@ -8,7 +8,8 @@ import io.circe.{Json, parser}
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path}
-import java.time.LocalDateTime
+import java.security.MessageDigest
+import java.time.{LocalDate, LocalDateTime}
 import java.time.format.DateTimeFormatter
 import scala.jdk.CollectionConverters.*
 
@@ -35,6 +36,20 @@ enum Command:
   )
   case Stats(paths: List[Path])
   case Tighten(flow: Path, out: Path, runs: List[Path], minCalls: Int, config: Option[Path])
+  case SeriesBegin(
+      eval: Path,
+      flow: Option[Path],
+      commit: String,
+      status: Path,
+      n: Int,
+      parallel: Boolean,
+      reference: Option[String],
+      config: Option[Path],
+      out: Path
+  )
+  case SeriesEnd(input: Path, out: Path, runs: List[Path])
+  case SeriesShow(file: Path)
+  case Compare(baseline: Path, candidate: Path)
 
 object Cli:
   val usage: String =
@@ -42,14 +57,22 @@ object Cli:
       |ase run  --plan P --envelope E --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
       |ase stats PFAD …
       |ase tighten --flow F --out NEU [--min-calls N] [--config C] PFAD …
+      |ase series begin --eval DIR [--flow F] --commit C --status S --n N [--parallel] [--reference FP] [--config C] --out I
+      |ase series end --input I --out DATENSATZ PFAD …
+      |ase series show DATENSATZ
+      |ase compare BASIS KANDIDAT
       |
       |Exit-Codes von run: 0 done, 2 ask, 3 aborted, 4 nicht freigegeben, 1 Fehler. plan: 0 geprüft, 2 keine Mehrheit (bestOfN), 3 abgelehnt, 1 Fehler.""".stripMargin
+
+  private val Flags = Set("--no-ask", "--parallel")
+  private val Commit = "^[0-9a-f]{7,40}$".r
+  private val Hex64 = "^[0-9a-f]{64}$".r
 
   def parse(args: List[String]): Either[String, Command] =
     def opts(rest: List[String], acc: Map[String, String], flags: Set[String], free: List[String]): Either[String, (Map[String, String], Set[String], List[String])] =
       rest match
         case Nil                                          => Right((acc, flags, free.reverse))
-        case "--no-ask" :: tail                           => opts(tail, acc, flags + "no-ask", free)
+        case f :: tail if Flags(f)                        => opts(tail, acc, flags + f.drop(2), free)
         case k :: v :: tail if k.startsWith("--") && !v.startsWith("--") => opts(tail, acc + (k.drop(2) -> v), flags, free)
         case k :: _ if k.startsWith("--")                 => Left(s"$k braucht einen Wert")
         case a :: tail                                    => opts(tail, acc, flags, a :: free)
@@ -83,6 +106,7 @@ object Cli:
         for
           (o, flags, free) <- opts(rest, Map.empty, Set.empty, Nil)
           _ <- known(o, "plan", "envelope", "workspace", "approve", "record", "summary", "config")
+          _ <- (flags - "no-ask").headOption.map(f => s"unbekannte Option --$f").toLeft(())
           _ <- free.headOption.map(a => s"unerwartetes Argument „$a“").toLeft(())
           plan <- need(o, "plan")
           envelope <- need(o, "envelope")
@@ -112,6 +136,30 @@ object Cli:
           min <- o.get("min-calls").fold(Right(3))(v => v.toIntOption.filter(_ >= 1).toRight(s"--min-calls: „$v“ ist keine Zahl ab 1"))
           _ <- Either.cond(free.nonEmpty, (), "ase tighten braucht mindestens einen Pfad mit Läufen")
         yield Command.Tighten(flow, out, free.map(Path.of(_)), min, o.get("config").map(Path.of(_)))
+      case "series" :: "begin" :: rest =>
+        for
+          (o, flags, free) <- opts(rest, Map.empty, Set.empty, Nil)
+          _ <- known(o, "eval", "flow", "commit", "status", "n", "reference", "config", "out")
+          _ <- (flags - "parallel").headOption.map(f => s"unbekannte Option --$f").toLeft(())
+          _ <- free.headOption.map(a => s"unerwartetes Argument „$a“").toLeft(())
+          eval <- need(o, "eval")
+          status <- need(o, "status")
+          out <- need(o, "out")
+          commit <- o.get("commit").filter(Commit.matches).toRight("--commit erwartet einen Commit-Hash")
+          n <- o.get("n").flatMap(_.toIntOption).filter(_ >= 1).toRight("--n erwartet eine Zahl ab 1")
+          reference <- o.get("reference").traverse(r => Either.cond(Hex64.matches(r), r, "--reference erwartet einen Fingerprint aus 64 Hex-Zeichen"))
+        yield Command.SeriesBegin(eval, o.get("flow").map(Path.of(_)), commit, status, n, flags("parallel"), reference, o.get("config").map(Path.of(_)), out)
+      case "series" :: "end" :: rest =>
+        for
+          (o, flags, free) <- opts(rest, Map.empty, Set.empty, Nil)
+          _ <- known(o, "input", "out")
+          _ <- flags.headOption.map(f => s"unbekannte Option --$f").toLeft(())
+          input <- need(o, "input")
+          out <- need(o, "out")
+          _ <- Either.cond(free.nonEmpty, (), "ase series end braucht mindestens einen Pfad mit Läufen")
+        yield Command.SeriesEnd(input, out, free.map(Path.of(_)))
+      case "series" :: "show" :: file :: Nil if !file.startsWith("--") => Right(Command.SeriesShow(Path.of(file)))
+      case "compare" :: a :: b :: Nil if !a.startsWith("--") && !b.startsWith("--") => Right(Command.Compare(Path.of(a), Path.of(b)))
       case _ => Left(usage)
 
 object Main extends IOApp:
@@ -124,6 +172,10 @@ object Main extends IOApp:
           case r: Command.Run  => execute(r)
           case s: Command.Stats => stats(s)
           case t: Command.Tighten => tighten(t)
+          case b: Command.SeriesBegin => seriesBegin(b)
+          case e: Command.SeriesEnd => seriesEnd(e)
+          case Command.SeriesShow(file) => seriesShow(file)
+          case c: Command.Compare => compare(c)
         go.handleErrorWith {
           case ModelUnavailable(e) => IO.println(s"Fehler: ${e.message}").as(ExitCode(1))
           case Failure(message)    => IO.println(s"Fehler: $message").as(ExitCode(1))
@@ -225,6 +277,111 @@ object Main extends IOApp:
             IO.println(FlowTighten.render(flow, result)) >>
             IO.println(s"geschrieben ${cmd.out}; weiter mit ase plan --flow ${cmd.out} … und dem Explain").as(ExitCode.Success)
     yield code
+
+  /** `ase series begin` (D#77): Schlüssel und Bedingungen vor dem ersten Lauf. Liest Hülle, check.sh, Fixture und
+    * Aufgabe oder Flow der Eval, Modell und Effort aus der Konfiguration, geänderte Dateien aus der Ausgabe von
+    * `git status --porcelain` (--status). Führt nichts aus und gibt nichts frei.
+    */
+  private def seriesBegin(cmd: Command.SeriesBegin): IO[ExitCode] =
+    val dir = cmd.eval.toAbsolutePath.normalize
+    val fixture = dir.resolve("fixture")
+    val (kind, sourcePath) = cmd.flow.fold((Series.SourceKind.Task, dir.resolve("task.md")))(f => (Series.SourceKind.Flow, f))
+    val requiredFile = dir.resolve("series.json")
+    for
+      (config, _) <- loadConfig(cmd.config)
+      envelope <- loadEnvelope(dir.resolve("envelope.json"))
+      checkSha <- fileSha(dir.resolve("check.sh"))
+      fixtureSha <- fixtureSha(fixture)
+      source <- read(sourcePath)
+      required <- IO.blocking(Files.isRegularFile(requiredFile)).ifM(
+        read(requiredFile).flatMap(t => orFail(Series.parseRequired(t))),
+        IO.pure(Series.DefaultRequired)
+      )
+      status <- read(cmd.status)
+      m = config.model
+      key = Series.Key(
+        kind,
+        sourcePath.getFileName.toString,
+        Canonical.sha256Hex(source),
+        Canonical.sha256Hex(Canonical.print(Codec.envelope(envelope))),
+        fixtureSha,
+        checkSha,
+        m.provider.toString,
+        m.model,
+        m.effort
+      )
+      // git status --porcelain: zwei Zeichen Status, ein Leerzeichen, dann der Pfad
+      dirty = status.linesIterator.map(_.drop(3).trim).filter(_.nonEmpty).toList
+      conditions = Series.Conditions(cmd.commit, dirty, cmd.n, required, cmd.parallel, cmd.reference)
+      input = Series.Input(dir.getFileName.toString, LocalDate.now.toString, key, conditions, fixture.toString)
+      _ <- IO.blocking(Files.writeString(cmd.out, Series.encodeInput(input).spaces2 + "\n", UTF_8))
+      _ <- IO.println(s"Serie ${input.eval} · Schlüssel ${key.hash.take(8)} · n=${cmd.n}, verlangt $required" + (if dirty.isEmpty then "" else " · Arbeitsbaum geändert, zählt nicht"))
+    yield ExitCode.Success
+
+  /** `ase series end` (D#77): der Datensatz aus series-input.json und jedem Verzeichnis mit run.json unter den Pfaden.
+    * Hasht das Fixture erneut; was nicht zählt, wird markiert. Druckt die M#-Zeile.
+    */
+  private def seriesEnd(cmd: Command.SeriesEnd): IO[ExitCode] =
+    for
+      input <- read(cmd.input).flatMap(t => orFail(Series.parseInput(t).leftMap(e => s"${cmd.input}: $e")))
+      fixture = Path.of(input.fixtureDir)
+      now <- IO.blocking(Files.isDirectory(fixture)).ifM(fixtureSha(fixture), IO.pure("fehlt"))
+      dirs <- runDirs(cmd.runs)
+      runs <- dirs.traverse(loadSeriesRun)
+      record = Series.build(input, now, runs.toVector)
+      _ <- IO.blocking(Files.writeString(cmd.out, Series.encode(record).spaces2 + "\n", UTF_8))
+      _ <- IO.println(Series.line(Series.idOf(cmd.out.getFileName.toString).getOrElse("M#?"), record))
+    yield ExitCode.Success
+
+  private def seriesShow(file: Path): IO[ExitCode] =
+    loadRecord(file).flatMap(r => IO.println(Series.line(Series.idOf(file.getFileName.toString).getOrElse("M#?"), r))).as(ExitCode.Success)
+
+  /** `ase compare` (D#77): Exit 1, wenn die Serien nicht vergleichbar sind. */
+  private def compare(cmd: Command.Compare): IO[ExitCode] =
+    def id(p: Path) = Series.idOf(p.getFileName.toString).getOrElse(p.getFileName.toString)
+    (loadRecord(cmd.baseline), loadRecord(cmd.candidate)).tupled.flatMap { (b, c) =>
+      Series.Comparison.of(b, c) match
+        case Left(why)  => IO.println(why.render).as(ExitCode(1))
+        case Right(cmp) => IO.println(Series.renderComparison(id(cmd.baseline), id(cmd.candidate), cmp)).as(ExitCode.Success)
+    }
+
+  private def loadRecord(p: Path): IO[Series.Record] = read(p).flatMap(t => orFail(Series.parse(t).leftMap(e => s"$p: $e")))
+
+  /** Verzeichnisse mit run.json unter den Pfaden, run-2 vor run-10. */
+  private def runDirs(paths: List[Path]): IO[List[Path]] = IO.blocking {
+    paths.flatMap { p =>
+      if !Files.isDirectory(p) then throw Failure(s"$p: kein Verzeichnis")
+      val s = Files.walk(p)
+      try s.iterator.asScala.filter(f => f.getFileName.toString == "run.json" && Files.isRegularFile(f)).map(_.toAbsolutePath.normalize.getParent).toList
+      finally s.close()
+    }.distinct.sortBy { d =>
+      val name = d.getFileName.toString
+      (Option(d.getParent).fold("")(_.toString), "\\d+$".r.findFirstIn(name).fold(0)(_.toInt), name)
+    }
+  }
+
+  /** run.json von series.sh, dazu summary.json oder, wenn nichts lief, plan-summary.json. */
+  private def loadSeriesRun(dir: Path): IO[Series.Run] =
+    def json(p: Path): IO[Option[Json]] =
+      IO.blocking(Files.isRegularFile(p) && Files.size(p) > 0).ifM(
+        read(p).flatMap(t => orFail(parser.parse(t).leftMap(e => s"$p: ${e.message}"))).map(Some(_)),
+        IO.pure(None)
+      )
+    for
+      result <- json(dir.resolve("run.json")).flatMap(r => orFail(r.toRight(s"$dir: run.json ist leer")))
+      summary <- json(dir.resolve("summary.json")).flatMap(_.fold(json(dir.resolve("plan-summary.json")))(j => IO.pure(Some(j))))
+      run <- orFail(Series.runOf(result, summary.getOrElse(Json.obj())).leftMap(e => s"$dir: $e"))
+    yield run
+
+  /** Tree-Hash des Fixtures (TreeHash, D#77). Ist das Verzeichnis selbst ein Link, zählt sein Ziel; darunter werden
+    * Links nicht verfolgt.
+    */
+  private def fixtureSha(dir: Path): IO[String] =
+    IO.blocking(Files.isDirectory(dir)).ifM(IO.blocking(dir.toRealPath()).flatMap(TreeHash.collect), IO.raiseError(Failure(s"$dir: kein Verzeichnis")))
+
+  private def fileSha(p: Path): IO[String] =
+    IO.blocking(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(p)).map(b => f"${b & 0xff}%02x").mkString)
+      .adaptError { case _: java.nio.file.NoSuchFileException => Failure(s"$p: Datei nicht gefunden") }
 
   /** Jede summary*.json unter den Pfaden mit Ausgang eines Laufs; Kennzahlen eines Plans ohne Lauf (planOutcome)
     * zählen nicht. Das Record-Log liegt neben der summary: unter dem Namen aus dem Feld record, sonst das einzige

@@ -407,10 +407,10 @@ interpreters:
     type: runner
     status: implemented
     source: runner/src/main/scala/ase/runner/Main.scala#Main
-    verified: 2026-10-29
-    decided_by: ["D#45", "D#46", "D#63", "D#64", "D#74", "D#75", "D#76"]
-    tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite]
-    note: "ase plan / ase run / ase stats; PlanFile.scala (Version 3 mit sourceSha, liest 1 und 2), RunnerConfig.scala (bestOfN, programs D#68), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
+    verified: 2026-10-30
+    decided_by: ["D#45", "D#46", "D#63", "D#64", "D#74", "D#75", "D#76", "D#79"]
+    tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite, ase.runner.SeriesSuite]
+    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 3 mit sourceSha, liest 1 und 2), RunnerConfig.scala (bestOfN, programs D#68), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
   - id: core.usage
     type: interpreter
     status: implemented
@@ -427,13 +427,21 @@ interpreters:
     decided_by: ["D#75", "D#76", "D#78"]
     tested_by: [ase.core.TightenSuite, ase.runner.RunnerSuite]
     note: "Term => Term: propose leitet je Agentenschritt eine engere Hülle aus Usage ab, apply setzt sie ein, holes nummeriert wie Explain; DryRun und Attenuation danach im Runner"
+  - id: runner.series
+    type: runner
+    status: implemented
+    source: runner/src/main/scala/ase/runner/Series.scala#Series
+    verified: 2026-10-30
+    decided_by: ["D#77", "D#79"]
+    tested_by: [ase.runner.SeriesSuite]
+    note: "Messserie als Datensatz: Key (Fassung, Hülle, Fixture als Tree-Hash, check.sh, Anbieter, Modell, Effort), Conditions, Standing mit Gründen (DirtyTree, TooFewRuns, RunsNotAsPlanned, FixtureChanged, StartNotFixture, MixedKeys), Run je Lauf; Comparison nur aus Comparison.of (gleicher Schlüssel, gleiche Version, beide zählen), Wilson-Intervall, Urteil Noise/Better/Worse; line rendert die M#-Zeile. Befehle in Main, Ablauf in evals/series.sh"
   - id: runner.treehash
     type: runner
     status: implemented
     source: runner/src/main/scala/ase/runner/TreeHash.scala#TreeHash.collect
     verified: 2026-10-30
-    decided_by: ["D#77", "D#78"]
-    tested_by: [ase.runner.RunnerSuite]
+    decided_by: ["D#77", "D#78", "D#79"]
+    tested_by: [ase.runner.RunnerSuite, ase.runner.SeriesSuite]
     note: "Tree-Hash eines Verzeichnisses: of rein, collect am Rand; ohne .git/, Links nicht verfolgt; ase run --summary schreibt damit workspaceSha (Ausgangsstand), ase tighten engt Pfade nur bei mindestens zwei verschiedenen ein"
   - id: runner.launcher
     type: runner
@@ -596,6 +604,8 @@ decisions:
   - { id: "D#65", type: decision, status: decided, source: "findings.md#D#65", verified: 2026-10-29, title: "BestOfN stimmt über die Form ab", measured_by: [eval.1, eval.6], tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite] }
   - { id: "D#66", type: decision, status: decided, source: "findings.md#D#66", verified: 2026-10-29, title: "Teilungsregel nur bei ausgeführtem Code", measured_by: [eval.1, eval.6] }
   - { id: "D#67", type: decision, status: decided, source: "findings.md#D#67", verified: 2026-10-29, title: "Messbasis über Claude Code (M#6 bis M#11)" }
+  - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
+  - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
   - { id: "D#76", type: decision, status: decided, source: "findings.md#D#76", verified: 2026-10-30, title: "Review D#74/D#75: tighten nur aus derselben Fassung und abgeschlossenen Aufrufen, Parameter lassen Pfad und Programme", tested_by: [core.TightenSuite, core.UsageSuite, runner.RunnerSuite] }
   - { id: "D#75", type: decision, status: decided, source: "findings.md#D#75", verified: 2026-10-30, title: "ase tighten: engere Hüllen aus Läufen als neuer Flow", tested_by: [core.TightenSuite, runner.RunnerSuite], measured_by: ["M#20", "M#21"] }
@@ -640,6 +650,7 @@ open:
   - { id: "O#29", type: open, status: resolved, source: "findings.md#O#29", verified: 2026-10-29, resolved_by: "D#61" }
   - { id: "O#30", type: open, status: resolved, source: "findings.md#O#30", verified: 2026-10-29, resolved_by: "D#65" }
   - { id: "O#31", type: open, status: resolved, source: "findings.md#O#31", verified: 2026-10-29, resolved_by: "D#66" }
+  - { id: "O#36", type: open, status: resolved, source: "findings.md#O#36", verified: 2026-10-30, title: "D#77 umsetzen", resolved_by: "D#79" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }

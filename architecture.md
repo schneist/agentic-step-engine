@@ -149,6 +149,6 @@ Umkehrkosten: niedrig. Eine Serie über die Messages API ist ein Vergleich; wer 
 
 ## D#77 Serien als Datensatz mit Schlüssel
 
-Alternativen: (a) Handgeschriebene M#-Zeile wie bisher, Regeln nur im Playbook. (b) Datensatz, aber außerhalb von ase, gebaut von series.sh (awk, jq). (c) Datensatz mit Typen in ase (`SeriesKey`, `Standing`, `Comparison`); series.sh führt weiter die Läufe aus. (d) Die ganze Serie als Befehl in ase, samt Freigabe der Pläne.
+Alternativen: (a) Handgeschriebene M#-Zeile wie bisher, Regeln nur im Playbook. (b) Datensatz, aber außerhalb von ase, gebaut von series.sh (awk, jq). (c) Datensatz mit Typen in ase (`Series.Key`, `Standing`, `Comparison`); series.sh führt weiter die Läufe aus. (d) Die ganze Serie als Befehl in ase, samt Freigabe der Pläne.
 Gewählt: c. a ist nicht vergleichbar (D#77, Basis). b hält die Hashes nicht kanonisch wie termHash und prüft „Was nicht zählt“ in einer Sprache ohne Typen. d hieße, dass ase Terme freigibt, deren Hash erst zur Laufzeit feststeht (D#11).
 Umkehrkosten: mittel. Das Schema wird committet und versioniert; wer zurück will, rendert die Zeilen weiter aus den Datensätzen und lässt `ase compare` fallen.

@@ -124,11 +124,13 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Kandidat für feste Schritte**: Ein Agentenschritt, der in jedem ausgewerteten Aufruf denselben Teilterm geliefert hat; ob er fest werden kann, entscheidet der Mensch (D#74).
 - **Messbasis**: Die Serien, gegen die eine Änderung an Algebra, Hüllen oder Werkzeugbeschreibungen gemessen wird; seit D#67 M#6 bis M#11 über Claude Code.
 - **Serie**: n Läufe derselben Eval oder desselben Flows unter denselben Bedingungen, als Datensatz in measurements/M<n>.json (D#77).
-- **Serienschlüssel** (`SeriesKey`): Was gleich sein muss, damit zwei Serien vergleichbar sind: Fassung, Hülle, Fixture als Tree-Hash, Prüfskript, Anbieter, Modell, Effort (D#77).
+- **Serienschlüssel** (`Series.Key`): Was gleich sein muss, damit zwei Serien vergleichbar sind: Fassung, Hülle, Fixture als Tree-Hash, Prüfskript, Anbieter, Modell, Effort (D#77).
 - **Tree-Hash**: SHA-256 über die sortierten relativen Pfade eines Verzeichnisses und den SHA-256 jeder Datei darin, ohne `.git/`; erkennt ein Fixture am Inhalt (D#77).
 - **Zählt / zählt nicht** (`Standing`): Ob eine Serie die Regeln aus playbook/evals.md erfüllt; wenn nicht, mit Gründen (D#77).
 - **Rauschen** (`Noise`): Urteil eines Vergleichs, wenn sich die Intervalle oder Spannen zweier Serien überlappen; der Unterschied ist mit diesem n nicht belegt (D#77).
 - **Ausgangsstand** (`workspaceSha`): Tree-Hash des Arbeitsverzeichnisses vor einem Lauf, in summary.json. `ase tighten` engt einen Pfad nur ein, wenn die Läufe mindestens zwei verschiedene zeigen (D#78).
+- **Datensatz einer Serie** (`Series.Record`): Schlüssel, Bedingungen, Stand und die Kennzahlen jedes Laufs als JSON, gebaut von `ase series end`, übernommen nach measurements/M<n>.json; die M#-Zeile wird daraus gerendert (D#77, D#79).
+- **Verlangtes n** (`series.json`): Wie viele Läufe eine Eval für eine Serie verlangt, die zählt; ohne die Datei 10 (D#77).
 
 ## 8. Warum
 
@@ -385,6 +387,10 @@ Mit dem Fingerprint als Maß waren sich drei Pläne oft nicht einig, obwohl jede
 ### Warum die Teilungsregel nur bei ausgeführtem Code gilt (D#66)
 
 Die Regel aus D#62 sollte verhindern, dass ein Agentenschritt ein Skript ändert, das danach läuft. Das Modell wandte sie überall an und teilte auch dort, wo kein Code läuft, in Eval 1 in jedem Plan. Das kostete fast die Hälfte mehr Tokens, ohne dort etwas sicherer zu machen. Die Regel nennt jetzt ihre Bedingung.
+
+### Warum eine Serie in zwei Schritten entsteht und jeder Lauf mit dem Fixture beginnen muss (D#79)
+
+Was gleich sein muss, damit eine Serie zählt, muss vor dem ersten Lauf feststehen. Nach dem letzten Lauf festgehalten, sähe es einen Commit oder eine Änderung am Fixture während der Serie nicht. Deshalb schreibt `ase series begin` Schlüssel und Bedingungen vorher, und `ase series end` vergleicht danach. Die Rohdaten bekommt ase von series.sh als Datei und Argumente, weil JSON in Bash aus Dateinamen zu bauen hieße, sie von Hand zu maskieren. Dass das Fixture am Ende noch dasselbe ist, sagt noch nicht, dass jeder Lauf damit begann; eine Kopie kann scheitern, ein Lauf kann von Hand in einem anderen Verzeichnis gestartet worden sein. Der Ausgangsstand aus D#78 prüft das je Lauf. Und eine Serie, aus der Läufe fehlen, ist eine Auswahl: Wer den schlechten Lauf weglässt, misst etwas anderes. Darum zählt sie nicht, wenn gefundene und angekündigte Läufe auseinandergehen.
 
 ### Warum Einengen verschiedene Ausgangsstände braucht, um einen Pfad enger zu machen (D#78)
 
