@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # Eine Messserie nach playbook/evals.md: n Live-Läufe einer Eval, jeder in einer frischen Kopie des Fixtures.
 # Aufruf (unter Linux, D#29; ANTHROPIC_API_KEY gesetzt):
-#   evals/series.sh <eval-verzeichnis> <n> <ausgabe-verzeichnis> [--config runner.json] [--reference flow.json]
+#   evals/series.sh <eval-verzeichnis> <n> <ausgabe-verzeichnis> [--config runner.json] [--reference flow.json] [--flow flow.json]
 # Pro Lauf: ase plan, Freigabe des gezeigten Hashes, ase run --no-ask, check.sh. Läuft nichts (kein Plan besteht Tor 1,
 # oder bei bestOfN keine Mehrheit: Ausgang ask), kommen die Kennzahlen aus plan-summary.json (O#23). code_hint zählt die
 # Löcher, die laut Explain Code ändern dürfen, der im Lauf ausgeführt wird (O#28). Ergebnis: <ausgabe>/runs.tsv und
 # eine Zusammenfassung auf stdout, im Format der M#-Zeile. --reference: Referenzflow; gezählt wird, wie viele Pläne
-# dessen Fingerprint haben (playbook/evals.md). Die Ausgabe gehört nach record/ (nicht im Repo).
+# dessen Fingerprint haben (playbook/evals.md). --flow: statt eines Modellplans aus task.md läuft jedes Mal dieser Flow
+# (ase plan --flow, kein Planaufruf); gemessen werden dann nur die Fills. Die Ausgabe gehört nach record/ (nicht im Repo).
 set -euo pipefail
 
-usage="Aufruf: $0 <eval-verzeichnis> <n> <ausgabe-verzeichnis> [--config datei] [--reference flow.json]"
+usage="Aufruf: $0 <eval-verzeichnis> <n> <ausgabe-verzeichnis> [--config datei] [--reference flow.json] [--flow flow.json]"
 [ $# -ge 3 ] || { echo "$usage" >&2; exit 1; }
 repo=$(cd "$(dirname "$0")/.." && pwd)
 eval_dir=$(cd "$1" && pwd)
@@ -21,10 +22,12 @@ abs() { echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"; }
 # Standard: evals/runner.json (Skripte wie ./run-tests.sh, D#46)
 config=(--config "$repo/evals/runner.json")
 reference=""
+flow=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --config) config=(--config "$(abs "$2")"); shift 2 ;;
     --reference) reference=$(abs "$2"); shift 2 ;;
+    --flow) flow=$(abs "$2"); shift 2 ;;
     *) echo "$usage" >&2; exit 1 ;;
   esac
 done
@@ -35,6 +38,8 @@ if [ -n "$(git -C "$repo" status --porcelain)" ] && [ "${ALLOW_DIRTY:-}" != 1 ];
   exit 1
 fi
 commit=$(git -C "$repo" rev-parse --short HEAD)
+source=(--task "$eval_dir/task.md")
+[ -z "$flow" ] || source=(--flow "$flow")
 
 cp=$(cd "$repo" && sbt -batch -error "export runner/Runtime/fullClasspath" | tail -1)
 ase() { java -cp "$cp" ase.runner.Main "$@"; }
@@ -59,7 +64,7 @@ for i in $(seq 1 "$n"); do
   cp -a "$eval_dir/fixture" "$work"
 
   set +e
-  ase plan --task "$eval_dir/task.md" --envelope "$eval_dir/envelope.json" --out "$run/plan.json" --summary "$run/plan-summary.json" \
+  ase plan "${source[@]}" --envelope "$eval_dir/envelope.json" --out "$run/plan.json" --summary "$run/plan-summary.json" \
     "${config[@]}" > "$run/plan.txt" 2>&1
   pc=$?
   outcome=error
