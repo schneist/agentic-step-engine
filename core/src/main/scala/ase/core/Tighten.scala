@@ -29,6 +29,20 @@ object Tighten:
         scopePrefix = scope
       )
 
+  /** Ob die Läufe belegen, dass die genutzten Pfade nicht nur aus einem Fall stammen (D#78, O#37). Nur bei Varied wird
+    * ein pathPrefix enger: Die Pfade eines Agentenschritts hängen oft vom Inhalt des Arbeitsverzeichnisses ab (der rote
+    * Test liegt in genau einer Datei), und ein einziger Ausgangsstand zeigt das nicht.
+    */
+  enum PathEvidence:
+    /** mindestens zwei verschiedene Ausgangsstände */
+    case Varied
+    /** der Flow hat Parameter, und alle Läufe hatten dieselben Werte (D#76) */
+    case OneBinding
+    /** alle Läufe vom selben Ausgangsstand */
+    case OneStart
+    /** kein Lauf nennt seinen Ausgangsstand (summary.json ohne workspaceSha, Läufe vor D#78) */
+    case UnknownStart
+
   /** Ein Vorschlag für einen Agentenschritt, mit den Gründen in Klartext; skipped: warum ein Feld bleibt. */
   final case class Proposal(step: Int, calls: Int, change: Change, reasons: List[String], skipped: List[String])
 
@@ -76,10 +90,10 @@ object Tighten:
   /** Vorschlag für einen Agentenschritt mit Hülle `e` (wie im Flow, Parameter ungebunden) aus seinen Aufrufen. Unter
     * minCalls abgeschlossenen Aufrufen bleibt alles, wie es ist: Was wenige Läufe nicht gebraucht haben, braucht der
     * nächste vielleicht. Abgebrochene Aufrufe zählen zum Genutzten, aber nicht zur Mindestzahl; das Budget bleibt, sobald
-    * einer nicht abgeschlossen ist oder Tor 2 einen Teilterm abgelehnt hat (vielleicht am Budget). oneBinding: der Flow hat
-    * Parameter, und alle Läufe hatten dieselben Werte; dann bleibt der Pfad, denn er kann aus diesen Werten stammen.
+    * einer nicht abgeschlossen ist oder Tor 2 einen Teilterm abgelehnt hat (vielleicht am Budget). evidence: Der Pfad wird nur
+    * enger, wenn die Läufe verschiedene Fälle zeigen (PathEvidence.Varied); sonst bleibt er, mit Grund.
     */
-  def propose(step: Int, e: Envelope, calls: Vector[Usage.Call], minCalls: Int, oneBinding: Boolean = false): Proposal =
+  def propose(step: Int, e: Envelope, calls: Vector[Usage.Call], minCalls: Int, evidence: PathEvidence = PathEvidence.Varied): Proposal =
     val done = calls.count(_.completed)
     if calls.isEmpty || done < minCalls then
       Proposal(step, calls.size, Change(None, None, None, None, None), Nil, List(s"nur $done abgeschlossene Aufrufe, mindestens $minCalls nötig"))
@@ -108,9 +122,15 @@ object Tighten:
           (None, Some(s"pathPrefix bleibt: Hülle enthält einen Parameter (${e.pathPrefix})"))
         else
           common match
-            case Some(p) if strictlyUnder(p, e.pathPrefix) && oneBinding =>
-              (None, Some(s"pathPrefix bleibt: alle Läufe mit denselben Flow-Parametern, die Pfade unter $p können aus ihnen stammen"))
-            case Some(p) if strictlyUnder(p, e.pathPrefix) => (Some(p -> Some(e.sees)), None)
+            case Some(p) if strictlyUnder(p, e.pathPrefix) =>
+              evidence match
+                case PathEvidence.Varied => (Some(p -> Some(e.sees)), None)
+                case PathEvidence.OneBinding =>
+                  (None, Some(s"pathPrefix bleibt: alle Läufe mit denselben Flow-Parametern, die Pfade unter $p können aus ihnen stammen"))
+                case PathEvidence.OneStart =>
+                  (None, Some(s"pathPrefix bleibt: alle Läufe vom selben Ausgangsstand, die Pfade unter $p können von diesem Inhalt abhängen"))
+                case PathEvidence.UnknownStart =>
+                  (None, Some(s"pathPrefix bleibt: kein Lauf nennt seinen Ausgangsstand (workspaceSha), die Pfade unter $p können von einem einzigen Fall stammen"))
             case _                                         => (None, None)
       val reasons = List(
         ops.map(o => s"Operationen ${show(e.allowedOps)} → ${show(o)}: ${show(e.allowedOps -- o)} nie genutzt"),

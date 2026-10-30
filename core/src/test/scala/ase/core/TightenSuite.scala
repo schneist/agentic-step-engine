@@ -72,7 +72,22 @@ class TightenSuite extends munit.FunSuite:
     val g = Tighten.propose(1, gitParam, calls, 3)
     assertEquals(g.change.shell, None)
     assert(g.skipped.exists(_.contains("Allowlist enthält einen Parameter")), g.skipped)
-    val one = Tighten.propose(1, wide, calls, 3, oneBinding = true)
+    val one = Tighten.propose(1, wide, calls, 3, Tighten.PathEvidence.OneBinding)
     assertEquals(one.change.path, None)
     assert(one.skipped.exists(_.contains("denselben Flow-Parametern")), one.skipped)
     assertEquals(Tighten.propose(1, wide, calls, 3).change.path.map(_._1), Some("src/a/X.scala"))
+
+  test("propose: Pfad nur enger bei verschiedenen Ausgangsständen; der Rest wird trotzdem enger (D#78, O#37)"):
+    val calls = Vector.fill(3)(call(Set(OpKind.ReadFile), Set("src/Greeter.scala"), 2, 2))
+    val same = Tighten.propose(1, wide, calls, 3, Tighten.PathEvidence.OneStart)
+    assertEquals(same.change.path, None)
+    assert(same.skipped.exists(_.contains("selben Ausgangsstand")), same.skipped)
+    assertEquals(same.change.ops, Some(Set(OpKind.ReadFile)))
+    assertEquals(same.change.maxSteps, Some(2))
+    val unknown = Tighten.propose(1, wide, calls, 3, Tighten.PathEvidence.UnknownStart)
+    assertEquals(unknown.change.path, None)
+    assert(unknown.skipped.exists(_.contains("workspaceSha")), unknown.skipped)
+    assertEquals(Tighten.propose(1, wide, calls, 3, Tighten.PathEvidence.Varied).change.path.map(_._1), Some("src/Greeter.scala"))
+    // kein Grund, wenn der Pfad ohnehin nicht enger würde
+    val broad = Vector(call(Set(OpKind.ReadFile), Set("a.md"), 1, 1), call(Set(OpKind.ReadFile), Set("src/B.scala"), 1, 1), call(Set(OpKind.ReadFile), Set("c"), 1, 1))
+    assert(!Tighten.propose(1, wide, broad, 3, Tighten.PathEvidence.OneStart).skipped.exists(_.contains("Ausgangsstand")))

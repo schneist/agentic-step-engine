@@ -128,6 +128,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Tree-Hash**: SHA-256 über die sortierten relativen Pfade eines Verzeichnisses und den SHA-256 jeder Datei darin, ohne `.git/`; erkennt ein Fixture am Inhalt (D#77).
 - **Zählt / zählt nicht** (`Standing`): Ob eine Serie die Regeln aus playbook/evals.md erfüllt; wenn nicht, mit Gründen (D#77).
 - **Rauschen** (`Noise`): Urteil eines Vergleichs, wenn sich die Intervalle oder Spannen zweier Serien überlappen; der Unterschied ist mit diesem n nicht belegt (D#77).
+- **Ausgangsstand** (`workspaceSha`): Tree-Hash des Arbeitsverzeichnisses vor einem Lauf, in summary.json. `ase tighten` engt einen Pfad nur ein, wenn die Läufe mindestens zwei verschiedene zeigen (D#78).
 
 ## 8. Warum
 
@@ -384,6 +385,10 @@ Mit dem Fingerprint als Maß waren sich drei Pläne oft nicht einig, obwohl jede
 ### Warum die Teilungsregel nur bei ausgeführtem Code gilt (D#66)
 
 Die Regel aus D#62 sollte verhindern, dass ein Agentenschritt ein Skript ändert, das danach läuft. Das Modell wandte sie überall an und teilte auch dort, wo kein Code läuft, in Eval 1 in jedem Plan. Das kostete fast die Hälfte mehr Tokens, ohne dort etwas sicherer zu machen. Die Regel nennt jetzt ihre Bedingung.
+
+### Warum Einengen verschiedene Ausgangsstände braucht, um einen Pfad enger zu machen (D#78)
+
+Was ein Agentenschritt tut, hängt an seinem Auftrag; wo er es tut, oft an den Daten. Ein Schritt, der einen roten Test repariert, liest und ändert immer, aber die Datei ist die, in der der Fehler steckt. Zehn Läufe gegen denselben Fehler zeigen zehnmal dieselbe Datei, und daraus folgt nichts über den nächsten Fehler. Für Operationen, Programme und Budget gilt das nicht in gleichem Maß: Die gehören zur Art der Arbeit. Deshalb trifft die Regel nur den Pfad. Ob die Läufe verschiedene Fälle waren, erkennt ase am Inhalt des Arbeitsverzeichnisses vor dem Lauf, mit demselben Tree-Hash, an dem D#77 ein Fixture erkennt; ein Name oder ein Commit würde einen veränderten Stand nicht zeigen. Wo die Läufe es nicht belegen, bleibt die Hülle, denn zu weit fängt Tor 2 ab, zu eng stoppt den nächsten Lauf an einem anderen Fall (M#21, O#37).
 
 ### Warum eine Serie einen Schlüssel hat und ein Vergleich ein Typ ist (D#77)
 

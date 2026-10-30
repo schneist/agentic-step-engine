@@ -424,9 +424,17 @@ interpreters:
     status: implemented
     source: core/src/main/scala/ase/core/Tighten.scala#Tighten.apply
     verified: 2026-10-30
-    decided_by: ["D#75", "D#76"]
+    decided_by: ["D#75", "D#76", "D#78"]
     tested_by: [ase.core.TightenSuite, ase.runner.RunnerSuite]
     note: "Term => Term: propose leitet je Agentenschritt eine engere Hülle aus Usage ab, apply setzt sie ein, holes nummeriert wie Explain; DryRun und Attenuation danach im Runner"
+  - id: runner.treehash
+    type: runner
+    status: implemented
+    source: runner/src/main/scala/ase/runner/TreeHash.scala#TreeHash.collect
+    verified: 2026-10-30
+    decided_by: ["D#77", "D#78"]
+    tested_by: [ase.runner.RunnerSuite]
+    note: "Tree-Hash eines Verzeichnisses: of rein, collect am Rand; ohne .git/, Links nicht verfolgt; ase run --summary schreibt damit workspaceSha (Ausgangsstand), ase tighten engt Pfade nur bei mindestens zwei verschiedenen ein"
   - id: runner.launcher
     type: runner
     status: implemented
@@ -588,6 +596,7 @@ decisions:
   - { id: "D#65", type: decision, status: decided, source: "findings.md#D#65", verified: 2026-10-29, title: "BestOfN stimmt über die Form ab", measured_by: [eval.1, eval.6], tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite] }
   - { id: "D#66", type: decision, status: decided, source: "findings.md#D#66", verified: 2026-10-29, title: "Teilungsregel nur bei ausgeführtem Code", measured_by: [eval.1, eval.6] }
   - { id: "D#67", type: decision, status: decided, source: "findings.md#D#67", verified: 2026-10-29, title: "Messbasis über Claude Code (M#6 bis M#11)" }
+  - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
   - { id: "D#76", type: decision, status: decided, source: "findings.md#D#76", verified: 2026-10-30, title: "Review D#74/D#75: tighten nur aus derselben Fassung und abgeschlossenen Aufrufen, Parameter lassen Pfad und Programme", tested_by: [core.TightenSuite, core.UsageSuite, runner.RunnerSuite] }
   - { id: "D#75", type: decision, status: decided, source: "findings.md#D#75", verified: 2026-10-30, title: "ase tighten: engere Hüllen aus Läufen als neuer Flow", tested_by: [core.TightenSuite, runner.RunnerSuite], measured_by: ["M#20", "M#21"] }
   - { id: "D#74", type: decision, status: decided, source: "findings.md#D#74", verified: 2026-10-30, title: "ase stats: Flow-Kennung, Läufe je Fassung, erlaubt gegen genutzt je Agentenschritt", tested_by: [core.UsageSuite, core.EngineSuite, runner.RunnerSuite, runner.Eval1Suite], measured_by: ["M#18"] }
@@ -632,7 +641,7 @@ open:
   - { id: "O#30", type: open, status: resolved, source: "findings.md#O#30", verified: 2026-10-29, resolved_by: "D#65" }
   - { id: "O#31", type: open, status: resolved, source: "findings.md#O#31", verified: 2026-10-29, resolved_by: "D#66" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
-  - { id: "O#37", type: open, status: open, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow" }
+  - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }
   - { id: "O#34", type: open, status: open, source: "findings.md#O#34", verified: 2026-10-29, title: "runsCode als Pfadpräfix: in flachen Repos gilt jede Datei als Code" }
   - { id: "O#33", type: open, status: resolved, source: "findings.md#O#33", verified: 2026-10-30, title: "Ergebnisse in If-Zweigen für spätere Agentenschritte unsichtbar (Befund falsch; Ursache war der pathPrefix, D#69)", resolved_by: "D#69" }

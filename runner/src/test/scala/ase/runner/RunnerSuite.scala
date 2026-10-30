@@ -133,8 +133,10 @@ class RunnerSuite extends munit.FunSuite:
         Event.End(Outcome.Done, 4)
       )
     val other = Vector(Event.Start(TermHash.of(Term.Done("x", h), flowRoot), flowRoot, Term.Done("x", h)), Event.End(Outcome.Done, 1))
-    val runs = Vector(1, 2, 3).map(v => RunStats.Run(s"r$v", Json.obj("outcome" -> Json.fromString("done")), Some(events(v)))) :+
-      RunStats.Run("fremd", Json.obj("outcome" -> Json.fromString("done")), Some(other))
+    def summary(start: Option[String]) =
+      Json.obj("outcome" -> Json.fromString("done"), "workspaceSha" -> start.fold(Json.Null)(Json.fromString)).dropNullValues
+    val runs = Vector(1, 2, 3).map(v => RunStats.Run(s"r$v", summary(Some(s"w$v")), Some(events(v)))) :+
+      RunStats.Run("fremd", summary(None), Some(other))
     val r = FlowTighten.run(flow, "sha", runs, 3, check).fold(fail(_), identity)
     assertEquals(r.runs, 3)
     val neu = Tighten.holes(r.flow.term).head._2.envelope
@@ -150,9 +152,39 @@ class RunnerSuite extends munit.FunSuite:
     assert(FlowTighten.run(flow, "sha", tagged("anders"), 3, check).isLeft)
     assertEquals(FlowTighten.run(flow, "sha", tagged("sha"), 3, check).map(_.runs), Right(3))
     // alle Läufe mit v=1: Pfad bleibt
-    val same = Vector.fill(3)(RunStats.Run("r", Json.obj("outcome" -> Json.fromString("done")), Some(events(1))))
+    val same = Vector(1, 2, 3).map(i => RunStats.Run("r", summary(Some(s"w$i")), Some(events(1))))
     val s = FlowTighten.run(flow, "sha", same, 3, check).fold(fail(_), identity)
     assertEquals(Tighten.holes(s.flow.term).head._2.envelope.pathPrefix, ".")
+    // verschiedene Parameter, aber alle vom selben Ausgangsstand oder ohne Ausgangsstand: Pfad bleibt (D#78, O#37)
+    def starts(f: Int => Option[String]) = Vector(1, 2, 3).map(v => RunStats.Run(s"r$v", summary(f(v)), Some(events(v))))
+    for (runs, why) <- List(starts(_ => Some("w")) -> "selben Ausgangsstand", starts(_ => None) -> "workspaceSha") do
+      val t = FlowTighten.run(flow, "sha", runs, 3, check).fold(fail(_), identity)
+      val e = Tighten.holes(t.flow.term).head._2.envelope
+      assertEquals((e.pathPrefix, e.allowedOps), (".", Set(OpKind.WriteFile)))
+      assert(FlowTighten.render(flow, t).contains(why), FlowTighten.render(flow, t))
+    // zwei verschiedene genügen, Läufe ohne Ausgangsstand zählen nicht mit
+    val two = FlowTighten.run(flow, "sha", starts(v => Option.when(v < 3)(s"w$v")), 3, check).fold(fail(_), identity)
+    assertEquals(Tighten.holes(two.flow.term).head._2.envelope.pathPrefix, "out")
+
+  test("Tree-Hash: Inhalt und Pfade, nicht Reihenfolge; .git und leere Verzeichnisse zählen nicht (D#78)"):
+    import cats.effect.unsafe.implicits.global
+    import java.nio.file.Files
+    val dir = Files.createTempDirectory("ase-tree")
+    Files.createDirectories(dir.resolve("src/a"))
+    Files.writeString(dir.resolve("src/a/X.scala"), "x")
+    Files.writeString(dir.resolve("b.txt"), "b")
+    val first = TreeHash.collect(dir).unsafeRunSync()
+    assertEquals(first, TreeHash.of(List("src/a/X.scala" -> Canonical.sha256Hex("x"), "b.txt" -> Canonical.sha256Hex("b"))))
+    assertEquals(TreeHash.of(List("b" -> "2", "a" -> "1")), TreeHash.of(List("a" -> "1", "b" -> "2")))
+    Files.createDirectories(dir.resolve(".git/objects"))
+    Files.writeString(dir.resolve(".git/HEAD"), "ref")
+    Files.createDirectories(dir.resolve("leer"))
+    assertEquals(TreeHash.collect(dir).unsafeRunSync(), first)
+    Files.writeString(dir.resolve("src/a/X.scala"), "y")
+    assertNotEquals(TreeHash.collect(dir).unsafeRunSync(), first)
+    Files.writeString(dir.resolve("src/a/X.scala"), "x")
+    Files.move(dir.resolve("b.txt"), dir.resolve("c.txt"))
+    assertNotEquals(TreeHash.collect(dir).unsafeRunSync(), first)
 
   test("Konfiguration: Standards, Überschreiben, unbekannte Felder und ungültiger Effort abgelehnt"):
     assertEquals(RunnerConfig.parse("{}"), Right(RunnerConfig.default))

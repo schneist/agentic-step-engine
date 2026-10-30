@@ -306,13 +306,15 @@ object Main extends IOApp:
       model = transport.fold[FillModel[IO]](e => _ => IO.raiseError(ModelUnavailable(e)), t => ModelAdapter[IO](t, config.model, config.check))
       ask = if cmd.noAsk then AskHandler.nonInteractive[IO] else interactiveAsk
       _ <- IO.println(s"approved  ${approved.termHash.short}  → $record\n")
+      // Ausgangsstand für ase tighten (D#78); nur mit --summary, und ein Fehler beim Lesen lässt das Feld weg
+      start <- cmd.summary.flatTraverse(_ => TreeHash.collect(cmd.workspace).attempt.map(_.toOption))
       started <- IO.monotonic
       result <- Execute.local[IO](approved, cmd.workspace, model, ask, config.exec, Some(record)).flatMap(e => orFail(e.leftMap(_.message)))
       ended <- IO.monotonic
       _ <- IO.println(RunLog.render(result.events, RunLog.Footer(file.rejections, Some(record.toString), file.calls, file.tokens)))
       seconds = (ended - started).toMillis / 1000.0
       _ <- cmd.summary.traverse_(p =>
-        IO.blocking(Files.writeString(p, Summary.of(file, approved, result, seconds, record.toAbsolutePath.normalize.toString).spaces2 + "\n", UTF_8))
+        IO.blocking(Files.writeString(p, Summary.of(file, approved, result, seconds, record.toAbsolutePath.normalize.toString, start).spaces2 + "\n", UTF_8))
       )
     yield result.outcome match
       case Outcome.Done       => ExitCode.Success
@@ -342,15 +344,17 @@ object AskContext:
         s"\nErgebnis des Schritts davor$code, ${lines.size} Zeilen:\n" + shown.map(l => "  │ " + Text.visible(l)).mkString("\n") + "\n"
 
 /** Kennzahlen eines Laufs für Serien (playbook/evals.md) und `ase stats`: Plan und Ausführung zusammen. source,
-  * sourceSha, seconds und record seit D#74; sourceSha fehlt bei Plan-Dateien älter als Version 3.
+  * sourceSha, seconds und record seit D#74; sourceSha fehlt bei Plan-Dateien älter als Version 3. workspaceSha seit
+  * D#78: Tree-Hash des Arbeitsverzeichnisses vor dem Lauf (TreeHash), fehlt, wenn er nicht lesbar war.
   */
 object Summary:
-  def of(file: PlanFile, approved: ApprovedTerm, result: RunResult, seconds: Double, record: String): Json =
+  def of(file: PlanFile, approved: ApprovedTerm, result: RunResult, seconds: Double, record: String, workspaceSha: Option[String] = None): Json =
     val s = result.stats
     Json.obj(
       "outcome" -> Json.fromString(result.outcome.label),
       "source" -> Json.fromString(file.source),
       "sourceSha" -> file.sourceSha.fold(Json.Null)(Json.fromString),
+      "workspaceSha" -> workspaceSha.fold(Json.Null)(Json.fromString),
       "seconds" -> Json.fromDoubleOrNull(seconds),
       "record" -> Json.fromString(record),
       "termHash" -> Json.fromString(approved.termHash.hex),

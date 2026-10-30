@@ -21,10 +21,9 @@ object FlowTighten:
     if matching.isEmpty then Left("Keine Läufe mit Record-Log aus dieser Fassung des Flows (und keine ohne Kennung mit seiner Form).")
     else
       val calls = matching.flatMap((_, es, _, _) => Usage.of(es)).groupBy(_.at.parts)
-      // gleiche Flow-Parameter in allen Läufen: Pfade können aus diesen Werten stammen (Tighten.propose)
-      val oneBinding = flow.params.nonEmpty && matching.map(_._4).distinct.size < 2
+      val evidence = pathEvidence(flow, matching.map((r, _, _, term) => (r, term)))
       val proposals = Tighten.holes(flow.term).map { (n, hole) =>
-        Tighten.propose(n, hole.envelope, calls.getOrElse(Vector(n), Vector.empty), minCalls, oneBinding)
+        Tighten.propose(n, hole.envelope, calls.getOrElse(Vector(n), Vector.empty), minCalls, evidence)
       }
       val changes = proposals.filterNot(_.change.isEmpty).map(p => p.step -> p.change).toMap
       val (newest, _, root, bound) = matching.maxBy((r, _, _, _) => (r.modified, r.dir))
@@ -42,6 +41,16 @@ object FlowTighten:
             val note = s" Hüllen eingeengt aus ${matching.size} Läufen (ase tighten, D#75)."
             val tightened = flow.copy(description = flow.description + note, term = Tighten.apply(flow.term, changes))
             Right(Result(tightened, proposals, matching.size, s"DryRun ok gegen den Term aus ${newest.dir}"))
+
+  /** Ob die Läufe verschiedene Fälle zeigen (D#78): gleiche Flow-Parameter in allen Läufen (D#76), sonst die Zahl der
+    * verschiedenen Ausgangsstände (workspaceSha in summary.json); Läufe ohne Ausgangsstand zählen nicht mit.
+    */
+  def pathEvidence(flow: Flow, runs: Vector[(RunStats.Run, Term)]): Tighten.PathEvidence =
+    val starts = runs.flatMap((r, _) => r.summary.hcursor.get[String]("workspaceSha").toOption).distinct.size
+    if flow.params.nonEmpty && runs.map(_._2).distinct.size < 2 then Tighten.PathEvidence.OneBinding
+    else if starts >= 2 then Tighten.PathEvidence.Varied
+    else if starts == 1 then Tighten.PathEvidence.OneStart
+    else Tighten.PathEvidence.UnknownStart
 
   def render(before: Flow, r: Result): String =
     val old = Tighten.holes(before.term).toMap
