@@ -74,11 +74,15 @@ object Tighten:
   private val Placeholder = "${"
 
   /** Vorschlag für einen Agentenschritt mit Hülle `e` (wie im Flow, Parameter ungebunden) aus seinen Aufrufen. Unter
-    * minCalls Aufrufen bleibt alles, wie es ist: Was wenige Läufe nicht gebraucht haben, braucht der nächste vielleicht.
+    * minCalls abgeschlossenen Aufrufen bleibt alles, wie es ist: Was wenige Läufe nicht gebraucht haben, braucht der
+    * nächste vielleicht. Abgebrochene Aufrufe zählen zum Genutzten, aber nicht zur Mindestzahl; das Budget bleibt, sobald
+    * einer nicht abgeschlossen ist oder Tor 2 einen Teilterm abgelehnt hat (vielleicht am Budget). oneBinding: der Flow hat
+    * Parameter, und alle Läufe hatten dieselben Werte; dann bleibt der Pfad, denn er kann aus diesen Werten stammen.
     */
-  def propose(step: Int, e: Envelope, calls: Vector[Usage.Call], minCalls: Int): Proposal =
-    if calls.size < minCalls then
-      Proposal(step, calls.size, Change(None, None, None, None, None), Nil, List(s"nur ${calls.size} Aufrufe, mindestens $minCalls nötig"))
+  def propose(step: Int, e: Envelope, calls: Vector[Usage.Call], minCalls: Int, oneBinding: Boolean = false): Proposal =
+    val done = calls.count(_.completed)
+    if calls.isEmpty || done < minCalls then
+      Proposal(step, calls.size, Change(None, None, None, None, None), Nil, List(s"nur $done abgeschlossene Aufrufe, mindestens $minCalls nötig"))
     else
       val used = calls.map(_.ops).reduce(_ ++ _)
       val programs = calls.map(_.programs).reduce(_ ++ _)
@@ -86,19 +90,27 @@ object Tighten:
       val ops = Option.when(kept.nonEmpty && kept != e.allowedOps)(kept)
       val opsSkipped = Option.when(kept.isEmpty)("Operationen bleiben: kein Aufruf hat eine genutzt, nur Done")
       val finalOps = ops.getOrElse(e.allowedOps)
+      val shellParam = e.shellAllowlist.exists(c => (c.binary :: c.requiredPrefixArgs).exists(_.contains(Placeholder)))
       val shellKept =
         if !finalOps.contains(OpKind.Shell) then Set.empty[AllowedCommand] else e.shellAllowlist.filter(c => programs.contains(c.binary))
-      val shell = Option.when(shellKept != e.shellAllowlist)(shellKept)
+      val shell = Option.when(!shellParam && shellKept != e.shellAllowlist)(shellKept)
+      val shellSkipped = Option.when(shellParam && shellKept != e.shellAllowlist)("Programme bleiben: die Allowlist enthält einen Parameter")
+      val open = calls.count(c => !c.completed || c.rejected.contains(Gate.DryRun))
       val needed = calls.map(c => math.max(c.needed, c.steps)).max
-      val steps = Option.when(needed >= 1 && needed < e.maxSteps)(needed)
+      val steps = Option.when(open == 0 && needed >= 1 && needed < e.maxSteps)(needed)
+      val stepsSkipped = Option.when(open > 0 && needed < e.maxSteps)(
+        s"max Schritte bleibt: $open Aufruf(e) nicht abgeschlossen oder an Tor 2 abgelehnt, vielleicht am Budget"
+      )
       val depth = Option.when(!finalOps.contains(OpKind.Hole) && e.maxDepth > 0)(0)
-      val paths = calls.flatMap(_.paths).toSet
-      val common = Usage.commonPrefix(paths)
+      val common = Usage.commonPrefix(calls.flatMap(_.paths).toSet)
       val (path, pathSkipped) =
-        if e.pathPrefix.contains(Placeholder) then (None, Some(s"pathPrefix bleibt: enthält einen Parameter (${e.pathPrefix})"))
+        if (e.pathPrefix :: e.scopePrefix.toList).exists(_.contains(Placeholder)) then
+          (None, Some(s"pathPrefix bleibt: Hülle enthält einen Parameter (${e.pathPrefix})"))
         else
           common match
-            case Some(p) if strictlyUnder(p, e.pathPrefix) => (Some(p -> Some(e.scopePrefix.getOrElse(e.pathPrefix))), None)
+            case Some(p) if strictlyUnder(p, e.pathPrefix) && oneBinding =>
+              (None, Some(s"pathPrefix bleibt: alle Läufe mit denselben Flow-Parametern, die Pfade unter $p können aus ihnen stammen"))
+            case Some(p) if strictlyUnder(p, e.pathPrefix) => (Some(p -> Some(e.sees)), None)
             case _                                         => (None, None)
       val reasons = List(
         ops.map(o => s"Operationen ${show(e.allowedOps)} → ${show(o)}: ${show(e.allowedOps -- o)} nie genutzt"),
@@ -107,13 +119,14 @@ object Tighten:
         depth.map(_ => s"Tiefe ${e.maxDepth} → 0: kein verschachtelter Agentenschritt"),
         path.map((p, sees) => s"unter ${e.pathPrefix} → unter $p: alle Pfade lagen dort; sieht weiter Ergebnisse unter ${sees.getOrElse(p)}")
       ).flatten
-      Proposal(step, calls.size, Change(ops, shell, steps, depth, path), reasons, List(opsSkipped, pathSkipped).flatten)
+      Proposal(step, calls.size, Change(ops, shell, steps, depth, path), reasons, List(opsSkipped, shellSkipped, stepsSkipped, pathSkipped).flatten)
 
   private def show(s: Set[OpKind]): String = s.toList.sortBy(_.ordinal).mkString(", ")
 
   private def programsShow(s: Set[AllowedCommand]): String = if s.isEmpty then "keine" else s.toList.map(_.show).sorted.mkString(", ")
 
-  private def strictlyUnder(path: String, prefix: String): Boolean =
+  /** path liegt unter prefix und ist nicht prefix selbst (je Segment, nicht je Zeichen). */
+  def strictlyUnder(path: String, prefix: String): Boolean =
     (RelPath.parse(path), RelPath.parse(prefix)) match
       case (Right(p), Right(q)) => p != q && p.startsWith(q)
       case _                    => false

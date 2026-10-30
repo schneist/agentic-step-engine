@@ -9,8 +9,10 @@ import io.circe.{HCursor, Json}
   * nur; was daraus folgt, entscheidet der Mensch, und jede engere Hülle ist ein neuer Flow mit eigener Freigabe.
   */
 object RunStats:
-  /** Ein Lauf: wo er liegt, seine Kennzahlen und, wenn lesbar, sein Record-Log. */
-  final case class Run(dir: String, summary: Json, events: Option[Vector[Event]])
+  /** Ein Lauf: wo er liegt, seine Kennzahlen, wenn lesbar sein Record-Log, und wann seine summary.json geschrieben
+    * wurde (Millisekunden; für den jüngsten Lauf).
+    */
+  final case class Run(dir: String, summary: Json, events: Option[Vector[Event]], modified: Long = 0L)
 
   /** identified: ob die Läufe eine Flow-Kennung tragen; diese Gruppen stehen vorn. */
   final case class Group(label: String, identified: Boolean, runs: Vector[Run])
@@ -99,7 +101,7 @@ object RunStats:
     val fingerprints = calls.flatMap(_.fingerprints)
     val rejected = calls.flatMap(_.rejected.toVector).groupMapReduce(_._1)(_._2)(_ + _)
     // je Aufruf der engste gemeinsame Pfad, gegen den pathPrefix desselben Aufrufs (Flow-Parameter ändern ihn)
-    val narrower = calls.map(c => Usage.commonPrefix(c.paths).filter(p => isStrictlyUnder(p, c.envelope.pathPrefix)))
+    val narrower = calls.map(c => Usage.commonPrefix(c.paths).filter(p => Tighten.strictlyUnder(p, c.envelope.pathPrefix)))
     val pathsUsed = calls.flatMap(c => Usage.commonPrefix(c.paths))
     val first = calls.head
     val hints = Vector(
@@ -129,8 +131,3 @@ object RunStats:
         (if rejected.isEmpty then "0" else rejected.toList.sortBy(_._1.ordinal).map((g, k) => s"$g $k").mkString(", ")) +
         s" · gescheitert ${calls.map(_.failed).sum} · Runden ${calls.map(_.rounds).sum}")
     ) ++ hints.map(h => row("Hinweis", h))
-
-  private def isStrictlyUnder(path: String, prefix: String): Boolean =
-    (RelPath.parse(path), RelPath.parse(prefix)) match
-      case (Right(p), Right(q)) => p != q && RelPath.isUnder(path, q)
-      case _                    => false

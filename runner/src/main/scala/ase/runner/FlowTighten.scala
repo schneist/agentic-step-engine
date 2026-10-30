@@ -3,32 +3,38 @@ package ase.runner
 import ase.core.*
 
 /** `ase tighten` (D#75): schlägt für einen Flow engere Hüllen seiner Agentenschritte vor, aus den Läufen, deren
+  * Fassung dieses Flows sind (sourceSha in summary.json, D#74); Läufe ohne Kennung, aus der Zeit davor, zählen, wenn ihr
   * freigegebener Term dieselbe Form hat (BestOfN.shape; Flow-Parameter ändern die Form nicht). Schreibt einen neuen
-  * Flow und gibt nichts frei. Probe: dieselben Änderungen am gebundenen Term des neuesten Laufs, gegen dessen Wurzel
+  * Flow und gibt nichts frei. Probe: dieselben Änderungen am gebundenen Term des jüngsten Laufs, gegen dessen Wurzel
   * durch DryRun (Tor 1); scheitert sie, entsteht kein Vorschlag.
   */
 object FlowTighten:
   final case class Result(flow: Flow, proposals: Vector[Tighten.Proposal], runs: Int, probe: String)
 
-  def run(flow: Flow, runs: Vector[RunStats.Run], minCalls: Int, check: CheckConfig): Either[String, Result] =
+  def run(flow: Flow, sha: String, runs: Vector[RunStats.Run], minCalls: Int, check: CheckConfig): Either[String, Result] =
     val shape = BestOfN.shape(flow.term)
+    def ours(r: RunStats.Run, term: Term): Boolean =
+      r.summary.hcursor.get[String]("sourceSha").toOption.fold(BestOfN.shape(term) == shape)(_ == sha)
     val matching = runs
       .flatMap(r => r.events.flatMap(es => es.collectFirst { case Event.Start(_, root, term) => (r, es, root, term) }))
-      .filter((_, _, _, term) => BestOfN.shape(term) == shape)
-    if matching.isEmpty then Left("Keine Läufe mit Record-Log, deren Term die Form dieses Flows hat.")
+      .filter((r, _, _, term) => ours(r, term))
+    if matching.isEmpty then Left("Keine Läufe mit Record-Log aus dieser Fassung des Flows (und keine ohne Kennung mit seiner Form).")
     else
       val calls = matching.flatMap((_, es, _, _) => Usage.of(es)).groupBy(_.at.parts)
+      // gleiche Flow-Parameter in allen Läufen: Pfade können aus diesen Werten stammen (Tighten.propose)
+      val oneBinding = flow.params.nonEmpty && matching.map(_._4).distinct.size < 2
       val proposals = Tighten.holes(flow.term).map { (n, hole) =>
-        Tighten.propose(n, hole.envelope, calls.getOrElse(Vector(n), Vector.empty), minCalls)
+        Tighten.propose(n, hole.envelope, calls.getOrElse(Vector(n), Vector.empty), minCalls, oneBinding)
       }
       val changes = proposals.filterNot(_.change.isEmpty).map(p => p.step -> p.change).toMap
-      val (newest, _, root, bound) = matching.maxBy(_._1.dir)
+      val (newest, _, root, bound) = matching.maxBy((r, _, _, _) => (r.modified, r.dir))
       val probe = Tighten.apply(bound, changes)
       // nur enger (Attenuation) und gültig (Tor 1), am gebundenen Term geprüft
       val wider = Tighten.holes(bound).zip(Tighten.holes(probe)).flatMap { case ((n, old), (_, neu)) =>
         Attenuation.check(neu.envelope, old.envelope, Location.root, Attenuation.Mode.Flow).map(v => s"Agentenschritt $n: ${v.render}")
       }
-      if wider.nonEmpty then Left(("Vorschlag wäre weiter als vorher:" +: wider).mkString("\n"))
+      if changes.isEmpty then Right(Result(flow, proposals, matching.size, "keine Änderung, keine Probe"))
+      else if wider.nonEmpty then Left(("Vorschlag wäre weiter als vorher:" +: wider).mkString("\n"))
       else
         DryRun.plan(probe, root, check) match
           case Left(vs) => Left((s"Probe gescheitert (DryRun gegen den Term aus ${newest.dir}):" +: vs.toList.map(_.render)).mkString("\n"))

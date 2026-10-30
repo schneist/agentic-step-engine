@@ -135,7 +135,7 @@ class RunnerSuite extends munit.FunSuite:
     val other = Vector(Event.Start(TermHash.of(Term.Done("x", h), flowRoot), flowRoot, Term.Done("x", h)), Event.End(Outcome.Done, 1))
     val runs = Vector(1, 2, 3).map(v => RunStats.Run(s"r$v", Json.obj("outcome" -> Json.fromString("done")), Some(events(v)))) :+
       RunStats.Run("fremd", Json.obj("outcome" -> Json.fromString("done")), Some(other))
-    val r = FlowTighten.run(flow, runs, 3, check).fold(fail(_), identity)
+    val r = FlowTighten.run(flow, "sha", runs, 3, check).fold(fail(_), identity)
     assertEquals(r.runs, 3)
     val neu = Tighten.holes(r.flow.term).head._2.envelope
     assertEquals(neu, Envelope(Set(OpKind.WriteFile), "out", 2, 0, Set.empty, Some(".")))
@@ -144,7 +144,15 @@ class RunnerSuite extends munit.FunSuite:
     assert(r.probe.contains("DryRun ok gegen den Term aus r3"), r.probe)
     val out = FlowTighten.render(flow, r)
     assert(out.contains("1 von 1 Agentenschritten enger") && out.contains("ReadFile nie genutzt"), out)
-    assert(FlowTighten.run(flow, runs.takeRight(1), 3, check).isLeft)
+    assert(FlowTighten.run(flow, "sha", runs.takeRight(1), 3, check).isLeft)
+    // Läufe einer anderen Fassung zählen nicht, auch bei gleicher Form; Läufe dieser Fassung schon (Review)
+    def tagged(sha: String) = runs.init.map(r => r.copy(summary = r.summary.deepMerge(Json.obj("sourceSha" -> Json.fromString(sha)))))
+    assert(FlowTighten.run(flow, "sha", tagged("anders"), 3, check).isLeft)
+    assertEquals(FlowTighten.run(flow, "sha", tagged("sha"), 3, check).map(_.runs), Right(3))
+    // alle Läufe mit v=1: Pfad bleibt
+    val same = Vector.fill(3)(RunStats.Run("r", Json.obj("outcome" -> Json.fromString("done")), Some(events(1))))
+    val s = FlowTighten.run(flow, "sha", same, 3, check).fold(fail(_), identity)
+    assertEquals(Tighten.holes(s.flow.term).head._2.envelope.pathPrefix, ".")
 
   test("Konfiguration: Standards, Überschreiben, unbekannte Felder und ungültiger Effort abgelehnt"):
     assertEquals(RunnerConfig.parse("{}"), Right(RunnerConfig.default))

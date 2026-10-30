@@ -50,3 +50,5 @@ class UsageSuite extends munit.FunSuite:
     assertEquals(Usage.commonPrefix(Set("PRUEFUNG_V133.md")), Some("PRUEFUNG_V133.md"))
     assertEquals(Usage.commonPrefix(Set("src/a/B.scala", "src/a/C.scala")), Some("src/a"))
     assertEquals(Usage.commonPrefix(Set("src/A.scala", "README.md")), Some("."))
+    // ein ungültiger Pfad (etwa mit Backslash) macht nichts enger (Review)
+    assertEquals(Usage.commonPrefix(Set("README.md", "src\\Main.scala")), None)

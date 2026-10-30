@@ -14,7 +14,8 @@ object Usage:
     * (Fingerprint, D#19): gleiche Form heißt gleicher Ablauf, gleicher Fingerprint derselbe Teilterm. rejected: abgelehnte Teilterme je Tor. failed: angenommene Teilterme, die zur
     * Laufzeit scheiterten. rounds: weitere Runden (D#55). needed: das Budget, das Tor 2 für
     * die angenommenen Teilterme brauchte, also die Schritte vor einem Teilterm plus dessen schlechtester Fall; mindestens
-    * steps. fills und tokens: Modellaufrufe für diesen Aufruf.
+    * steps. fills und tokens: Modellaufrufe für diesen Aufruf. completed: der Aufruf endete mit HoleDone (nicht
+    * abgebrochen, nicht an einer Frage angehalten).
     */
   final case class Call(
       at: StepId,
@@ -31,17 +32,18 @@ object Usage:
       failed: Int,
       rounds: Int,
       fills: Int,
-      tokens: Long
+      tokens: Long,
+      completed: Boolean
   )
 
   def of(events: Vector[Event]): Vector[Call] =
     def begin(e: Event): Option[Call] = e match
-      case Event.Hole(at, goal, env) => Some(Call(at, goal, env, Set.empty, Set.empty, Set.empty, 0, 0, Vector.empty, Vector.empty, Map.empty, 0, 0, 0, 0L))
+      case Event.Hole(at, goal, env) => Some(Call(at, goal, env, Set.empty, Set.empty, Set.empty, 0, 0, Vector.empty, Vector.empty, Map.empty, 0, 0, 0, 0L, false))
       case _                         => None
     val (done, open) = events.foldLeft((Vector.empty[Call], Option.empty[Call])) { case ((acc, cur), e) =>
       cur match
         case None                                          => (acc, begin(e))
-        case Some(c) if ends(e, c.at)                       => (acc :+ c, None)
+        case Some(c) if ends(e, c.at)                       => (acc :+ c.copy(completed = true), None)
         case Some(c) if belongs(e, c.at)                    => (acc, Some(add(c, e)))
         // ein Ereignis außerhalb beendet den Aufruf (Abbruch ohne HoleDone) und kann selbst einen neuen beginnen
         case Some(c) => (acc :+ c, begin(e))
@@ -90,9 +92,8 @@ object Usage:
     case Event.HoleRound(a, _) if a == c.at                  => c.copy(rounds = c.rounds + 1)
     case Event.Step(_, call, reply) =>
       val withPaths = c.copy(paths = c.paths ++ reply.touched)
-      call match
-        case _: ase.core.Call.FileExists => withPaths
-        case other                       => withPaths.copy(ops = withPaths.ops + kind(other), programs = programs(withPaths, other), steps = c.steps + 1)
+      // FileExists braucht keine Operation und zählt nicht als Schritt (Call.op)
+      call.op.fold(withPaths)(k => withPaths.copy(ops = withPaths.ops + k, programs = programs(withPaths, call), steps = c.steps + 1))
     case Event.Asked(_, _, _)  => c.copy(ops = c.ops + OpKind.Ask, steps = c.steps + 1)
     case Event.Finished(_, _)  => c.copy(steps = c.steps + 1)
     case Event.Hole(a, _, _) if a != c.at => c.copy(ops = c.ops + OpKind.Hole)
@@ -104,19 +105,13 @@ object Usage:
     case ase.core.Call.Shell(cmd, _) => c.programs + cmd
     case _                           => c.programs
 
-  private def kind(call: ase.core.Call): OpKind = call match
-    case _: ase.core.Call.ReadFile   => OpKind.ReadFile
-    case _: ase.core.Call.ListDir    => OpKind.ListDir
-    case _: ase.core.Call.WriteFile  => OpKind.WriteFile
-    case _: ase.core.Call.EditFile   => OpKind.EditFile
-    case _: ase.core.Call.MoveFile   => OpKind.MoveFile
-    case _: ase.core.Call.Shell      => OpKind.Shell
-    case _: ase.core.Call.FileExists => OpKind.ReadFile
-
-  /** Das tiefste Verzeichnis oder die einzige Datei, unter der alle Pfade liegen; "." wenn sie nichts teilen. */
+  /** Das tiefste Verzeichnis oder die einzige Datei, unter der alle Pfade liegen; "." wenn sie nichts teilen. None ohne
+    * Pfade und wenn einer kein gültiger relativer Pfad ist: ein übergangener Pfad darf nichts enger machen.
+    */
   def commonPrefix(paths: Set[String]): Option[String] =
-    val split = paths.toList.flatMap(p => RelPath.parse(p).toOption)
-    split match
+    val parsed = paths.toList.map(RelPath.parse)
+    if parsed.exists(_.isLeft) then None
+    else parsed.flatMap(_.toOption) match
       case Nil => None
       case one :: Nil => Some(RelPath.show(one))
       case first :: rest =>

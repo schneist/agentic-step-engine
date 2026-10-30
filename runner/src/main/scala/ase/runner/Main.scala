@@ -210,11 +210,13 @@ object Main extends IOApp:
   private def tighten(cmd: Command.Tighten): IO[ExitCode] =
     for
       (config, _) <- loadConfig(cmd.config)
-      _ <- orFail(Either.cond(cmd.out.toAbsolutePath.normalize != cmd.flow.toAbsolutePath.normalize, (), "--out darf nicht der Flow selbst sein"))
+      // auch über Groß/Klein (Windows) und Links hinweg derselbe Flow
+      same <- IO.blocking(cmd.out.toAbsolutePath.normalize == cmd.flow.toAbsolutePath.normalize || Files.exists(cmd.out) && Files.isSameFile(cmd.out, cmd.flow))
+      _ <- orFail(Either.cond(!same, (), "--out darf nicht der Flow selbst sein"))
       text <- read(cmd.flow)
       flow <- orFail(Flow.parse(text, config.check.nestingLimit).left.map(_.toString))
       runs <- loadRuns(cmd.runs)
-      code <- FlowTighten.run(flow, runs, cmd.minCalls, config.check) match
+      code <- FlowTighten.run(flow, Canonical.sha256Hex(text), runs, cmd.minCalls, config.check) match
         case Left(message) => IO.println(message).as(ExitCode(1))
         case Right(result) if result.proposals.forall(_.change.isEmpty) =>
           IO.println(FlowTighten.render(flow, result)) >> IO.println("nichts enger; nichts geschrieben").as(ExitCode.Success)
@@ -225,7 +227,8 @@ object Main extends IOApp:
     yield code
 
   /** Jede summary*.json unter den Pfaden mit Ausgang eines Laufs; Kennzahlen eines Plans ohne Lauf (planOutcome)
-    * zählen nicht. Das Record-Log ist das aus dem Feld record, sonst das einzige record*.log im selben Verzeichnis.
+    * zählen nicht. Das Record-Log liegt neben der summary: unter dem Namen aus dem Feld record, sonst das einzige
+    * record*.log dort; erst dann der Pfad aus record selbst (ein kopiertes Laufverzeichnis liest sein eigenes Log).
     */
   private def loadRuns(paths: List[Path]): IO[Vector[RunStats.Run]] =
     def files(p: Path): IO[List[Path]] = IO.blocking {
@@ -237,24 +240,25 @@ object Main extends IOApp:
       else throw Failure(s"$p: Datei nicht gefunden")
     }
     def recordOf(summary: Path, json: Json): IO[Option[Path]] = IO.blocking {
-      val named = json.hcursor.get[String]("record").toOption.map(Path.of(_)).filter(Files.isRegularFile(_))
-      named.orElse {
-        val dir = Option(summary.toAbsolutePath.getParent).getOrElse(Path.of("."))
+      val dir = Option(summary.toAbsolutePath.getParent).getOrElse(Path.of("."))
+      val named = json.hcursor.get[String]("record").toOption.map(Path.of(_))
+      val beside = named.flatMap(n => Option(n.getFileName)).map(dir.resolve).filter(Files.isRegularFile(_))
+      def single: Option[Path] =
         val s = Files.list(dir)
         try s.iterator.asScala.filter(f => f.getFileName.toString.matches("record.*\\.log")).toList match
           case one :: Nil => Some(one)
           case _          => None
         finally s.close()
-      }
+      beside.orElse(single).orElse(named.filter(Files.isRegularFile(_)))
     }
     def load(summary: Path): IO[Option[RunStats.Run]] =
       read(summary).flatMap { text =>
         parser.parse(text).toOption.filter(_.hcursor.downField("outcome").succeeded) match
           case None => IO.pure(None)
           case Some(json) =>
-            recordOf(summary, json).flatMap(_.traverse(read)).map { log =>
+            (recordOf(summary, json).flatMap(_.traverse(read)), IO.blocking(Files.getLastModifiedTime(summary).toMillis)).mapN { (log, modified) =>
               val events = log.flatMap(RecordLog.parse(_).toOption)
-              Some(RunStats.Run(Option(summary.toAbsolutePath.getParent).fold(".")(_.toString), json, events))
+              Some(RunStats.Run(Option(summary.toAbsolutePath.getParent).fold(".")(_.toString), json, events, modified))
             }
       }
     paths.flatTraverse(files).flatMap(found => found.distinct.traverse(load).map(_.flatten.toVector))
