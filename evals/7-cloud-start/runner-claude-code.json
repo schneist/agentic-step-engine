@@ -1,0 +1,180 @@
+{
+  "model": {
+    "provider": "claudecode",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "endpoint": "/mnt/c/Users/schne/.local/bin/claude.exe",
+    "workDir": "/mnt/c/Users/schne/AppData/Local/Temp/ase-claude"
+  },
+  "programs": [
+    {
+      "binary": "aws",
+      "args": [
+        "sts",
+        "get-caller-identity"
+      ],
+      "valuedFlags": [
+        "--region",
+        "--profile",
+        "--output",
+        "--query"
+      ],
+      "positional": "NoArgs"
+    },
+    {
+      "binary": "aws",
+      "args": [
+        "ec2",
+        "describe-spot-price-history"
+      ],
+      "valuedFlags": [
+        "--region",
+        "--profile",
+        "--output",
+        "--query",
+        "--instance-types",
+        "--product-descriptions",
+        "--start-time",
+        "--availability-zone"
+      ],
+      "positional": "NoArgs"
+    },
+    {
+      "binary": "aws",
+      "args": [
+        "ec2",
+        "describe-instances"
+      ],
+      "valuedFlags": [
+        "--region",
+        "--profile",
+        "--output",
+        "--query",
+        "--filters",
+        "--instance-ids"
+      ],
+      "positional": "NoArgs"
+    },
+    {
+      "binary": "aws",
+      "args": [
+        "ec2",
+        "run-instances"
+      ],
+      "valuedFlags": [
+        "--region",
+        "--profile",
+        "--output",
+        "--query",
+        "--image-id",
+        "--instance-type",
+        "--placement",
+        "--iam-instance-profile",
+        "--user-data",
+        "--block-device-mappings",
+        "--instance-market-options",
+        "--metadata-options",
+        "--tag-specifications",
+        "--count"
+      ],
+      "positional": "NoArgs"
+    },
+    {
+      "binary": "aws",
+      "args": [
+        "ec2",
+        "wait",
+        "instance-running"
+      ],
+      "valuedFlags": [
+        "--region",
+        "--profile",
+        "--output",
+        "--query",
+        "--instance-ids",
+        "--filters"
+      ],
+      "positional": "NoArgs"
+    },
+    {
+      "binary": "aws",
+      "args": [
+        "s3api",
+        "head-bucket"
+      ],
+      "valuedFlags": [
+        "--region",
+        "--profile",
+        "--output",
+        "--query",
+        "--bucket"
+      ],
+      "positional": "NoArgs"
+    },
+    {
+      "binary": "aws",
+      "args": [
+        "s3api",
+        "create-bucket"
+      ],
+      "valuedFlags": [
+        "--region",
+        "--profile",
+        "--output",
+        "--query",
+        "--bucket",
+        "--create-bucket-configuration"
+      ],
+      "positional": "NoArgs"
+    },
+    {
+      "binary": "aws",
+      "args": [
+        "s3api",
+        "put-public-access-block"
+      ],
+      "valuedFlags": [
+        "--region",
+        "--profile",
+        "--output",
+        "--query",
+        "--bucket",
+        "--public-access-block-configuration"
+      ],
+      "positional": "NoArgs"
+    },
+    {
+      "binary": "aws",
+      "args": [
+        "s3api",
+        "put-object"
+      ],
+      "valuedFlags": [
+        "--region",
+        "--profile",
+        "--output",
+        "--query",
+        "--bucket",
+        "--key",
+        "--body"
+      ],
+      "positional": "NoArgs"
+    },
+    {
+      "binary": "aws",
+      "args": [
+        "s3api",
+        "list-objects-v2"
+      ],
+      "valuedFlags": [
+        "--region",
+        "--profile",
+        "--output",
+        "--query",
+        "--bucket",
+        "--prefix"
+      ],
+      "positional": "NoArgs"
+    }
+  ]
+}

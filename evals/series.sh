@@ -51,6 +51,8 @@ printf '%s' "$status" > "$out/git-status.txt"
 commit=$(git -C "$repo" rev-parse --short HEAD)
 source=(--task "$eval_dir/task.md")
 [ -z "$flow" ] || source=(--flow "$flow")
+# Programme der Eval vor dem PATH, etwa das aws-Double von Eval 7 (O#40); es liegt außerhalb des Arbeitsverzeichnisses
+if [ -d "$eval_dir/bin" ]; then export PATH="$eval_dir/bin:$PATH"; fi
 
 cp=$(cd "$repo" && sbt -batch -error "export runner/Runtime/fullClasspath" | tail -1)
 ase() { java -cp "$cp" ase.runner.Main "$@"; }

@@ -1,0 +1,382 @@
+#!/usr/bin/env python3
+"""Double für die AWS CLI in Eval 7 (O#40). Kennt die Unterbefehle, die das Runbook einer Spot-Rechnung braucht, und
+antwortet wie die echte CLI v2: Ausgabe als JSON oder Text, Exit-Codes 252 (Aufruf), 253 (Konfiguration), 254 (Dienst),
+255 (sonst). Kein Netz, keine Kosten.
+
+Zustand und Aufrufe liegen neben dem Arbeitsverzeichnis in ../.cloud-stub/ (state.json, calls.jsonl), also außerhalb
+dessen, was ein Fill lesen kann; check.sh liest sie von dort. series.sh legt jedes Arbeitsverzeichnis frisch mit mktemp
+an, daher beginnt jeder Lauf leer.
+
+Eingespielte Fehler wie im Runbook: Ohne --region scheitert jeder Aufruf (ase leert die Umgebung, AWS_REGION fehlt);
+der erste ec2 run-instances mit Instanzprofil scheitert mit „Invalid IAM Instance Profile name“, der nächste geht.
+--query wird nicht ausgewertet, die Ausgabe bleibt ungefiltert. Dateien (--body, --user-data file://) liest das Double
+nur aus dem Arbeitsverzeichnis; alles andere gilt als nicht vorhanden und steht in calls.jsonl unter outside.
+"""
+import hashlib
+import json
+import os
+import re
+import sys
+
+ACCOUNT = "123456789012"
+ARN = f"arn:aws:iam::{ACCOUNT}:user/rechner"
+USER_ID = "AIDAEXAMPLEUSERID0001"
+NOW = "2026-10-31T09:12:00+00:00"
+LAUNCH = "2026-10-31T09:15:00+00:00"
+PRICES = {  # (Region, Typ) -> Zone -> USD/h
+    ("eu-central-1", "c7a.4xlarge"): {"eu-central-1a": "0.471200", "eu-central-1b": "0.410500", "eu-central-1c": "0.392100"},
+}
+ZONES = {"eu-central-1": ["eu-central-1a", "eu-central-1b", "eu-central-1c"]}
+GLOBAL = {"--region", "--profile", "--output", "--query"}
+
+work = os.path.realpath(os.getcwd())
+state_dir = os.path.join(os.path.dirname(work), ".cloud-stub")
+state_file = os.path.join(state_dir, "state.json")
+
+
+class Exit(Exception):
+    def __init__(self, code, text=""):
+        super().__init__(text)
+        self.code, self.text = code, text
+
+
+def service_error(code, op, msg):
+    return Exit(254, f"\nAn error occurred ({code}) when calling the {op} operation: {msg}\n")
+
+
+def invalid_choice(what, value):
+    return Exit(252, f"aws: [ERROR]: argument {what}: Found invalid choice '{value}'\n")
+
+
+def load():
+    try:
+        with open(state_file, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"buckets": {}, "instances": [], "iamReady": False, "next": 1}
+
+
+def save(state):
+    os.makedirs(state_dir, exist_ok=True)
+    with open(state_file, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+
+
+def parse(argv):
+    """Globale Optionen nehmen genau einen Wert und dürfen überall stehen; andere Optionen nehmen alle Werte bis zur
+    nächsten Option. Wörter (Dienst, Operation, Waiter) nur vor der ersten nicht globalen Option."""
+    words, opts, i, seen_opt = [], {}, 0, False
+    while i < len(argv):
+        a = argv[i]
+        if a.startswith("--"):
+            if a in GLOBAL:
+                if i + 1 >= len(argv):
+                    raise Exit(252, f"aws: [ERROR]: argument {a}: expected one argument\n")
+                opts.setdefault(a, []).append(argv[i + 1])
+                i += 2
+                continue
+            seen_opt = True
+            vals = []
+            i += 1
+            while i < len(argv) and not argv[i].startswith("--"):
+                vals.append(argv[i])
+                i += 1
+            opts.setdefault(a, []).extend(vals or [True])
+        else:
+            if seen_opt:
+                raise Exit(252, f"aws: [ERROR]: Unknown options: {a}\n")
+            words.append(a)
+            i += 1
+    return words, opts
+
+
+def one(opts, name, default=None):
+    v = opts.get(name)
+    return v[-1] if v else default
+
+
+def strs(opts, name):
+    return [v for v in opts.get(name, []) if isinstance(v, str)]
+
+
+def need(opts, name):
+    v = one(opts, name)
+    if not isinstance(v, str):
+        raise Exit(252, f"\naws: [ERROR]: the following arguments are required: {name}\n")
+    return v
+
+
+def local_file(spec, flag, outside):
+    """Datei relativ zum Arbeitsverzeichnis; außerhalb gilt sie als nicht vorhanden."""
+    missing = Exit(252, f"\nError parsing parameter '{flag}': Unable to load paramfile {spec}: "
+                        f"[Errno 2] No such file or directory: '{spec}'\n")
+    path = os.path.realpath(os.path.join(work, spec))
+    if not path.startswith(work + os.sep):
+        outside.append(spec)
+        raise missing
+    try:
+        with open(path, "rb") as f:
+            return f.read()
+    except OSError:
+        raise missing
+
+
+def sha(b):
+    return hashlib.sha256(b).hexdigest()
+
+
+def out(data, output, rows):
+    if output == "text":
+        return "".join("\t".join(str(x) for x in row) + "\n" for row in rows)
+    if output in ("json", "table", "yaml", "yaml-stream"):
+        return json.dumps(data, indent=4) + "\n"
+    raise invalid_choice("--output", output)
+
+
+def shorthand(value, key):
+    """Wert eines Schlüssels aus Kurzform (Key=Wert,…) oder JSON; None, wenn er fehlt."""
+    if not isinstance(value, str):
+        return None
+    m = re.search(r'"?' + key + r'"?\s*[:=]\s*"?([^",}\]\s]+)', value)
+    return m.group(1) if m else None
+
+
+# ---------- sts
+
+def sts(op, opts, state, output, outside, region):
+    if op != "get-caller-identity":
+        raise invalid_choice("operation", op)
+    return out({"UserId": USER_ID, "Account": ACCOUNT, "Arn": ARN}, output, [[ACCOUNT, ARN, USER_ID]])
+
+
+# ---------- s3api
+
+S3_OPS = {"head-bucket": "HeadBucket", "create-bucket": "CreateBucket", "put-public-access-block": "PutPublicAccessBlock",
+          "put-object": "PutObject", "list-objects-v2": "ListObjectsV2"}
+BLOCKS = ("BlockPublicAcls", "IgnorePublicAcls", "BlockPublicPolicy", "RestrictPublicBuckets")
+
+
+def s3api(op, opts, state, output, outside, region):
+    if op not in S3_OPS:
+        raise invalid_choice("operation", op)
+    buckets = state["buckets"]
+    name = need(opts, "--bucket")
+    b = buckets.get(name)
+    if op == "head-bucket":
+        if b is None:
+            raise service_error("404", "HeadBucket", "Not Found")
+        return out({"BucketRegion": b["region"], "AccessPointAlias": False}, output, [["False", b["region"]]])
+    if op == "create-bucket":
+        loc = shorthand(one(opts, "--create-bucket-configuration"), "LocationConstraint")
+        if b is not None:
+            raise service_error("BucketAlreadyOwnedByYou", "CreateBucket",
+                                "Your previous request to create the named bucket succeeded and you already own it.")
+        if (loc or "us-east-1") != region:
+            what = "unspecified" if loc is None else loc
+            raise service_error("IllegalLocationConstraintException", "CreateBucket",
+                                f"The {what} location constraint is incompatible for the region specific endpoint this request was sent to.")
+        buckets[name] = {"region": region, "publicAccessBlock": None, "objects": {}}
+        location = f"http://{name}.s3.amazonaws.com/" if loc else f"/{name}"
+        return out({"Location": location}, output, [[location]])
+    if b is None:
+        raise service_error("NoSuchBucket", S3_OPS[op], "The specified bucket does not exist")
+    if op == "put-public-access-block":
+        conf = need(opts, "--public-access-block-configuration")
+        b["publicAccessBlock"] = {k: (shorthand(conf, k) or "").lower() == "true" for k in BLOCKS}
+        return ""
+    if op == "put-object":
+        key = need(opts, "--key")
+        body = one(opts, "--body")
+        data = local_file(body, "--body", outside) if isinstance(body, str) else b""
+        etag = hashlib.md5(data).hexdigest()
+        b["objects"][key] = {"sha256": sha(data), "size": len(data), "etag": etag,
+                             "text": data.decode("utf-8", "replace") if len(data) <= 4096 else None}
+        return out({"ETag": f'"{etag}"', "ServerSideEncryption": "AES256"}, output, [[f'"{etag}"', "AES256"]])
+    # list-objects-v2
+    prefix = one(opts, "--prefix")
+    prefix = prefix if isinstance(prefix, str) else ""
+    contents = [{"Key": k, "LastModified": NOW, "ETag": f'"{o["etag"]}"', "Size": o["size"], "StorageClass": "STANDARD"}
+                for k, o in sorted(b["objects"].items()) if k.startswith(prefix)]
+    data = {"Contents": contents, "RequestCharged": None, "Prefix": prefix} if contents else {"RequestCharged": None, "Prefix": prefix}
+    return out(data, output, [["CONTENTS", c["ETag"], c["Key"], c["LastModified"], c["Size"], c["StorageClass"]] for c in contents])
+
+
+# ---------- ec2
+
+def filters(opts, op):
+    fs = []
+    for f in opts.get("--filters", []):
+        if not isinstance(f, str):
+            raise Exit(252, "\naws: [ERROR]: argument --filters: expected at least one argument\n")
+        if f.lstrip().startswith("["):
+            fs += [(i["Name"], list(i["Values"])) for i in json.loads(f)]
+            continue
+        m = re.fullmatch(r"Name=([^,]+),Values=(.+)", f)
+        if not m:
+            raise Exit(252, f"\nError parsing parameter '--filters': Expected: '=', received: 'EOF' for input:\n{f}\n")
+        fs.append((m.group(1), m.group(2).split(",")))
+    known = {"instance-state-name", "instance-id", "availability-zone", "instance-type"}
+    for name, _ in fs:
+        if not (name.startswith("tag:") or name in known):
+            raise service_error("InvalidParameterValue", op, f"The filter '{name}' is invalid")
+    return fs
+
+
+def value(inst, name):
+    if name.startswith("tag:"):
+        return inst["tags"].get(name[4:])
+    return {"instance-state-name": inst["state"], "instance-id": inst["id"], "availability-zone": inst["zone"],
+            "instance-type": inst["type"]}[name]
+
+
+def select(state, region, opts, op):
+    fs = filters(opts, op)
+    ids = strs(opts, "--instance-ids")
+    return ids, [i for i in state["instances"]
+                 if i["region"] == region and all(value(i, n) in vs for n, vs in fs) and (not ids or i["id"] in ids)]
+
+
+def advance(state):
+    """Zeit vergeht: eine Maschine in pending ist beim zweiten Blick running."""
+    for i in state["instances"]:
+        if i["state"] == "pending":
+            i["looks"] = i.get("looks", 0) + 1
+            if i["looks"] >= 2:
+                i["state"] = "running"
+
+
+STATE_CODES = {"pending": 0, "running": 16, "stopping": 64, "stopped": 80, "terminated": 48}
+
+
+def inst_json(i):
+    j = {"InstanceId": i["id"], "ImageId": "ami-0d1e2f3a4b5c6d7e8", "InstanceType": i["type"], "LaunchTime": LAUNCH,
+         "Placement": {"AvailabilityZone": i["zone"], "Tenancy": "default"},
+         "State": {"Code": STATE_CODES[i["state"]], "Name": i["state"]},
+         "Tags": [{"Key": k, "Value": v} for k, v in i["tags"].items()]}
+    if i["spot"]:
+        j["InstanceLifecycle"] = "spot"
+    return j
+
+
+def inst_rows(i):
+    rows = [["INSTANCES", i["id"], "ami-0d1e2f3a4b5c6d7e8", i["type"], LAUNCH], ["PLACEMENT", i["zone"], "default"],
+            ["STATE", STATE_CODES[i["state"]], i["state"]]]
+    return rows + [["TAGS", k, v] for k, v in i["tags"].items()]
+
+
+def reservation(i):
+    return f"r-0{i['id'][3:]}"
+
+
+EC2_OPS = ("describe-spot-price-history", "describe-instances", "run-instances", "wait")
+
+
+def ec2(words, opts, state, output, outside, region):
+    op = words[1]
+    if op not in EC2_OPS:
+        raise invalid_choice("operation", op)
+    if op == "describe-spot-price-history":
+        types = strs(opts, "--instance-types") or ["c7a.4xlarge"]
+        zone = one(opts, "--availability-zone")
+        rows = [{"AvailabilityZone": z, "InstanceType": t, "ProductDescription": "Linux/UNIX", "SpotPrice": p, "Timestamp": NOW}
+                for t in types for z, p in PRICES.get((region, t), {}).items() if zone in (None, z)]
+        return out({"SpotPriceHistory": rows}, output,
+                   [["SPOTPRICEHISTORY", r["AvailabilityZone"], r["InstanceType"], r["ProductDescription"], r["SpotPrice"],
+                     r["Timestamp"]] for r in rows])
+    if op == "describe-instances":
+        advance(state)
+        ids, found = select(state, region, opts, "DescribeInstances")
+        missing = [x for x in ids if x not in {i["id"] for i in state["instances"]}]
+        if missing:
+            raise service_error("InvalidInstanceID.NotFound", "DescribeInstances", f"The instance ID '{missing[0]}' does not exist")
+        res = [{"ReservationId": reservation(i), "OwnerId": ACCOUNT, "Instances": [inst_json(i)]} for i in found]
+        rows = [r for i in found for r in [["RESERVATIONS", ACCOUNT, reservation(i)]] + inst_rows(i)]
+        return out({"Reservations": res}, output, rows)
+    if op == "wait":
+        waiter = words[2] if len(words) > 2 else ""
+        if waiter != "instance-running":
+            raise invalid_choice("wait", waiter)
+        ids, found = select(state, region, opts, "DescribeInstances")
+        if not found or len(ids) > len(found):
+            raise Exit(255, "\nWaiter InstanceRunning failed: Max attempts exceeded\n")
+        for i in found:
+            if i["state"] == "pending":
+                i["state"] = "running"
+        return ""
+    return run_instances(opts, state, output, outside, region)
+
+
+def run_instances(opts, state, output, outside, region):
+    image = need(opts, "--image-id")
+    itype = need(opts, "--instance-type")
+    ud = one(opts, "--user-data")
+    user_data = None
+    if isinstance(ud, str):
+        user_data = local_file(ud[len("file://"):], "--user-data", outside) if ud.startswith("file://") else ud.encode()
+    zone = shorthand(one(opts, "--placement"), "AvailabilityZone") or ZONES.get(region, [region + "a"])[0]
+    if zone not in ZONES.get(region, []):
+        raise service_error("InvalidParameterValue", "RunInstances", f"Invalid availability zone: [{zone}]")
+    prof = one(opts, "--iam-instance-profile")
+    profile = shorthand(prof, "Name") or shorthand(prof, "Arn")
+    if profile is not None and (profile.split("/")[-1] != "rechnung-prod" or not state["iamReady"]):
+        # wie kurz nach dem Anlegen der Rolle: der erste Versuch scheitert, der nächste geht
+        state["iamReady"] = True
+        raise service_error("InvalidParameterValue", "RunInstances",
+                            f"Value ({profile}) for parameter iamInstanceProfile.name is invalid. Invalid IAM Instance Profile name")
+    market = one(opts, "--instance-market-options")
+    tags = {}
+    for spec in strs(opts, "--tag-specifications"):
+        if re.search(r'ResourceType"?\s*[:=]\s*"?instance\b', spec):
+            tags.update(re.findall(r'"?Key"?\s*[:=]\s*"?([^",}]+)"?\s*,\s*"?Value"?\s*[:=]\s*"?([^",}\]]+)', spec))
+    n = state["next"]
+    state["next"] = n + 1
+    inst = {"id": f"i-0a{n:015x}", "region": region, "zone": zone, "type": itype, "image": image, "state": "pending",
+            "spot": shorthand(market, "MarketType") == "spot", "spotType": shorthand(market, "SpotInstanceType"),
+            "interruption": shorthand(market, "InstanceInterruptionBehavior"), "profile": profile, "tags": tags,
+            "userDataSha": sha(user_data) if user_data is not None else None,
+            "blockDeviceMappings": one(opts, "--block-device-mappings") if isinstance(one(opts, "--block-device-mappings"), str) else None,
+            "metadataOptions": one(opts, "--metadata-options") if isinstance(one(opts, "--metadata-options"), str) else None}
+    state["instances"].append(inst)
+    return out({"Groups": [], "Instances": [inst_json(inst)], "OwnerId": ACCOUNT, "ReservationId": reservation(inst)},
+               output, [["RESERVATION", ACCOUNT, reservation(inst)]] + inst_rows(inst))
+
+
+def main(argv, outside):
+    words, opts = parse(argv)
+    if not words:
+        raise Exit(252, "usage: aws [options] <command> <subcommand> [<subcommand> ...] [parameters]\n"
+                        "aws: error: the following arguments are required: command\n")
+    profile = one(opts, "--profile", "default")
+    if profile != "default":
+        raise Exit(255, f"\nThe config profile ({profile}) could not be found\n")
+    region = one(opts, "--region")
+    if region is None:
+        raise Exit(253, "\nYou must specify a region. You can also configure your region by running \"aws configure\".\n")
+    output = one(opts, "--output", "json")
+    if words[0] not in ("sts", "s3api", "ec2"):
+        raise invalid_choice("command", words[0])
+    if len(words) < 2:
+        raise Exit(252, "aws: [ERROR]: the following arguments are required: operation\n")
+    state = load()
+    try:
+        if words[0] == "sts":
+            return sts(words[1], opts, state, output, outside, region)
+        if words[0] == "s3api":
+            return s3api(words[1], opts, state, output, outside, region)
+        return ec2(words, opts, state, output, outside, region)
+    finally:
+        save(state)
+
+
+if __name__ == "__main__":
+    argv, outside = sys.argv[1:], []
+    try:
+        sys.stdout.write(main(argv, outside))
+        code = 0
+    except Exit as e:
+        sys.stderr.write(e.text)
+        code = e.code
+    os.makedirs(state_dir, exist_ok=True)
+    with open(os.path.join(state_dir, "calls.jsonl"), "a", encoding="utf-8") as f:
+        f.write(json.dumps({"argv": argv, "exit": code, "outside": outside}) + "\n")
+    sys.exit(code)

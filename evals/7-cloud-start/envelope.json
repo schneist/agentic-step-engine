@@ -1,0 +1,9 @@
+{
+  "allowedOps": ["ReadFile", "ListDir", "WriteFile", "Shell", "Ask", "Hole"],
+  "pathPrefix": ".",
+  "maxSteps": 40,
+  "maxDepth": 1,
+  "shellAllowlist": [
+    { "binary": "aws", "requiredPrefixArgs": [] }
+  ]
+}

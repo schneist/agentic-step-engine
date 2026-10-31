@@ -1,0 +1,4 @@
+fall      rumpf-v12
+gitter    fein
+endzeit_s 20
+kerne     16

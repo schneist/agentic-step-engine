@@ -1,0 +1,267 @@
+{
+  "description": "Von Hand gebaute Lösung für Eval 7, nur um check.sh zu prüfen: alle Werte fest, auch Kontonummer, Preise und Instanz-ID des Doubles (bin/aws). Kein Referenzflow für Messungen.",
+  "params": {},
+  "envelope": {
+    "allowedOps": [
+      "ReadFile",
+      "ListDir",
+      "WriteFile",
+      "Shell",
+      "Ask",
+      "Hole"
+    ],
+    "pathPrefix": ".",
+    "maxSteps": 40,
+    "maxDepth": 1,
+    "shellAllowlist": [
+      {
+        "binary": "aws",
+        "requiredPrefixArgs": []
+      }
+    ]
+  },
+  "term": {
+    "type": "Seq",
+    "steps": [
+      {
+        "type": "Shell",
+        "cmd": "aws",
+        "args": [
+          "sts",
+          "get-caller-identity",
+          "--output",
+          "text",
+          "--region",
+          "eu-central-1"
+        ],
+        "origin": "Human"
+      },
+      {
+        "type": "Shell",
+        "cmd": "aws",
+        "args": [
+          "s3api",
+          "head-bucket",
+          "--bucket",
+          "rechnung-123456789012",
+          "--region",
+          "eu-central-1"
+        ],
+        "origin": "Human"
+      },
+      {
+        "type": "If",
+        "pred": {
+          "type": "LastExitCode",
+          "code": 0
+        },
+        "thenT": {
+          "type": "Seq",
+          "steps": [],
+          "origin": "Human"
+        },
+        "elseT": {
+          "type": "Shell",
+          "cmd": "aws",
+          "args": [
+            "s3api",
+            "create-bucket",
+            "--bucket",
+            "rechnung-123456789012",
+            "--create-bucket-configuration",
+            "LocationConstraint=eu-central-1",
+            "--region",
+            "eu-central-1"
+          ],
+          "origin": "Human"
+        },
+        "origin": "Human"
+      },
+      {
+        "type": "Shell",
+        "cmd": "aws",
+        "args": [
+          "s3api",
+          "put-public-access-block",
+          "--bucket",
+          "rechnung-123456789012",
+          "--public-access-block-configuration",
+          "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true",
+          "--region",
+          "eu-central-1"
+        ],
+        "origin": "Human"
+      },
+      {
+        "type": "Shell",
+        "cmd": "aws",
+        "args": [
+          "s3api",
+          "put-object",
+          "--bucket",
+          "rechnung-123456789012",
+          "--key",
+          "paket/fall.txt",
+          "--body",
+          "paket/fall.txt",
+          "--region",
+          "eu-central-1"
+        ],
+        "origin": "Human"
+      },
+      {
+        "type": "Shell",
+        "cmd": "aws",
+        "args": [
+          "s3api",
+          "put-object",
+          "--bucket",
+          "rechnung-123456789012",
+          "--key",
+          "paket/lauf.sh",
+          "--body",
+          "paket/lauf.sh",
+          "--region",
+          "eu-central-1"
+        ],
+        "origin": "Human"
+      },
+      {
+        "type": "Shell",
+        "cmd": "aws",
+        "args": [
+          "ec2",
+          "describe-spot-price-history",
+          "--instance-types",
+          "c7a.4xlarge",
+          "--product-descriptions",
+          "Linux/UNIX",
+          "--output",
+          "text",
+          "--region",
+          "eu-central-1"
+        ],
+        "origin": "Human"
+      },
+      {
+        "type": "WriteFile",
+        "path": "stand/deckel_s",
+        "content": "282682\n",
+        "origin": "Human"
+      },
+      {
+        "type": "Shell",
+        "cmd": "aws",
+        "args": [
+          "s3api",
+          "put-object",
+          "--bucket",
+          "rechnung-123456789012",
+          "--key",
+          "paket/deckel_s",
+          "--body",
+          "stand/deckel_s",
+          "--region",
+          "eu-central-1"
+        ],
+        "origin": "Human"
+      },
+      {
+        "type": "Shell",
+        "cmd": "aws",
+        "args": [
+          "ec2",
+          "describe-instances",
+          "--filters",
+          "Name=tag:Name,Values=rechnung-prod",
+          "--region",
+          "eu-central-1"
+        ],
+        "origin": "Human"
+      },
+      {
+        "type": "If",
+        "pred": {
+          "type": "LastOutputContains",
+          "text": "InstanceId"
+        },
+        "thenT": {
+          "type": "Ask",
+          "question": "Es gibt schon eine Maschine rechnung-prod; wie weiter?",
+          "origin": "Human"
+        },
+        "elseT": {
+          "type": "Seq",
+          "steps": [
+            {
+              "type": "RepeatUntil",
+              "body": {
+                "type": "Shell",
+                "cmd": "aws",
+                "args": [
+                  "ec2",
+                  "run-instances",
+                  "--image-id",
+                  "resolve:ssm:/aws/service/debian/release/12/latest/amd64",
+                  "--instance-type",
+                  "c7a.4xlarge",
+                  "--placement",
+                  "AvailabilityZone=eu-central-1c",
+                  "--iam-instance-profile",
+                  "Name=rechnung-prod",
+                  "--user-data",
+                  "file://infra/userdata.sh",
+                  "--block-device-mappings",
+                  "DeviceName=/dev/xvda,Ebs={VolumeSize=100,VolumeType=gp3,DeleteOnTermination=true}",
+                  "--instance-market-options",
+                  "MarketType=spot,SpotOptions={SpotInstanceType=persistent,InstanceInterruptionBehavior=stop}",
+                  "--metadata-options",
+                  "HttpTokens=required,HttpEndpoint=enabled",
+                  "--tag-specifications",
+                  "ResourceType=instance,Tags=[{Key=Name,Value=rechnung-prod}]",
+                  "--region",
+                  "eu-central-1"
+                ],
+                "origin": "Human"
+              },
+              "until": {
+                "type": "LastExitCode",
+                "code": 0
+              },
+              "max": 2,
+              "origin": "Human"
+            },
+            {
+              "type": "Shell",
+              "cmd": "aws",
+              "args": [
+                "ec2",
+                "wait",
+                "instance-running",
+                "--filters",
+                "Name=tag:Name,Values=rechnung-prod",
+                "--region",
+                "eu-central-1"
+              ],
+              "origin": "Human"
+            },
+            {
+              "type": "WriteFile",
+              "path": "START.md",
+              "content": "# Start\n\n- Instanz: i-0a000000000000001\n- Zone: eu-central-1c\n- Spotpreis dort: 0.3921 USD/h\n- Kostendeckel: 282682 s (37 USD bei 0.4712 USD/h, höchster Zonenpreis)\n",
+              "origin": "Human"
+            }
+          ],
+          "origin": "Human"
+        },
+        "origin": "Human"
+      },
+      {
+        "type": "Done",
+        "summary": "Rechnung gestartet",
+        "origin": "Human"
+      }
+    ],
+    "origin": "Human"
+  }
+}
