@@ -8,7 +8,7 @@
 - **Rechte pro Agentenschritt.** Im selben Lauf darf ein Agentenschritt nur `CHANGELOG.md` ändern, ein anderer nur unter `docs/`.
 - **Vorhersagbar.** Die Sprache ist klein und total: Jeder Lauf endet, und wie viele Schritte er höchstens braucht, steht vor dem Start fest ([Einordnung](#einordnung)).
 - **Einmal freigeben, oft laufen lassen.** Ein Flow hat einen stabilen Hash und läuft mit `--approve <hash> --no-ask` auch in CI.
-- **Erprobt.** Mit Claude bestand jede der sechs Testaufgaben 10 von 10 Läufen ([Zahlen](#wie-zuverlässig-es-ist)).
+- **Erprobt.** Mit Claude bestand jede der sechs Standard-Testaufgaben 10 von 10 Läufen; eine siebte mit eingespielten Fehlern zeigt, wo es noch hakt ([Zahlen](#wie-zuverlässig-es-ist)).
 
 Prototyp in Scala 3 mit Kommandozeile, Apache License 2.0. Gedacht für Abläufe, die man einmal festlegt und oft laufen lässt, nicht als Ersatz für Claude Code oder Cursor im Alltag.
 
@@ -149,12 +149,13 @@ Ein Coding-Agent wie Claude Code lässt sich gut einzäunen. Der Plan-Modus zeig
 - **Kein Schutz vor Code im Repository.** `ase` schützt vor dem, was das Modell tut. Erlaubte Programme wie `./run-tests.sh` oder `sbt test` laufen ohne Sandbox und können alles, was der Nutzer kann. Explain markiert sie als „führt Workspace-Code aus“ und warnt vor einem Agentenschritt, der solchen Code ändern darf. Für Isolation gehört ein Container drumherum.
 - **Geprüft werden Ort und Art, nicht Inhalt.** Ein Agentenschritt kann innerhalb seiner Hülle schlechte Arbeit machen. Hüllen, die ein Modell selbst plant, können weiter sein als nötig. Den Explain muss also jemand lesen.
 - **Kein Zurückrollen.** Was gelaufen ist, bleibt gelaufen.
-- **Mehr Modellaufrufe.** Ein Plan und je Agentenschritt mindestens ein Fill. Claude braucht je nach Aufgabe 11k bis 61k Tokens je Lauf. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
+- **Mehr Modellaufrufe.** Ein Plan und je Agentenschritt mindestens ein Fill. Claude braucht je nach Aufgabe 11k bis 61k Tokens je Lauf, ein Flow mit vier Agentenschritten wie in Eval 7 rund 135k bis 160k. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
 - **Kleine Sprache.** Sie bearbeitet Dateien und ruft eine kleine Liste von Shell-Befehlen auf, mehr nicht.
+- **Werte von Flags sind keine geprüften Pfade.** Pfade als Argumente prüft `ase` wie bei `ReadFile`, den Wert eines Flags mit Wert nicht. Bei einem eigenen Programm wie `aws` kann `--body DATEI` oder `--user-data file://DATEI` eine Datei außerhalb des Arbeitsverzeichnisses lesen und hochladen. Solche Flags nur erlauben, wenn das in Ordnung ist (O#41).
 
 ## Wie zuverlässig es ist
 
-Sechs Testaufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Jede lief 10-mal mit claude-opus-5-5 (effort high, über Claude Code), jedes Mal in einer frischen Kopie, geprüft von einem Skript.
+Sieben Testaufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Die ersten sechs liefen je 10-mal mit claude-opus-5-5 (effort high, über Claude Code), jedes Mal in einer frischen Kopie, geprüft von einem Skript. Gemessen am 29.10.2026 (M#7 bis M#10, M#12, M#13), vor der Abnahme (D#80): Seitdem ist der System-Prompt länger, und an Eval 6 änderte das, wie oft ein Agentenschritt eine Datei vor dem Ändern noch einmal liest (M#24). Eine neue Messung der sechs steht aus.
 
 | Eval | Aufgabe | Erfolg | Tokens ø je Lauf |
 |---|---|---|---|
@@ -166,6 +167,8 @@ Sechs Testaufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). J
 | 6 | Roten Test reparieren und berichten | 10/10 | 61,2k |
 
 Eval 5 misst das Gegenteil von Erfolg um jeden Preis: Die Aufgabe verlangt etwas, das die Hülle nicht erlaubt, und `ase` muss nachfragen, statt es zu umgehen. In Eval 6 trennen die Pläne Diagnose, Reparatur und Bericht so, dass kein Agentenschritt das Testskript ändern darf, das danach läuft. Andere Modelle sind angebunden, aber schwächer: Gemini 3.8 Flash über agy bestand Eval 1 in 1 von 5 Läufen.
+
+Eval 7 ist schwerer gebaut: eine Rechnung auf einer Spot-Maschine in AWS starten, gegen ein Double der AWS CLI, das zwei Fehler aus einem echten Runbook einspielt (fehlende Region, ein Instanzprofil, das beim ersten Start noch nicht bekannt ist). Daran wird gemessen, wie ein Flow über Stufen härter wird (O#40). Ein einziger offener Agentenschritt bestand 0 von 10 Läufen (M#25), ein Gerüst mit einem Agentenschritt je Phase ebenfalls 0 von 10 (M#26): Der Fehler beim Start wurde nie wiederholt. Mit einer Abnahme am Start, die prüft, ob die Maschine da ist, und sonst einen zweiten Durchlauf gibt, waren es 3 von 10 (M#27).
 
 Im ersten echten Einsatz lief ein Flow an einem Python-Projekt mit rund 1.000 Skripten: 18 Rechenschritte in der Reihenfolge, die das Projekt vorschreibt, mit Abbruch, wenn eine Konsistenzprüfung scheitert, und am Ende ein Prüfbericht. 5 von 5 Läufen lieferten einen vollständigen Bericht mit denselben Befunden, je mit einem Modellaufruf und rund 56k Tokens.
 
@@ -303,7 +306,7 @@ Die Module: `core` enthält Sprache, Prüfung und Interpreter, ohne HTTP und Mod
 
 ## Mitwirken
 
-`sbt test` muss grün sein. Messserien laufen unter Linux: `evals/series.sh <eval-verzeichnis> <n> <ausgabe> [--config datei]` für eine Testaufgabe, `evals/harness.sh <n> <ausgabe> [--config datei]` für alle sechs. Die Projektdokumentation ist auf Deutsch:
+`sbt test` muss grün sein. Messserien laufen unter Linux: `evals/series.sh <eval-verzeichnis> <n> <ausgabe> [--config datei]` für eine Testaufgabe, `evals/harness.sh <n> <ausgabe> [--config datei]` für Eval 1 bis 6. Die Projektdokumentation ist auf Deutsch:
 
 - [SPEC.md](SPEC.md): Spezifikation, Grenzen und Limits.
 - [findings.md](findings.md): Entscheidungen (D#), Messungen (M#) und offene Punkte (O#), mit dem vollständigen Messprotokoll zu den Zahlen oben.
