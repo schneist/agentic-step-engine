@@ -33,6 +33,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Interpreter**: Eine Deutung der Algebra. DryRun, Cost, Explain, Execute, Replay. Lesen den Term, verändern ihn nie.
 - **ToTerm / fromTerm**: Die Brücke zwischen Programm-als-Code und Programm-als-Daten. `ToTerm` schreibt einen Term, `fromTerm` spielt ihn in jeden Interpreter ein.
 - **Agentenschritt** (`Hole`): Ein Knoten im Term, an dem das Modell erst zur Laufzeit entscheidet. Trägt ein Ziel und eine Hülle. Im Code und im JSON heißt er `Hole`; bis 2026-10-29 hieß er auch in der Doku „Loch“, so steht es noch in `findings.md` und im Prompt an das Modell.
+- **Abnahme** (`verify`): Programm und Bedingung an einem Agentenschritt. Nach jedem Durchlauf läuft das Programm unter der umgebenden Hülle; erfüllt sein Ergebnis die Bedingung nicht, entscheidet der Agent erneut, höchstens max-mal (D#80). Nicht zu verwechseln mit DryRun, das prüft, bevor etwas läuft.
 - **Hülle** (`Envelope`): Was in einem Agentenschritt maximal passieren darf: erlaubte Operationen, Pfadpräfix, maximale Schritte, maximale Tiefe, Shell-Allowlist.
 - **Attenuation**: Die Regel, dass eine innere Hülle nie weiter ist als die äußere. Nach Mark Miller (Object Capabilities).
 - **Envelope-Monotonie**: Dasselbe wie Attenuation, als Gesetz formuliert und per Property-Test geprüft.
@@ -387,6 +388,10 @@ Mit dem Fingerprint als Maß waren sich drei Pläne oft nicht einig, obwohl jede
 ### Warum die Teilungsregel nur bei ausgeführtem Code gilt (D#66)
 
 Die Regel aus D#62 sollte verhindern, dass ein Agentenschritt ein Skript ändert, das danach läuft. Das Modell wandte sie überall an und teilte auch dort, wo kein Code läuft, in Eval 1 in jedem Plan. Das kostete fast die Hälfte mehr Tokens, ohne dort etwas sicherer zu machen. Die Regel nennt jetzt ihre Bedingung.
+
+### Warum ein Agentenschritt eine Abnahme tragen kann (D#80)
+
+Manche Agentenschritte haben ein Ergebnis, das ein Programm prüfen kann: Die Tests sind grün, grep findet kein TODO mehr. Dort ist Prüfen billiger als Herstellen, und ein weiterer Versuch lohnt sich, weil das Programm sagt, ob er gelungen ist. Andere Ergebnisse beurteilt nur ein Mensch, etwa ein Bericht; dort hilft Wiederholen nicht. Die Abnahme macht diesen Unterschied im Term sichtbar, für Tor 1, für Explain und für die Messung. Mit RepeatUntil ließ sich die Schleife schon schreiben, aber die Engine wusste nicht, welches Programm welchen Agentenschritt prüft. Erst mit dieser Zuordnung kann Tor 1 verlangen, dass ein Agentenschritt den Code seiner Abnahme nicht ändern darf; sonst bestünde er die Abnahme, indem er sie ändert. Und erst so erfährt der nächste Durchlauf, dass er ein zweiter Versuch ist. Nach dem letzten Durchlauf bricht der Lauf nicht ab: Wie bei RepeatUntil entscheidet der Plan mit einem Prädikat, ob er fragt oder weitermacht, denn nur der Plan weiß, was ein rotes Ergebnis bedeutet. Ein Agentenschritt, dessen Ergebnis sich aus den gelesenen Daten ergibt, braucht keine Abnahme, sondern vielleicht gar kein Modell; dafür steht O#35.
 
 ### Warum eine Serie in zwei Schritten entsteht und jeder Lauf mit dem Fixture beginnen muss (D#79)
 

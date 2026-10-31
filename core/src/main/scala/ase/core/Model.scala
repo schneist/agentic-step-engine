@@ -61,6 +61,13 @@ object Pred:
     case Not(a)                   => s"nicht ${show(a)}"
     case And(a, b)                => s"${show(a)} und ${show(b)}"
 
+/** Abnahme eines Lochs (D#80): ein Programm, das nach jedem Durchlauf des Lochs läuft, und die Bedingung, die sein
+  * Ergebnis erfüllen muss. Läuft unter der Hülle, in der das Loch steht, nicht unter der des Lochs. max: Durchläufe des
+  * Lochs höchstens; jeder Durchlauf nach einer nicht bestandenen Abnahme ist ein neuer Aufruf mit eigenem Budget.
+  */
+final case class Verify(cmd: String, args: List[String], until: Pred, max: Int):
+  def command: String = (cmd :: args).mkString(" ")
+
 /** Die einzige Sprache zwischen Modell und Engine. Daten, kein Code. */
 enum Term:
   case ReadFile(path: String, origin: Origin)
@@ -74,11 +81,15 @@ enum Term:
   case Seq(steps: List[Term], origin: Origin)
   case If(pred: Pred, thenT: Term, elseT: Term, origin: Origin)
   case RepeatUntil(body: Term, until: Pred, max: Int, origin: Origin)
-  case Hole(goal: String, envelope: Envelope, origin: Origin)
+  /** verify: Abnahme durch ein Programm (D#80); ohne sie ist das Loch mit seinem Done fertig. */
+  case Hole(goal: String, envelope: Envelope, origin: Origin, verify: Option[Verify] = None)
 
   def origin: Origin
 
 object Term:
+  /** Nummern, die ein Loch in Explain, Engine, Tighten und Record-Log belegt: eins, mit Abnahme zwei (D#80). */
+  def width(verify: Option[Verify]): Int = 1 + verify.size
+
   /** Syntaktische Verschachtelung: Blätter 0, Seq/If/RepeatUntil 1 plus Kinder (D#10). Nicht dasselbe wie maxDepth. */
   def nesting(t: Term): Int = t match
     case Seq(steps, _)           => 1 + steps.map(nesting).maxOption.getOrElse(0)

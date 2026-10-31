@@ -52,8 +52,9 @@ object BestOfN:
     case Term.Seq(steps, _)        => Json.obj("seq" -> Json.arr(steps.map(form)*))
     case Term.If(p, a, b, _)       => Json.obj("if" -> pred(p), "then" -> form(a), "else" -> form(b))
     case Term.RepeatUntil(b, u, _, _) => Json.obj("repeat" -> form(b), "until" -> pred(u))
-    case Term.Hole(_, e, _) =>
-      Json.obj("hole" -> Json.arr(e.allowedOps.toList.sortBy(_.ordinal).map(o => Json.fromString(o.toString))*))
+    case Term.Hole(_, e, _, v) =>
+      val ops = "hole" -> Json.arr(e.allowedOps.toList.sortBy(_.ordinal).map(o => Json.fromString(o.toString))*)
+      Json.obj((ops :: v.map(x => "verify" -> Json.fromString(x.cmd)).toList)*)
 
   private def pred(p: Pred): Json = p match
     case Pred.Not(q)    => Json.obj("not" -> pred(q))

@@ -17,9 +17,10 @@ enum RecordError:
 object RecordLog:
   /** 2: End trägt die Schrittzahl der Engine, Io trägt Art und Pfad statt des Ausnahmetextes (Review 3).
     * 3: HoleRound (D#55). Ein Log der Version 2 ist ein gültiges Log der Version 3 ohne Runden und bleibt lesbar.
+    * 4: Verified und Löcher mit verify (D#80); Logs der Versionen 2 und 3 bleiben lesbar.
     */
-  val Version = 3
-  private val Readable = Set(2, 3)
+  val Version = 4
+  private val Readable = Set(2, 3, 4)
 
   /** Verschachtelungsgrenze beim Lesen eingebetteter Terme; großzügig, das Log schreibt die Engine selbst. */
   private val LogNesting = 64
@@ -84,6 +85,8 @@ object RecordLog:
         obj("FillFailed", "at" -> s(at.show), "attempt" -> Json.fromInt(attempt), "error" -> encodeError(error), "toModel" -> s(toModel))
       case Event.HoleRound(at, round)  => obj("HoleRound", "at" -> s(at.show), "round" -> Json.fromInt(round))
       case Event.HoleDone(at, summary) => obj("HoleDone", "at" -> s(at.show), "summary" -> s(summary))
+      case Event.Verified(at, pass, passed, toModel) =>
+        obj("Verified", "at" -> s(at.show), "pass" -> Json.fromInt(pass), "passed" -> Json.fromBoolean(passed), "toModel" -> toModel.fold(Json.Null)(s))
       case Event.Asked(at, q, answer) =>
         obj("Asked", "at" -> s(at.show), "question" -> s(q), "answer" -> answer.fold(Json.Null)(s))
       case Event.Finished(at, summary) => obj("Finished", "at" -> s(at.show), "summary" -> s(summary))
@@ -213,6 +216,8 @@ object RecordLog:
         (at(c), get[Int](c, "attempt"), decodeError(c.downField("error")), get[String](c, "toModel")).mapN(Event.FillFailed(_, _, _, _))
       case "HoleRound" => (at(c), get[Int](c, "round")).mapN(Event.HoleRound(_, _))
       case "HoleDone" => (at(c), get[String](c, "summary")).mapN(Event.HoleDone(_, _))
+      case "Verified" =>
+        (at(c), get[Int](c, "pass"), get[Boolean](c, "passed"), get[Option[String]](c, "toModel")).mapN(Event.Verified(_, _, _, _))
       case "Asked"    => (at(c), get[String](c, "question"), get[Option[String]](c, "answer")).mapN(Event.Asked(_, _, _))
       case "Finished" => (at(c), get[String](c, "summary")).mapN(Event.Finished(_, _))
       case "End"      => (decodeOutcome(c.downField("outcome")), get[Long](c, "steps")).mapN(Event.End(_, _))

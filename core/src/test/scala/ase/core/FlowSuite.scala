@@ -21,7 +21,7 @@ class FlowSuite extends munit.FunSuite:
       case Term.Seq(steps, o) =>
         Term.Seq(
           steps.map {
-            case Term.Hole(g, e, ho) if g.startsWith("Finde") => Term.Hole(g, e.copy(maxDepth = 1), ho)
+            case Term.Hole(g, e, ho, v) if g.startsWith("Finde") => Term.Hole(g, e.copy(maxDepth = 1), ho, v)
             case other                                         => other
           },
           o

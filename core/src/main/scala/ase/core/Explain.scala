@@ -80,7 +80,8 @@ object Explain:
 
   private def codePaths(t: Term, check: CheckConfig): List[Vector[String]] = t match
     case Term.Shell(cmd, _, _)        => check.runsWorkspaceCode(cmd).toList.flatten.flatMap(RelPath.parse(_).toOption)
-    case Term.Hole(_, e, _)           => e.shellAllowlist.toList.flatMap(c => check.runsWorkspaceCode(c.binary).toList.flatten).flatMap(RelPath.parse(_).toOption)
+    case Term.Hole(_, e, _, v) =>
+      (e.shellAllowlist.toList.map(_.binary) ++ v.map(_.cmd)).flatMap(check.runsWorkspaceCode(_).toList.flatten).flatMap(RelPath.parse(_).toOption)
     case Term.Seq(steps, _)           => steps.flatMap(codePaths(_, check))
     case Term.If(_, a, b, _)          => codePaths(a, check) ++ codePaths(b, check)
     case Term.RepeatUntil(b, _, _, _) => codePaths(b, check)
@@ -133,13 +134,17 @@ object Explain:
       else step("fragt:", Nil, i => textBlock("Frage", question, i + 1))
     def done(summary: String, origin: Origin): Out[StepResult] = step(s"fertig: $summary", Nil)
 
-    def think(goal: String, envelope: Envelope, origin: Origin): Out[StepResult] = s =>
+    def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): Out[StepResult] = s =>
       val prefix = RelPath.parse(envelope.pathPrefix).toOption
+      // die Abnahme ist Schritt s.next + 1; ab dem zweiten Durchlauf liegen Loch-Ergebnis und Abnahme vor (D#80)
+      val verifyPaths = verify.map(v => Scope.shellPaths(v.cmd, v.args, check))
+      val after = s.prior ++ (Scope.Seen(s.next, Nil) +: verifyPaths.map(Scope.Seen(s.next + 1, _)).toVector)
+      val prior = if verify.isDefined then after else s.prior
       // welcher ausgeführte Code unter dem pathPrefix eines ändernden Lochs liegt (D#12, D#62)
       val changesCode =
         if !envelope.allowedOps.exists(writes) then Nil
         else prefix.toList.flatMap(p => code.filter(RelPath.overlaps(p, _))).map(c => RelPath.show(c)).distinct.sorted
-      val seen = Scope.visible(s.prior, envelope).map(_.step)
+      val seen = Scope.visible(prior, envelope).map(_.step).distinct
       val runsCode = envelope.shellAllowlist.toList.filter(c => check.runsWorkspaceCode(c.binary).isDefined).map(_.show).sorted
       // Execute filtert nach aufgelösten Pfaden und zeigt höchstens diese Ergebnisse, nie mehr (D#42)
       val sees =
@@ -152,8 +157,16 @@ object Explain:
         note(sees, s.indent)
       ) ++ Option.when(changesCode.nonEmpty)(note(s"Hinweis: darf Code ändern, der im Lauf ausgeführt wird (${changesCode.mkString(", ")})", s.indent)) ++
         Option.when(runsCode.nonEmpty)(note(s"Hinweis: darf Workspace-Code ausführen (${runsCode.mkString(", ")})", s.indent))
-      // Das Ergebnis eines Lochs ist seine Done-Zusammenfassung, pfadlos (D#9)
-      (lines, s.next + 1, s.prior :+ Scope.Seen(s.next, Nil))
+      val verifyLines = verify.toVector.flatMap { v =>
+        val marker = if check.runsWorkspaceCode(v.cmd).isDefined then " (führt Workspace-Code aus)" else ""
+        val passes = if v.max == 1 then "1 Durchlauf" else s"${v.max} Durchläufe"
+        Vector(
+          f"${s.next + 1}%-3d" + pad(s.indent) + Text.visible(s"Abnahme: führt aus: ${v.command}$marker"),
+          note(s"bestanden, wenn ${Pred.show(v.until)}; sonst entscheidet der Agent erneut, höchstens $passes", s.indent)
+        )
+      }
+      // Das Ergebnis eines Lochs ist seine Done-Zusammenfassung, pfadlos (D#9); mit Abnahme danach deren Ausgabe
+      (lines ++ verifyLines, s.next + Term.width(verify), after)
 
     def seq(steps: List[Out[StepResult]], origin: Origin): Out[StepResult] = s =>
       steps.foldLeft((Vector.empty[String], s.next, s.prior)) { case ((acc, next, prior), step) =>

@@ -79,7 +79,8 @@ object Series:
       seconds: Option[Double],
       planFingerprint: Option[String],
       sourceSha: Option[String],
-      workspaceSha: Option[String] = None
+      workspaceSha: Option[String] = None,
+      verifyFailures: Int = 0
   )
 
   /** „Was nicht zählt“ aus playbook/evals.md, geprüft statt nur gesagt. */
@@ -342,7 +343,8 @@ object Series:
     "seconds" -> r.seconds.fold(Json.Null)(Json.fromDoubleOrNull),
     "planFingerprint" -> r.planFingerprint.fold(Json.Null)(Json.fromString),
     "sourceSha" -> r.sourceSha.fold(Json.Null)(Json.fromString),
-    "workspaceSha" -> r.workspaceSha.fold(Json.Null)(Json.fromString)
+    "workspaceSha" -> r.workspaceSha.fold(Json.Null)(Json.fromString),
+    "verifyFailures" -> Json.fromInt(r.verifyFailures)
   ).dropNullValues
 
   /** keyHash steht nur für Leser im Datensatz; beim Lesen muss er zum Schlüssel passen. */
@@ -423,7 +425,8 @@ object Series:
       s.get[Double]("seconds").toOption,
       s.get[String]("planFingerprint").toOption,
       s.get[String]("sourceSha").toOption,
-      s.get[String]("workspaceSha").toOption
+      s.get[String]("workspaceSha").toOption,
+      int("verifyFailures")
     )
 
   /** Verlangte Läufe aus series.json der Eval: genau ein Feld n, ab 1. */
@@ -506,4 +509,6 @@ object Series:
       fingerprint <- c.get[Option[String]]("planFingerprint").leftMap(_ => "planFingerprint: erwartet einen Text")
       sourceSha <- c.get[Option[String]]("sourceSha").leftMap(_ => "sourceSha: erwartet einen Text")
       workspaceSha <- c.get[Option[String]]("workspaceSha").leftMap(_ => "workspaceSha: erwartet einen Text")
-    yield Run(outcome, check, hints, steps, planCalls, fillCalls, holeRounds, gate1, gate2, unusable, asked, tokens, seconds, fingerprint, sourceSha, workspaceSha)
+      // fehlt in Datensätzen vor D#80
+      verify <- c.get[Option[Int]]("verifyFailures").leftMap(_ => "verifyFailures: erwartet eine ganze Zahl")
+    yield Run(outcome, check, hints, steps, planCalls, fillCalls, holeRounds, gate1, gate2, unusable, asked, tokens, seconds, fingerprint, sourceSha, workspaceSha, verify.getOrElse(0))

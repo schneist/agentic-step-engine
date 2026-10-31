@@ -526,6 +526,7 @@ object Summary:
       "unusableAnswers" -> Json.fromInt(file.unusable + s.unusableAnswers),
       "runtimeFailures" -> Json.fromInt(s.runtimeFailures),
       "holeRounds" -> Json.fromInt(result.events.count(_.isInstanceOf[Event.HoleRound])),
+      "verifyFailures" -> Json.fromInt(s.verifyFailures),
       "asked" -> Json.fromBoolean(result.events.exists(_.isInstanceOf[Event.Asked])),
       "tokens" -> Json.fromLong(file.tokens + s.tokens),
       "changedFiles" -> Json.arr(s.changedFiles.map(Json.fromString)*),

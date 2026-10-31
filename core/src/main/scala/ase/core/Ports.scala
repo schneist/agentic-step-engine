@@ -46,7 +46,7 @@ final case class ScopeLine(at: String, label: String, text: String)
 /** Was das Modell für ein Loch bekommt: Ziel, Hülle, Restbudget, Kontext nach Scope.visible (D#9, D#30) und die
   * Handlungsanweisungen der bisherigen Versuche (D#15). Die Antwort ist die Eingabe von submit_term. round von
   * maxRounds: die wievielte Runde dieses Lochs (D#55); ab Runde 2 steht im Kontext auch, was die Runden davor gelesen
-  * haben.
+  * haben. verified: was die Abnahme nach dem Durchlauf davor verfehlt hat (D#80); kein Versuch dieses Aufrufs.
   */
 final case class FillRequest(
     callId: String,
@@ -59,7 +59,8 @@ final case class FillRequest(
     scope: Vector[ScopeLine],
     errors: Vector[String],
     round: Int = 1,
-    maxRounds: Int = 1
+    maxRounds: Int = 1,
+    verified: Vector[String] = Vector.empty
 )
 
 /** Werkzeuge am Rand: Dateisystem und Prozesse. Prüft Pfade und Befehle zur Laufzeit gegen die Hülle. */
@@ -108,7 +109,8 @@ final case class Stats(
     runtimeFailures: Int,
     changedFiles: List[String],
     tokens: Long,
-    hints: List[(StepId, String)]
+    hints: List[(StepId, String)],
+    verifyFailures: Int
 )
 
 object Stats:
@@ -122,5 +124,6 @@ object Stats:
       runtimeFailures = events.count(_.isInstanceOf[Event.FillFailed]),
       changedFiles = events.collect { case Event.Step(_, c, Reply(t, Right(_), _)) if c.writes => t }.flatten.distinct.toList,
       tokens = events.collect { case e: Event.Fill => e.reply.tokens }.sum,
-      hints = events.collect { case Event.HoleDone(at, s) if s.nonEmpty => at -> s }.toList
+      hints = events.collect { case Event.HoleDone(at, s) if s.nonEmpty => at -> s }.toList,
+      verifyFailures = events.count { case Event.Verified(_, _, passed, _) => !passed; case _ => false }
     )

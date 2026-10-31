@@ -33,11 +33,17 @@ object Prompt:
        |- Seq(steps), If(pred, thenT, elseT), RepeatUntil(body, until, max): Ablauf.
        |- Hole(goal, envelope): ein Loch. Hier entscheidest du später, zur Laufzeit, mit den Daten, die bis dahin
        |  vorliegen; die Hülle (envelope) legt fest, was dort höchstens geschehen darf.
+       |- Hole(goal, envelope, verify): ein Loch mit Abnahme. verify = {cmd, args, until, max}: ein erlaubtes Programm,
+       |  das nach dem Loch läuft und prüft, ob es sein Ziel erreicht hat (etwa ./run-tests.sh mit until
+       |  LastExitCode(0)). Ist until nicht erfüllt, füllst du das Loch erneut, höchstens max-mal, und erfährst, dass die
+       |  Abnahme nicht bestanden ist. Setze verify nur, wo ein Programm das Ergebnis wirklich prüft. Es läuft unter der
+       |  umgebenden Hülle. Der pathPrefix eines Lochs, das ändern darf, berührt den Code dieses Programms nicht, weder
+       |  darüber noch darunter: Wer seine Prüfung ändern kann, besteht sie ohne Lösung.
        |
        |# Prädikate
        |FileExists(path), LastExitCode(code), LastOutputContains(text), LastOutputEmpty, Not(p), And(p, q).
        |"Last" ist das Ergebnis des unmittelbar vorangehenden Schritts. Ergebnis von Seq, If, RepeatUntil: das ihres
-       |zuletzt ausgeführten Schritts. Ergebnis eines Lochs: der Done-Text als Ausgabe, ohne Exit-Code. Nur Shell
+       |zuletzt ausgeführten Schritts. Ergebnis eines Lochs: der Done-Text als Ausgabe, ohne Exit-Code; mit verify das Ergebnis des Programms. Nur Shell
        |liefert einen Exit-Code. Ein Prädikat, das nie wahr werden kann (LastExitCode nach ReadFile), wird abgelehnt.
        |
        |# Der Term ist statisch
@@ -58,7 +64,8 @@ object Prompt:
        |- allowedOps Teilmenge; pathPrefix gleich oder darunter; jeder Befehl gleich oder enger ("git status" unter "git").
        |- maxDepth strikt kleiner als das der umschließenden Hülle.
        |- Schritte im schlechtesten Fall höchstens maxSteps der umschließenden Hülle. Zählung: jede Operation 1,
-       |  Seq Summe, If Maximum der Zweige, RepeatUntil max mal Rumpf, Loch 1 plus sein maxSteps.
+       |  Seq Summe, If Maximum der Zweige, RepeatUntil max mal Rumpf, Loch 1 plus sein maxSteps,
+       |  mit verify max mal (2 plus maxSteps).
        |- maxSteps mindestens 1, allowedOps nicht leer, Shell in allowedOps genau dann, wenn shellAllowlist nicht leer.
        |Gib jedem Loch genau die Rechte, die sein Ziel braucht, nicht mehr.
        |Lesen und Ändern teilen sich den pathPrefix. Ein Loch, das ändern darf (WriteFile, EditFile, MoveFile), bekommt
@@ -100,6 +107,9 @@ object Prompt:
 
   private def envelopeJson(e: Envelope): String = Codec.envelope(e).spaces2
 
+  private def verified(vs: Vector[String]): String =
+    if vs.isEmpty then "" else "\n\n# Abnahme nach dem Durchlauf davor\n" + vs.mkString("\n")
+
   private def errors(es: Vector[String]): String =
     if es.isEmpty then ""
     else "\n\n# Frühere Versuche, abgelehnt oder gescheitert\n" + es.zipWithIndex.map((e, i) => s"Versuch ${i + 1}:\n$e").mkString("\n\n")
@@ -137,7 +147,7 @@ object Prompt:
        |Verbleibende Schritte (für alle Runden zusammen): ${r.remainingSteps}
        |
        |# Ergebnisse früherer Schritte, die dieses Loch sieht
-       |$scope${errors(r.errors)}
+       |$scope${verified(r.verified)}${errors(r.errors)}
        |
        |Liefere den Teilterm für dieses Loch, innerhalb seiner Hülle. Was du schreibst, muss aus den Ergebnissen oben
        |stammen; was deine eigenen Schritte lesen, siehst du erst in der nächsten Runde. $rounds

@@ -93,9 +93,10 @@ combinators:
     type: operation
     status: implemented
     source: core/src/main/scala/ase/core/Model.scala#Term.Hole
-    verified: 2026-10-27
-    decided_by: ["D#1", "D#14"]
-    note: WorstCaseSteps = 1 + maxSteps
+    verified: 2026-10-31
+    decided_by: ["D#1", "D#14", "D#80"]
+    tested_by: [ase.core.VerifySuite]
+    note: "WorstCaseSteps = 1 + maxSteps; mit verify (Abnahme, Model.scala#Verify) max · (2 + maxSteps)"
 
 predicates:
   - id: pred.lastOutputEmpty
@@ -604,6 +605,7 @@ decisions:
   - { id: "D#65", type: decision, status: decided, source: "findings.md#D#65", verified: 2026-10-29, title: "BestOfN stimmt über die Form ab", measured_by: [eval.1, eval.6], tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite] }
   - { id: "D#66", type: decision, status: decided, source: "findings.md#D#66", verified: 2026-10-29, title: "Teilungsregel nur bei ausgeführtem Code", measured_by: [eval.1, eval.6] }
   - { id: "D#67", type: decision, status: decided, source: "findings.md#D#67", verified: 2026-10-29, title: "Messbasis über Claude Code (M#6 bis M#11)" }
+  - { id: "D#80", type: decision, status: decided, source: "findings.md#D#80", verified: 2026-10-31, title: "Abnahme eines Agentenschritts: Hole mit verify (Programm, Bedingung, max Durchläufe); Tor 1 prüft, dass der Agentenschritt den Code der Abnahme nicht ändern darf", tested_by: [core.VerifySuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -651,6 +653,7 @@ open:
   - { id: "O#30", type: open, status: resolved, source: "findings.md#O#30", verified: 2026-10-29, resolved_by: "D#65" }
   - { id: "O#31", type: open, status: resolved, source: "findings.md#O#31", verified: 2026-10-29, resolved_by: "D#66" }
   - { id: "O#36", type: open, status: resolved, source: "findings.md#O#36", verified: 2026-10-30, title: "D#77 umsetzen", resolved_by: "D#79" }
+  - { id: "O#39", type: open, status: open, source: "findings.md#O#39", verified: 2026-10-31, title: "M# für D#80 fehlt: Prompt-Basis und Abnahme an Eval 6" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }

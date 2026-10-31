@@ -39,7 +39,7 @@ object TestSupport:
     case Term.Shell(c, a, _)          => Term.Shell(c, a, o)
     case Term.Ask(q, _)               => Term.Ask(q, o)
     case Term.Done(s, _)              => Term.Done(s, o)
-    case Term.Hole(g, e, _)           => Term.Hole(g, e, o)
+    case Term.Hole(g, e, _, v)        => Term.Hole(g, e, o, v)
     case Term.Seq(s, _)               => Term.Seq(s.map(stamp(_, o)), o)
     case Term.If(p, a, b, _)          => Term.If(p, stamp(a, o), stamp(b, o), o)
     case Term.RepeatUntil(b, u, m, _) => Term.RepeatUntil(stamp(b, o), u, m, o)

@@ -93,7 +93,12 @@ object Codec:
       case Term.Seq(steps, o)           => n("Seq", o, "steps" -> Json.arr(steps.map(term(_, withOrigin))*))
       case Term.If(p, a, b, o)          => n("If", o, "pred" -> pred(p), "thenT" -> term(a, withOrigin), "elseT" -> term(b, withOrigin))
       case Term.RepeatUntil(b, u, m, o) => n("RepeatUntil", o, "body" -> term(b, withOrigin), "until" -> pred(u), "max" -> Json.fromInt(m))
-      case Term.Hole(g, e, o)           => n("Hole", o, "goal" -> s(g), "envelope" -> envelope(e))
+      // verify nur, wenn gesetzt: Löcher ohne Abnahme bleiben wie vor D#80, samt Hash
+      case Term.Hole(g, e, o, v) =>
+        n("Hole", o, (List("goal" -> s(g), "envelope" -> envelope(e)) ++ v.map(x => "verify" -> verify(x)))*)
+
+  def verify(v: Verify): Json =
+    Json.obj("cmd" -> Json.fromString(v.cmd), "args" -> strs(v.args), "until" -> pred(v.until), "max" -> Json.fromInt(v.max))
 
   private def node(tpe: String, fields: (String, Json)*): Json =
     Json.obj((("type" -> Json.fromString(tpe)) +: fields)*)
@@ -155,6 +160,16 @@ object Codec:
         case other => Left(DecodeError.UnknownType(loc, other))
     yield p
 
+  def decodeVerify(json: Json, loc: Location, nestingLimit: Int): Result[Verify] =
+    for
+      o <- obj(json, loc)
+      _ <- only(o, loc, Set("cmd", "args", "until", "max"))
+      cmd <- string(o, loc, "cmd")
+      args <- strings(o, loc, "args")
+      until <- field(o, loc, "until").flatMap(decodePred(_, loc / "until", nestingLimit))
+      max <- int(o, loc, "max")
+    yield Verify(cmd, args, until, max)
+
   private def termAt(json: Json, loc: Location, level: Int, mode: OriginMode, limits: DecodeLimits): Result[Term] =
     def leaf(op: OpKind, o: JsonObject, fields: Set[String]): Result[Origin] =
       allowed(op, loc, limits) *> header(o, loc, fields, mode)
@@ -189,10 +204,12 @@ object Codec:
           (header(o, loc, Set("summary"), mode), string(o, loc, "summary")).mapN((or, s) => Term.Done(s, or))
         case "Hole" =>
           (
-            leaf(OpKind.Hole, o, Set("goal", "envelope")),
+            leaf(OpKind.Hole, o, Set("goal", "envelope", "verify")),
             string(o, loc, "goal"),
-            field(o, loc, "envelope").flatMap(decodeEnvelope(_, loc / "envelope"))
-          ).mapN((or, g, e) => Term.Hole(g, e, or))
+            field(o, loc, "envelope").flatMap(decodeEnvelope(_, loc / "envelope")),
+            // die Abnahme ruft ein Programm auf: nur, wo die Hülle Shell erlaubt (D#25, D#80)
+            o("verify").traverse(j => allowed(OpKind.Shell, loc / "verify", limits) *> decodeVerify(j, loc / "verify", limits.nestingLimit))
+          ).mapN((or, g, e, v) => Term.Hole(g, e, or, v))
         case "Seq" =>
           deeper(loc, level) >> header(o, loc, Set("steps"), mode).flatMap { or =>
             array(o, loc, "steps")

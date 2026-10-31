@@ -28,9 +28,12 @@ object Cost:
     def shell(cmd: String, args: List[String], origin: Origin): Cost = leaf((cmd :: args)*)
     def ask(question: String, origin: Origin): Cost = leaf(question)
     def done(summary: String, origin: Origin): Cost = leaf(summary)
-    def think(goal: String, envelope: Envelope, origin: Origin): Cost =
-      val calls = config.attemptsPerFill.toLong * config.roundsPerHole
-      Cost(Steps.add(1L, math.max(envelope.maxSteps, 0).toLong), calls, tokens(goal) + calls * config.tokensPerFill)
+    /** Mit Abnahme je Durchlauf das Loch und das Programm der Abnahme (D#80). */
+    def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): Cost =
+      val passes = verify.fold(1L)(v => math.max(v.max, 0).toLong)
+      val calls = Steps.mul(passes, config.attemptsPerFill.toLong * config.roundsPerHole)
+      val pass = Steps.add(Steps.add(1L, math.max(envelope.maxSteps, 0).toLong), verify.size.toLong)
+      Cost(Steps.mul(passes, pass), calls, Steps.add(tokens(goal), Steps.mul(calls, config.tokensPerFill.toLong)))
     def seq(steps: List[Cost], origin: Origin): Cost =
       steps.foldLeft(Cost(0, 0, 0))((a, b) =>
         Cost(

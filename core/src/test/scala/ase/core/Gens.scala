@@ -61,6 +61,10 @@ object Gens:
         1 -> Gen.zip(Gen.lzy(anyPred(level - 1)), Gen.lzy(anyPred(level - 1))).map((a, b) => Pred.And(a, b))
       )
 
+  def anyVerify: Gen[Verify] =
+    val args = Gen.choose(0, 3).flatMap(Gen.listOfN(_, text))
+    Gen.zip(Gen.oneOf("ls", "grep", "git", "./run-tests.sh"), args, anyPred(2), Gen.choose(0, 4)).map((c, a, u, m) => Verify(c, a, u, m))
+
   def anyTerm(level: Int, scope: Boolean = true): Gen[Term] =
     val args = Gen.choose(0, 3).flatMap(Gen.listOfN(_, text))
     val leaves: Gen[Term] = Gen.oneOf(
@@ -72,7 +76,7 @@ object Gens:
       Gen.zip(Gen.oneOf("ls", "grep", "git", "curl"), args, origin).map((c, a, o) => Term.Shell(c, a, o)),
       Gen.zip(text, origin).map((q, o) => Term.Ask(q, o)),
       Gen.zip(text, origin).map((s, o) => Term.Done(s, o)),
-      Gen.zip(text, anyEnvelope(scope), origin).map((g, e, o) => Term.Hole(g, e, o))
+      Gen.zip(text, anyEnvelope(scope), origin, Gen.option(anyVerify)).map((g, e, o, v) => Term.Hole(g, e, o, v))
     )
     if level <= 0 then leaves
     else
@@ -171,6 +175,21 @@ object Gens:
           yield Term.RepeatUntil(Term.Hole("ziel", child, o), until, m, o)
         }
       ).toList
+    // ein Loch mit Abnahme: je Durchlauf das Loch und das Programm der Abnahme (D#80); Programme, die Workspace-Code
+    // ausführen, nicht, weil ein ändernder Agentenschritt ihren Code erreichen könnte
+    val verifiers = env.copy(shellAllowlist = env.shellAllowlist.filter(c => CheckConfig.default.runsWorkspaceCode(c.binary).isEmpty))
+    val shells = if env.allowedOps(OpKind.Shell) then validShell(verifiers, prefix, o) else Nil
+    val verified: List[(Int, Gen[Term])] =
+      Option.when(env.allowedOps(OpKind.Hole) && env.maxDepth >= 1 && shells.nonEmpty && budget >= 3)(
+        1 -> (for
+          m <- Gen.choose(1, math.min(3, budget / 3))
+          child <- Gen.choose(1, budget / m - 2).flatMap(childEnvelope(env, _))
+          sh <- Gen.oneOf(shells).flatMap(identity)
+          until <- Gen.oneOf(Pred.LastExitCode(0), Pred.LastOutputEmpty, Pred.Not(Pred.LastOutputContains("FAIL")))
+        yield sh match
+          case Term.Shell(c, a, _) => Term.Hole("ziel", child, o, Some(Verify(c, a, until, m)))
+          case other               => other)
+      ).toList
     if level <= 0 || budget < 2 then leaf
     else
       Gen.frequency(
@@ -184,7 +203,7 @@ object Gens:
         1 -> Gen.choose(1, math.min(3, budget)).flatMap { m =>
           Gen.zip(Gen.lzy(validTerm(env, budget / m, level - 1, o)), pred).map((b, p) => Term.RepeatUntil(b, p, m, o))
         }
-        ) ++ holeLoop)*
+        ) ++ holeLoop ++ verified)*
       )
 
   /** Ein Paar aus Wurzel-Hülle und gültigem Term darin. */

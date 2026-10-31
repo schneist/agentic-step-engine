@@ -48,7 +48,7 @@ class Eval6Suite extends munit.FunSuite:
   private val plan2 = submission(flow.term)
   private val plan1 = submission(flow.term match
     case Term.Seq(steps, o) =>
-      Term.Seq(steps.map { case Term.Hole(g, e, ho) if g.startsWith("Finde") => Term.Hole(g, e.copy(maxDepth = 1), ho); case s => s }, o)
+      Term.Seq(steps.map { case Term.Hole(g, e, ho, v) if g.startsWith("Finde") => Term.Hole(g, e.copy(maxDepth = 1), ho, v); case s => s }, o)
     case other => other
   )
 

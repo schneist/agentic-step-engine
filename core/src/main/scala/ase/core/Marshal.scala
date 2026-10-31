@@ -55,6 +55,14 @@ object Marshal:
     ("Dein Teilterm wurde abgelehnt und nicht ausgeführt:" :: reasons.map("- " + _)).mkString("\n") +
       "\nLiefere einen neuen Teilterm innerhalb der Hülle."
 
+  /** Was der nächste Durchlauf eines Lochs über die nicht bestandene Abnahme erfährt (D#80). Die Ausgabe der Abnahme
+    * steht nicht darin: Sie sieht das Loch nur, wenn sein Scope sie zulässt (D#9).
+    */
+  def verifyFailed(v: Verify, at: StepId, result: StepResult, pass: Int): String =
+    val code = result.exitCode.fold("")(c => s" (Exit-Code $c)")
+    s"Abnahme nach Durchlauf $pass von ${v.max} nicht bestanden: „${v.command}“ erfüllte „${Pred.show(v.until)}“ nicht$code. " +
+      s"Dies ist ein neuer Durchlauf; was die Abnahme ausgab, steht unter Schritt ${at.show}, wenn dieses Loch es sieht."
+
   /** Was nach einem Laufzeitfehler an das Modell geht (D#15): Gelaufenes bleibt gelaufen. */
   def failure(at: StepId, error: ToolError): String =
     s"Schritt ${at.show} ist gescheitert: ${Marshal(error)} Was davor lief, bleibt bestehen. Liefere einen neuen Teilterm."

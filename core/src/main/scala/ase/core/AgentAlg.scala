@@ -15,8 +15,10 @@ trait AgentAlg[F[_]]:
   def ask(question: String, origin: Origin): F[StepResult]
   def done(summary: String, origin: Origin): F[StepResult]
 
-  /** Im ADT: Hole. In Execute: Fill, DryRun gegen envelope, rekursiv ausführen. */
-  def think(goal: String, envelope: Envelope, origin: Origin): F[StepResult]
+  /** Im ADT: Hole. In Execute: Fill, DryRun gegen envelope, rekursiv ausführen; mit verify danach die Abnahme in der
+    * umgebenden Hülle und bei Misserfolg ein weiterer Durchlauf (D#80).
+    */
+  def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): F[StepResult]
 
   def seq(steps: List[F[StepResult]], origin: Origin): F[StepResult]
   def branch(pred: Pred, thenP: F[StepResult], elseP: F[StepResult], origin: Origin): F[StepResult]
@@ -36,7 +38,7 @@ object AgentAlg:
     case Term.Shell(c, args, o)       => alg.shell(c, args, o)
     case Term.Ask(q, o)               => alg.ask(q, o)
     case Term.Done(s, o)              => alg.done(s, o)
-    case Term.Hole(g, e, o)           => alg.think(g, e, o)
+    case Term.Hole(g, e, o, v)        => alg.think(g, e, v, o)
     case Term.Seq(steps, o)           => alg.seq(steps.map(fromTerm(_)(alg)), o)
     case Term.If(p, a, b, o)          => alg.branch(p, fromTerm(a)(alg), fromTerm(b)(alg), o)
     case Term.RepeatUntil(b, u, m, o) => alg.repeatUntil(fromTerm(b)(alg), u, m, o)
@@ -56,7 +58,8 @@ object AgentAlg:
     def shell(cmd: String, args: List[String], origin: Origin): Term = Term.Shell(cmd, args, origin)
     def ask(question: String, origin: Origin): Term = Term.Ask(question, origin)
     def done(summary: String, origin: Origin): Term = Term.Done(summary, origin)
-    def think(goal: String, envelope: Envelope, origin: Origin): Term = Term.Hole(goal, envelope, origin)
+    def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): Term =
+      Term.Hole(goal, envelope, origin, verify)
     def seq(steps: List[Term], origin: Origin): Term = Term.Seq(steps, origin)
     def branch(pred: Pred, thenP: Term, elseP: Term, origin: Origin): Term = Term.If(pred, thenP, elseP, origin)
     def repeatUntil(body: Term, until: Pred, max: Int, origin: Origin): Term = Term.RepeatUntil(body, until, max, origin)
@@ -77,8 +80,8 @@ object AgentAlg:
       def shell(cmd: String, args: List[String], origin: Origin): P = Tuple2K(f.shell(cmd, args, origin), g.shell(cmd, args, origin))
       def ask(question: String, origin: Origin): P = Tuple2K(f.ask(question, origin), g.ask(question, origin))
       def done(summary: String, origin: Origin): P = Tuple2K(f.done(summary, origin), g.done(summary, origin))
-      def think(goal: String, envelope: Envelope, origin: Origin): P =
-        Tuple2K(f.think(goal, envelope, origin), g.think(goal, envelope, origin))
+      def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): P =
+        Tuple2K(f.think(goal, envelope, verify, origin), g.think(goal, envelope, verify, origin))
       def seq(steps: List[P], origin: Origin): P = Tuple2K(f.seq(steps.map(_.first), origin), g.seq(steps.map(_.second), origin))
       def branch(pred: Pred, thenP: P, elseP: P, origin: Origin): P =
         Tuple2K(f.branch(pred, thenP.first, elseP.first, origin), g.branch(pred, thenP.second, elseP.second, origin))
@@ -86,12 +89,13 @@ object AgentAlg:
         Tuple2K(f.repeatUntil(body.first, until, max, origin), g.repeatUntil(body.second, until, max, origin))
 
   /** Eingeschränkte Algebra (D#25): reicht nur Operationen weiter, deren OpKind die Hülle erlaubt; sonst `reject`.
-    * Zweite Linie in Execute nach decoderFor und DryRun.
+    * Zweite Linie in Execute nach decoderFor und DryRun. reject bekommt, wie viele Nummern der abgelehnte Knoten
+    * belegt (Term.width), damit die Nummern danach zu Explain passen.
     */
-  def restrict[F[_]](alg: AgentAlg[F], envelope: Envelope)(reject: (OpKind, Origin) => F[StepResult]): AgentAlg[F] =
+  def restrict[F[_]](alg: AgentAlg[F], envelope: Envelope)(reject: (OpKind, Origin, Int) => F[StepResult]): AgentAlg[F] =
     new AgentAlg[F]:
       private def guard(op: OpKind, origin: Origin)(run: => F[StepResult]): F[StepResult] =
-        if envelope.allowedOps(op) then run else reject(op, origin)
+        if envelope.allowedOps(op) then run else reject(op, origin, 1)
       def readFile(path: String, origin: Origin): F[StepResult] = guard(OpKind.ReadFile, origin)(alg.readFile(path, origin))
       def listDir(path: String, origin: Origin): F[StepResult] = guard(OpKind.ListDir, origin)(alg.listDir(path, origin))
       def writeFile(path: String, content: String, origin: Origin): F[StepResult] =
@@ -104,8 +108,12 @@ object AgentAlg:
         guard(OpKind.Shell, origin)(alg.shell(cmd, args, origin))
       def ask(question: String, origin: Origin): F[StepResult] = guard(OpKind.Ask, origin)(alg.ask(question, origin))
       def done(summary: String, origin: Origin): F[StepResult] = alg.done(summary, origin)
-      def think(goal: String, env: Envelope, origin: Origin): F[StepResult] =
-        guard(OpKind.Hole, origin)(alg.think(goal, env, origin))
+      // die Abnahme ist ein Programmaufruf in dieser Hülle: ohne Shell läuft das Loch nicht (D#80)
+      def think(goal: String, env: Envelope, verify: Option[Verify], origin: Origin): F[StepResult] =
+        val needed = OpKind.Hole :: verify.toList.map(_ => OpKind.Shell)
+        needed.find(!envelope.allowedOps(_)) match
+          case Some(op) => reject(op, origin, Term.width(verify))
+          case None     => alg.think(goal, env, verify, origin)
       def seq(steps: List[F[StepResult]], origin: Origin): F[StepResult] = alg.seq(steps, origin)
       def branch(pred: Pred, thenP: F[StepResult], elseP: F[StepResult], origin: Origin): F[StepResult] =
         alg.branch(pred, thenP, elseP, origin)

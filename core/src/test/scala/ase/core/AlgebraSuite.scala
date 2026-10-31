@@ -13,7 +13,8 @@ class AlgebraSuite extends munit.FunSuite:
     def shell(cmd: String, args: List[String], origin: Origin): Rec[StepResult] = Vector(s"shell $cmd")
     def ask(question: String, origin: Origin): Rec[StepResult] = Vector("ask")
     def done(summary: String, origin: Origin): Rec[StepResult] = Vector("done")
-    def think(goal: String, envelope: Envelope, origin: Origin): Rec[StepResult] = Vector("think")
+    def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): Rec[StepResult] =
+      Vector("think" + verify.fold("")(v => s" verify ${v.command}"))
     def seq(steps: List[Rec[StepResult]], origin: Origin): Rec[StepResult] = steps.flatten.toVector
     def branch(pred: Pred, thenP: Rec[StepResult], elseP: Rec[StepResult], origin: Origin): Rec[StepResult] = thenP ++ elseP
     def repeatUntil(body: Rec[StepResult], until: Pred, max: Int, origin: Origin): Rec[StepResult] = body
@@ -23,12 +24,12 @@ class AlgebraSuite extends munit.FunSuite:
 
   test("restrict reicht verbotene Operationen nicht weiter"):
     val t = Term.Seq(List(Term.ReadFile("src/A.scala", o), Term.EditFile("src/A.scala", "a", "b", o), Term.Done("x", o)), o)
-    val restricted = AgentAlg.restrict(recorder, readOnly)((op, _) => Vector(s"rejected $op"))
+    val restricted = AgentAlg.restrict(recorder, readOnly)((op, _, _) => Vector(s"rejected $op"))
     assertEquals(AgentAlg.fromTerm(t)(restricted), Vector("readFile src/A.scala", "rejected EditFile", "done"))
 
   test("restrict lässt erlaubte Operationen unverändert durch"):
     val t = Term.If(Pred.LastOutputEmpty, Term.ReadFile("src/A", o), Term.Done("x", o), o)
-    val restricted = AgentAlg.restrict(recorder, readOnly)((op, _) => Vector(s"rejected $op"))
+    val restricted = AgentAlg.restrict(recorder, readOnly)((op, _, _) => Vector(s"rejected $op"))
     assertEquals(AgentAlg.fromTerm(t)(restricted), AgentAlg.fromTerm(t)(recorder))
 
   test("fromTerm(toTerm(p)) ≡ p, beobachtet über zwei Deutungen"):
@@ -38,7 +39,8 @@ class AlgebraSuite extends munit.FunSuite:
           List(
             alg.shell("./run-tests.sh", Nil, Origin.Human),
             alg.repeatUntil(alg.shell("./run-tests.sh", Nil, Origin.Human), Pred.LastExitCode(0), 2, Origin.Human),
-            alg.think("ziel", readOnly, Origin.Human)
+            alg.think("ziel", readOnly, None, Origin.Human),
+            alg.think("ziel", readOnly, Some(Verify("./run-tests.sh", Nil, Pred.LastExitCode(0), 2)), Origin.Human)
           ),
           Origin.Human
         )

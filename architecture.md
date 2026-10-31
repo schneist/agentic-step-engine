@@ -147,6 +147,12 @@ Alternativen: (a) Die Basis bleibt für die Messages API reserviert, bis ein Sch
 Gewählt: b. a ließ Änderungen ohne Vergleich zu, weil die Basis nie gemessen wurde; nach den Serien über Claude Code wurde ohnehin entschieden.
 Umkehrkosten: niedrig. Eine Serie über die Messages API ist ein Vergleich; wer die API als Basis will, misst neu und notiert es als D#.
 
+## D#80 Abnahme als Feld des Agentenschritts
+
+Alternativen: (a) Keine Änderung der Algebra: RepeatUntil(Seq(Hole, Shell), until, max) als Muster, das der Prompt beschreibt. (b) Optionales Feld verify am Hole. (c) Eigener Kontrollknoten Verified(body, verify) für beliebige Teilbäume. (d) Abnahme als Teil der Hülle.
+Gewählt: b. Bei a weiß Tor 1 nicht, welches Programm welchen Agentenschritt prüft, kann also nicht verlangen, dass er dessen Code nicht ändert, und der nächste Durchlauf erfährt nicht, dass er ein zweiter Versuch ist. c ist allgemeiner, aber ein statischer Teilbaum ist schon geprüft und braucht keine Abnahme, und Tor 1 müsste die Hüllen aller Agentenschritte im Teilbaum gegen das Programm halten. d würde mit der Hülle abgeschwächt und von tighten verändert, obwohl eine Abnahme keine Berechtigung ist.
+Umkehrkosten: mittel. Schema, Codec, Record-Log Version 4 und Prompt; Terme ohne verify behalten ihren Hash.
+
 ## D#77 Serien als Datensatz mit Schlüssel
 
 Alternativen: (a) Handgeschriebene M#-Zeile wie bisher, Regeln nur im Playbook. (b) Datensatz, aber außerhalb von ase, gebaut von series.sh (awk, jq). (c) Datensatz mit Typen in ase (`Series.Key`, `Standing`, `Comparison`); series.sh führt weiter die Läufe aus. (d) Die ganze Serie als Befehl in ase, samt Freigabe der Pläne.

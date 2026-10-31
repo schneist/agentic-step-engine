@@ -21,7 +21,7 @@ object RunLog:
     case Term.Shell(c, _, _)          => s"Shell $c"
     case Term.Ask(_, _)               => "Ask"
     case Term.Done(_, _)              => "Done"
-    case Term.Hole(_, e, _)           => s"Hole ${e.pathPrefix}"
+    case Term.Hole(_, e, _, v)        => s"Hole ${e.pathPrefix}${v.fold("")(x => s" verify ${x.cmd}")}"
     case Term.Seq(steps, _)           => s"Seq(${steps.map(brief).mkString(", ")})"
     case Term.If(_, a, b, _)          => s"If(${brief(a)}, ${brief(b)})"
     case Term.RepeatUntil(b, _, m, _) => s"RepeatUntil(${brief(b)}, max $m)"
@@ -86,6 +86,10 @@ object RunLog:
       case Event.HoleRound(at, round) =>
         Vector(line(inner(at), "round", s"Runde $round: der Fill davor endete ohne Done, seine Ergebnisse gehen mit"))
       case Event.HoleDone(_, _) => Vector("")
+      case Event.Verified(at, pass, passed, toModel) =>
+        val verdict = if passed then "bestanden" else "nicht bestanden"
+        Vector(line(lead(at), "verify", s"$verdict (Durchlauf $pass)")) ++
+          toModel.map(t => " " * lead(at).length + " " * 7 + s"→ an Modell: ${quote(t, 160)}")
       case Event.Asked(at, q, answer) =>
         Vector(line(lead(at), "ask", s"${quote(q, 80)}  → ${answer.fold("keine Antwort")(a => quote(a, 80))}"))
       case Event.Finished(at, summary) => Vector(line(lead(at), "done", summary))
@@ -108,6 +112,7 @@ object RunLog:
       Some(plural(s.gate2Rejections, "Ablehnung", "Ablehnungen") + " an Tor 2"),
       Option.when(s.unusableAnswers > 0)(plural(s.unusableAnswers, "Antwort", "Antworten") + " ohne Teilterm"),
       Option.when(s.runtimeFailures > 0)(plural(s.runtimeFailures, "Laufzeitfehler", "Laufzeitfehler")),
+      Option.when(s.verifyFailures > 0)(plural(s.verifyFailures, "Abnahme", "Abnahmen") + " nicht bestanden"),
       Some(plural(s.changedFiles.size, "Datei", "Dateien") + " geändert"),
       Some(s"$tokens Tokens")
     ).flatten.mkString(" · ")

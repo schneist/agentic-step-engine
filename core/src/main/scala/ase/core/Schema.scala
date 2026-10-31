@@ -16,7 +16,9 @@ object Schema:
       obj("Shell", "cmd" -> str, "args" -> strArray),
       obj("Ask", "question" -> str),
       obj("Done", "summary" -> str),
-      obj("Hole", "goal" -> str, "envelope" -> ref("Envelope"))
+      obj("Hole", "goal" -> str, "envelope" -> ref("Envelope")),
+      // strict verlangt jedes Feld; ein Loch mit Abnahme ist darum eine eigene Variante mit demselben type (D#80)
+      "HoleVerify" -> obj("Hole", "goal" -> str, "envelope" -> ref("Envelope"), "verify" -> ref("Verify"))._2
     )
     val predLeaves = List(
       obj("FileExists", "path" -> str),
@@ -59,13 +61,14 @@ object Schema:
       "shellAllowlist" -> Json.obj("type" -> Json.fromString("array"), "items" -> ref("AllowedCommand"))
     )
     val allowedCommand = "AllowedCommand" -> closed("binary" -> str, "requiredPrefixArgs" -> strArray)
+    val verify = "Verify" -> closed("cmd" -> str, "args" -> strArray, "until" -> ref(top), "max" -> int)
 
     Json.obj(
       "type" -> Json.fromString("object"),
       "properties" -> Json.obj("term" -> ref(s"Term_$nesting")),
       "required" -> Json.arr(Json.fromString("term")),
       "additionalProperties" -> Json.False,
-      "$defs" -> Json.obj(((leaves ++ predLeaves ++ terms ++ preds) :+ envelope :+ allowedCommand)*)
+      "$defs" -> Json.obj(((leaves ++ predLeaves ++ terms ++ preds) :+ envelope :+ allowedCommand :+ verify)*)
     )
 
   private val str = Json.obj("type" -> Json.fromString("string"))

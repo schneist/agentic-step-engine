@@ -68,7 +68,7 @@ object RunStats:
       row("Tokens", spread(cs.map(long(_, "tokens").toDouble), d => tokens(d.round))),
       row("Dauer", if seconds.isEmpty then "– (erst ab D#74 erfasst)" else spread(seconds, d => f"$d%.0f s")),
       row("Modell", s"Plan ${sum("planCalls")} · Fill ${sum("fillCalls")} · Runden ${sum("holeRounds")}"),
-      row("Ablehnungen", s"Tor 1 ${sum("gate1Rejections")} · Tor 2 ${sum("gate2Rejections")} · ohne Term ${sum("unusableAnswers")} · Laufzeitfehler ${sum("runtimeFailures")}"),
+      row("Ablehnungen", s"Tor 1 ${sum("gate1Rejections")} · Tor 2 ${sum("gate2Rejections")} · ohne Term ${sum("unusableAnswers")} · Laufzeitfehler ${sum("runtimeFailures")} · Abnahme nicht bestanden ${sum("verifyFailures")}"),
       row("Fragen", s"in ${cs.count(_.get[Boolean]("asked").getOrElse(false))} von $n Läufen"),
       row("Pläne", if plans <= 1 then "ein Term" else s"$plans verschiedene Terme; Agentenschritte gleicher Nummer können verschiedene sein"),
       row("Record-Log", if withLog.size == n then s"alle $n gelesen" else s"${withLog.size} von $n gelesen; Agentenschritte nur aus diesen")

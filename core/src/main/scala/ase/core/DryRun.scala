@@ -127,6 +127,22 @@ object DryRun:
       val (tb, fb) = possible(b, last)
       (ta && tb, fa || fb)
 
+  private val writes = Set(OpKind.WriteFile, OpKind.EditFile, OpKind.MoveFile)
+
+  /** Ein Loch, das ändern darf, darf den Code seiner Abnahme nicht ändern können, sonst bestünde es sie selbst (D#80).
+    * Code der Abnahme: das Skript bei "./…", sonst workspaceCode des Programms. Weder darf der Code unter dem
+    * pathPrefix liegen noch der pathPrefix im Code: Unter src/test könnte ein Loch die Tests ändern, die sbt ausführt.
+    * Was die Abnahme liest, ohne es auszuführen, schützt das nicht; das ist meist gerade das Ergebnis des Lochs.
+    */
+  private def writableVerifier(v: Verify, hole: Envelope, loc: Location, config: CheckConfig): Vector[Violation] =
+    if !hole.allowedOps.exists(writes) then Vector.empty
+    else
+      RelPath.parse(hole.pathPrefix).toOption.toVector.flatMap { prefix =>
+        config.runsWorkspaceCode(v.cmd).toList.flatten
+          .filter(code => RelPath.parse(code).exists(RelPath.overlaps(prefix, _)))
+          .map(Violation.VerifierWritable(loc, _, hole.pathPrefix))
+      }
+
   private def filePaths(p: Pred): List[String] = p match
     case Pred.FileExists(path) => List(path)
     case Pred.Not(a)           => filePaths(a)
@@ -169,12 +185,24 @@ object DryRun:
             parsed.touched.toVector.flatMap(path(_, loc / "args", ctx))
       Analysis(op(OpKind.Shell, ctx) ++ allowlist ++ policy, 1L, Some(Process), 0)
 
-    def think(goal: String, envelope: Envelope, origin: Origin): Check[StepResult] = ctx =>
+    def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): Check[StepResult] = ctx =>
       val at = ctx.loc / "envelope"
       val v = op(OpKind.Hole, ctx) ++
         Attenuation.wellFormed(envelope, at, ctx.config) ++
         Attenuation.check(envelope, ctx.env, at, Attenuation.Mode.Hole)
-      Analysis(v, Steps.add(1L, math.max(envelope.maxSteps, 0).toLong), Some(Output), 1 + math.max(envelope.maxDepth, 0))
+      val pass = Steps.add(1L, math.max(envelope.maxSteps, 0).toLong)
+      val depth = 1 + math.max(envelope.maxDepth, 0)
+      verify match
+        case None => Analysis(v, pass, Some(Output), depth)
+        case Some(check) =>
+          // die Abnahme ist ein Programmaufruf der umgebenden Hülle; das Ergebnis des Lochs ist dann ihres (D#80)
+          val loc = ctx.loc / "verify"
+          val program = shell(check.cmd, check.args, origin)(ctx.copy(loc = loc))
+          val vs = program.violations ++
+            predicate(check.until, Some(Process), loc / "until", ctx) ++
+            Option.when(check.max < 1)(Violation.InvalidVerify(loc / "max", check.max)) ++
+            writableVerifier(check, envelope, loc / "cmd", ctx.config)
+          Analysis(v ++ vs, Steps.mul(math.max(check.max, 0).toLong, Steps.add(pass, 1L)), Some(Process), depth)
 
     def seq(steps: List[Check[StepResult]], origin: Origin): Check[StepResult] = ctx =>
       steps.zipWithIndex.foldLeft(Analysis(Vector.empty, 0L, ctx.last, 0)) { case (acc, (step, i)) =>

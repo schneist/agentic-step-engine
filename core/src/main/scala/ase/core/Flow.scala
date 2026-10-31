@@ -95,7 +95,9 @@ object Flow:
       case Term.Shell(c, args, o)       => (f(c), args.traverse(f)).mapN(Term.Shell(_, _, o))
       case Term.Ask(q, o)               => f(q).map(Term.Ask(_, o))
       case Term.Done(s, o)              => f(s).map(Term.Done(_, o))
-      case Term.Hole(g, e, o)           => (f(g), envelope(e)).mapN(Term.Hole(_, _, o))
+      case Term.Hole(g, e, o, v) =>
+        val verify = v.traverse(x => (f(x.cmd), x.args.traverse(f), pred(x.until)).mapN(Verify(_, _, _, x.max)))
+        (f(g), envelope(e), verify).mapN(Term.Hole(_, _, o, _))
       case Term.Seq(steps, o)           => steps.traverse(go).map(Term.Seq(_, o))
       case Term.If(p, a, b, o)          => (pred(p), go(a), go(b)).mapN(Term.If(_, _, _, o))
       case Term.RepeatUntil(b, u, m, o) => (go(b), pred(u)).mapN(Term.RepeatUntil(_, _, m, o))

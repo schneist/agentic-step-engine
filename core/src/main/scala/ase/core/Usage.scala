@@ -64,6 +64,7 @@ object Usage:
     case Event.FillFailed(a, _, _, _)       => Some(a)
     case Event.HoleRound(a, _)              => Some(a)
     case Event.HoleDone(a, _)               => Some(a)
+    case Event.Verified(a, _, _, _)         => Some(a)
     case Event.Asked(a, _, _)               => Some(a)
     case Event.Finished(a, _)               => Some(a)
     case _: Event.Start | _: Event.End      => None

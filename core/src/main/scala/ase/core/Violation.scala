@@ -32,6 +32,10 @@ enum Violation:
   case InvalidRepeat(loc: Location, max: Int)
   /** Ein Fill, der im schlechtesten Fall keinen Schritt ausführt (D#56). */
   case EmptyFill(loc: Location)
+  /** Abnahme mit max < 1 (D#80). */
+  case InvalidVerify(loc: Location, max: Int)
+  /** Das Loch darf Code ändern, den seine Abnahme ausführt (D#80). */
+  case VerifierWritable(loc: Location, code: String, prefix: String)
 
   def loc: Location
 
@@ -76,6 +80,11 @@ enum Violation:
       s"RepeatUntil braucht max ≥ 1, nicht $max."
     case EmptyFill(_) =>
       "Der Teilterm tut nichts. Liefere Schritte, oder beende mit Done und nenne darin den Grund."
+    case InvalidVerify(_, max) =>
+      s"verify braucht max ≥ 1, nicht $max."
+    case VerifierWritable(_, code, prefix) =>
+      s"Das Loch darf unter $prefix ändern und damit $code, das seine Abnahme ausführt; so könnte es die Abnahme " +
+        s"selbst bestehen lassen. Gib dem Loch einen engeren pathPrefix, unter dem $code nicht liegt."
 
   def render: String = s"${loc.show}: $message"
 

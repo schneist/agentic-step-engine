@@ -24,19 +24,22 @@ enum Term:
   Seq(steps: List[Term])
   If(pred: Pred, thenT: Term, elseT: Term)
   RepeatUntil(body: Term, until: Pred, max: Int)
-  Hole(goal: String, envelope: Envelope)
+  Hole(goal: String, envelope: Envelope, verify: Option[Verify])   -- D#80: Abnahme durch ein Programm
+
+case class Verify(cmd: String, args: List[String], until: Pred, max: Int)   -- D#80
 
 enum Pred (statisch auswertbar, ohne Modell): FileExists(path), LastExitCode(code), LastOutputContains(text), LastOutputEmpty, Not(p), And(p, q)   -- LastOutputEmpty: D#13
 
 enum OpKind: ReadFile, ListDir, WriteFile, EditFile, MoveFile, Shell, Ask, Hole   -- D#8, D#18; Seq/If/RepeatUntil/Done sind immer erlaubt
 
-Bedeutung von "Last" (D#20): StepResult hat optional exitCode und optional output. Ein Pred liest das Ergebnis des unmittelbar vorangehenden Schritts. Ergebnis von Seq/If/RepeatUntil/Hole = Ergebnis ihres zuletzt ausgeführten Schritts; leeres Seq reicht das vorherige Ergebnis durch; Ergebnis eines Hole = Done-Zusammenfassung als output, ohne exitCode. Fehlt das abgefragte Feld, ist das Pred falsch.
+Bedeutung von "Last" (D#20): StepResult hat optional exitCode und optional output. Ein Pred liest das Ergebnis des unmittelbar vorangehenden Schritts. Ergebnis von Seq/If/RepeatUntil/Hole = Ergebnis ihres zuletzt ausgeführten Schritts; leeres Seq reicht das vorherige Ergebnis durch; Ergebnis eines Hole = Done-Zusammenfassung als output, ohne exitCode; mit verify das Ergebnis der letzten Abnahme (D#80). Fehlt das abgefragte Feld, ist das Pred falsch.
 
 Regeln:
 - Keine Fortsetzungen, keine Lambdas, keine Variablen. Jede Verarbeitung, die den Inhalt eines Ergebnisses inspizieren muss, ist ein Hole.
 - Jeder Term-Knoten trägt ein Feld origin: Human | Model(callId); callId benennt den Modellaufruf (plan-n, fill-n) (D#19). Terme können auch aus Dateien (flows/) geladen statt vom Modell erzeugt werden; DryRun und Execute behandeln beide gleich. Eine Autoren-Oberfläche für Menschen ist v2, nicht v1.
 - Flow-Datei (D#22): case class Flow(description: String, params: Map[String, Regex], envelope: Envelope, term: Term). Laden: decodieren → jeden Parameterwert gegen seine Regex prüfen → ${name} nur in String-Blättern des Terms ersetzen (unbekannter oder ungebundener Name = Fehler) → flow.envelope muss die Wurzel-Hülle des Runners abschwächen → DryRun gegen flow.envelope. Der Hash geht über den gebundenen Term; Explain zeigt die Parameterwerte.
 - Gleitkommazahlen kommen im Term nicht vor (D#23).
+- Abnahme (D#80): Hole mit verify läuft wie RepeatUntil(Seq(Hole, Shell(cmd, args)), until, max). Die Abnahme ist ein Shell-Schritt der umgebenden Hülle mit eigener Nummer direkt nach dem Hole. Jeder weitere Durchlauf ist ein neuer Aufruf des Hole mit eigenem Budget; er bekommt in jeder Runde die Meldung, dass die Abnahme nicht bestanden ist, ihre Ausgabe nur nach Scope (D#9). Nach max Durchläufen ohne Erfolg kein Abbruch: Das Ergebnis ist das der letzten Abnahme, der Plan entscheidet mit einem Pred. Tor 1: Shell-Prüfung der Abnahme gegen die umgebende Hülle; darf das Hole ändern (WriteFile, EditFile, MoveFile), darf sein pathPrefix keinen Code der Abnahme (Skript bei "./…", sonst workspaceCode) überlappen, weder darüber noch darunter (VerifierWritable). Im Scope bleiben nur Ergebnis und Abnahme des letzten Durchlaufs. Decoder und restrict verlangen Shell in der umgebenden Hülle.
 - Scope (D#9): Ein Hole erhält beim Fill die Ergebnisse aller vorangegangenen Schritte derselben Seq und der umschließenden Seqs als Kontext, gekürzt per Marshalling, gefiltert: nur Ergebnisse ohne Pfad (Shell-Aufrufe ohne Pfadargument, Exit-Codes, Done-Zusammenfassungen früherer Agentenschritte) oder deren Pfade alle innerhalb des pathPrefix des Agentenschritts liegen; die Pfade eines Shell-Aufrufs liefert die Argument-Policy (D#12); ohne Pfadargument ist das Ergebnis nur bei Workspace-Code und bei Befehlen aus CheckConfig.pathless (git log) pfadlos, sonst gilt "." (D#27, D#39). Explain rechnet mit den Pfaden im Term, Execute mit aufgelösten; Execute zeigt also höchstens, was Explain ankündigt (D#42). Eine Funktion für Explain und Execute: Scope.visible.
 - Done in einem Fill beendet nur den Agentenschritt; die Zusammenfassung ist das Ergebnis des Agentenschritts ("Hinweis des Agenten", D#15).
 - Runden (D#55): Endet ein Fill ohne Done, mit mindestens einem ausgeführten Schritt und Restbudget, wird derselbe Agentenschritt erneut gefüllt; der Scope enthält dann auch die Ergebnisse der Runden davor. Höchstens maxRoundsPerHole Runden; Versuche zählen je Runde, das Schrittbudget für alle Runden zusammen.
@@ -54,7 +57,7 @@ trait AgentAlg[F[_]] (tagless final, OHNE Typeclass-Constraints im Trait):
   writeFile(path, content): F[StepResult], editFile(path, expectedOld, replacement): F[StepResult],
   moveFile(from, to): F[StepResult],
   shell(cmd, args): F[StepResult], ask(question): F[StepResult], done(summary): F[StepResult],
-  think(goal, envelope): F[StepResult]  -- im ADT: Hole. Im Execute: Fill → DryRun gegen envelope → rekursiv ausführen; das Ergebnis des Teilbaums ist das StepResult.
+  think(goal, envelope, verify): F[StepResult]  -- im ADT: Hole; verify: Option[Verify] (D#80). Im Execute: Fill → DryRun gegen envelope → rekursiv ausführen; das Ergebnis des Teilbaums ist das StepResult.
   seq(steps: List[F[StepResult]]): F[StepResult]
   branch(pred: Pred, thenP: F[StepResult], elseP: F[StepResult]): F[StepResult]
   repeatUntil(body: F[StepResult], until: Pred, max: Int): F[StepResult]
@@ -75,7 +78,7 @@ Attenuation-Gesetz (als Property-Test):
   Sicht (scopePrefix, sonst pathPrefix) des child liegt unter der Sicht des parent (D#69)
   für jedes c in child.shellAllowlist gibt es p in parent.shellAllowlist mit c.binary == p.binary und p.requiredPrefixArgs Präfix von c.requiredPrefixArgs (D#21)
   child.maxDepth < parent.maxDepth (strikt kleiner, sonst unendliche Rekursion möglich)
-  WorstCaseSteps(Teilbaum) ≤ parent.maxSteps, wobei (D#14) WorstCaseSteps: Blattoperation = 1; Seq = Summe (leer = 0); If = max(then, else); RepeatUntil = max · steps(body); Hole = 1 + hole.maxSteps
+  WorstCaseSteps(Teilbaum) ≤ parent.maxSteps, wobei (D#14) WorstCaseSteps: Blattoperation = 1; Seq = Summe (leer = 0); If = max(then, else); RepeatUntil = max · steps(body); Hole = 1 + hole.maxSteps; Hole mit verify = verify.max · (2 + hole.maxSteps) (D#80)
   Zur Laufzeit: ausgeführte Schritte aller Fills und Runden eines Agentenschritts zusammen ≤ hole.maxSteps. Abgelehnte oder wiederholte Fills zählen gegen das Versuchslimit und das Modellaufruf-Limit, nicht gegen Schritte.
   Tiefe (Explain): Agentenschritt auf oberster Ebene = 1 + maxDepth; Term-Tiefe = Maximum über alle Agentenschritte.
 

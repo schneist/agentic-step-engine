@@ -139,6 +139,10 @@ enum Event:
   /** Ein Fill endete ohne Done, mit Schritten und Restbudget: das Loch wird erneut gefüllt (D#55). */
   case HoleRound(at: StepId, round: Int)
   case HoleDone(at: StepId, summary: String)
+  /** Abnahme nach Durchlauf pass eines Lochs (D#80); at ist der Schritt der Abnahme. toModel: was der nächste
+    * Durchlauf erfährt; fehlt, wenn bestanden oder kein Durchlauf mehr folgt.
+    */
+  case Verified(at: StepId, pass: Int, passed: Boolean, toModel: Option[String])
   case Asked(at: StepId, question: String, answer: Option[String])
   case Finished(at: StepId, summary: String)
   case End(outcome: Outcome, steps: Long)

@@ -114,13 +114,13 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
           }
     (n + 1, run)
 
-  /** Zweite Linie (D#25): eine Operation, die die Hülle nicht erlaubt, läuft nicht. */
-  private val refuse: (OpKind, Origin) => Exec[StepResult] = (op, _) =>
+  /** Zweite Linie (D#25): eine Operation, die die Hülle nicht erlaubt, läuft nicht. width: Nummern des Knotens. */
+  private val refuse: (OpKind, Origin, Int) => Exec[StepResult] = (op, _, width) =>
     n =>
       val run: Run = (ctx, s) =>
         val at = ctx.id(n)
         emit(s, Event.Rejected(at, op)).map(s1 => (s1, Left(Stop.Failed(at, ToolError.OpNotAllowed(op)))))
-      (n + 1, run)
+      (n + width, run)
 
   private def holds(p: Pred, ctx: Ctx, s: State, at: StepId): F[(State, Either[Stop, Boolean])] = p match
     case Pred.LastExitCode(c)       => F.pure((s, Right(s.last.exitCode.contains(c))))
@@ -143,11 +143,17 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
 
   // ---------- Löcher
 
-  /** Ein Aufruf eines Lochs: eigene Aufrufnummer, eigenes Budget, Versuche ab 1. */
-  private final case class HoleCall(at: StepId, call: Int, goal: String, env: Envelope, outer: Vector[Entry])
+  /** Ein Aufruf eines Lochs: eigene Aufrufnummer, eigenes Budget, Versuche ab 1. verified: was die Abnahme nach dem
+    * Durchlauf davor verfehlt hat; geht in jeder Runde dieses Aufrufs ans Modell (D#80).
+    */
+  private final case class HoleCall(at: StepId, call: Int, goal: String, env: Envelope, outer: Vector[Entry], verified: Vector[String])
 
-  private def hole(goal: String, env: Envelope): Exec[StepResult] = n =>
-    val run: Run = (ctx, s0) =>
+  /** Ohne Abnahme ein Aufruf. Mit Abnahme Durchläufe wie RepeatUntil(Seq(Loch, Programm), until, max), aber jeder
+    * weitere Durchlauf erfährt, dass die Abnahme nicht bestanden ist. Nach dem letzten ist das Ergebnis das der Abnahme;
+    * der Plan entscheidet mit einem Prädikat, wie es weitergeht (D#80).
+    */
+  private def hole(goal: String, env: Envelope, verify: Option[Verify], origin: Origin): Exec[StepResult] = n =>
+    def call(ctx: Ctx, s0: State, verified: Vector[String]): Res =
       val at = ctx.id(n)
       if ctx.depth + 1 > config.maxDepth then halt(s0, aborted(AbortReason.LimitReached(Limit.Depth(config.maxDepth))))
       else
@@ -155,10 +161,37 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
           case Some(stop) => halt(s0, stop)
           case None =>
             emit(s0, Event.Hole(at, goal, env)).flatMap { s =>
-              val h = HoleCall(at, s.calls + 1, goal, env, s.scope)
+              val h = HoleCall(at, s.calls + 1, goal, env, s.scope, verified)
               attempt(ctx, h)(1, 1, Vector.empty, false, s.copy(calls = h.call))
             }
-    (n + 1, run)
+    verify match
+      case None => (n + 1, (ctx, s) => call(ctx, s, Vector.empty))
+      case Some(v) =>
+        // die Abnahme ist ein gewöhnlicher Schritt der umgebenden Hülle, mit eigener Nummer nach dem Loch
+        val (next, program) = alg.shell(v.cmd, v.args, origin)(n + 1)
+        // base: Scope vor dem ersten Durchlauf. Danach bleiben nur Ergebnis und Abnahme des letzten Durchlaufs darin,
+        // sonst stünde jede frühere Abnahme unter derselben Nummer noch einmal im Kontext späterer Löcher.
+        def loop(pass: Int, verified: Vector[String], base: Vector[Entry], ctx: Ctx, s: State): Res =
+          val at = ctx.id(n + 1)
+          val start = s.scope.size
+          call(ctx, s, verified).flatMap {
+            case (s1, Right(_)) =>
+              program(ctx, s1).flatMap {
+                case (s2a, Right(r)) =>
+                  val s2 = s2a.copy(scope = base ++ s2a.scope.drop(start))
+                  holds(v.until, ctx, s2, at).flatMap {
+                    case (s3, Right(true)) => emit(s3, Event.Verified(at, pass, true, None)).map((_, Right(r)))
+                    case (s3, Right(false)) if pass < v.max =>
+                      val toModel = Marshal.verifyFailed(v, at, r, pass)
+                      emit(s3, Event.Verified(at, pass, false, Some(toModel))).flatMap(loop(pass + 1, Vector(toModel), base, ctx, _))
+                    case (s3, Right(false)) => emit(s3, Event.Verified(at, pass, false, None)).map((_, Right(r)))
+                    case (s3, Left(stop))   => halt(s3, stop)
+                  }
+                case stopped => F.pure(stopped)
+              }
+            case stopped => F.pure(stopped)
+          }
+        (next, (ctx, s) => loop(1, Vector.empty, s.scope, ctx, s))
 
   private def scopeLines(scope: Vector[Entry], env: Envelope): Vector[ScopeLine] =
     val seen = scope.zipWithIndex.map((e, i) => Scope.Seen(i, e.paths))
@@ -187,7 +220,7 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
           // laufende Nummer des Fills an dieser Position, über Versuche und Durchläufe hinweg (StepId)
           val fillNo = s.fills.getOrElse(h.at, 0) + 1
           val request =
-            FillRequest(callId, h.at.show, k, h.goal, env, remaining, check.nestingLimit, scopeLines(s.scope, env), errors, round, config.maxRoundsPerHole)
+            FillRequest(callId, h.at.show, k, h.goal, env, remaining, check.nestingLimit, scopeLines(s.scope, env), errors, round, config.maxRoundsPerHole, h.verified)
           ports.model.fill(request).flatMap { reply =>
             val sCalled = s.copy(modelCalls = s.modelCalls + 1, fills = s.fills.updated(h.at, fillNo))
             emit(sCalled, Event.Fill(h.at, k, callId, reply)).flatMap { s1 =>
@@ -300,7 +333,7 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
             )
       (n + 1, run)
 
-    def think(goal: String, envelope: Envelope, origin: Origin): Exec[StepResult] = hole(goal, envelope)
+    def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): Exec[StepResult] = hole(goal, envelope, verify, origin)
 
     def seq(steps: List[Exec[StepResult]], origin: Origin): Exec[StepResult] = n =>
       val (next, runs) = steps.foldLeft((n, Vector.empty[Run])) { case ((k, acc), e) =>

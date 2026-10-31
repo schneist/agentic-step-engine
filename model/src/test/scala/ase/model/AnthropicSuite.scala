@@ -93,6 +93,15 @@ class AnthropicSuite extends munit.FunSuite:
     val first = Prompt.fill(FillRequest("fill-1", "2", 1, "x", env, 2, 5, Vector.empty, Vector.empty, 1, 3))
     assert(first.contains("# Loch 2, Runde 1 von 3") && first.contains("beende den Teilterm ohne Done"), first)
 
+  test("Fill-Prompt: nicht bestandene Abnahme als eigener Abschnitt, nicht als Versuch (D#80)"):
+    val env = Envelope(Set(OpKind.EditFile), "src", 3, 0, Set.empty)
+    val note = "Abnahme nach Durchlauf 1 von 2 nicht bestanden"
+    val text = Prompt.fill(FillRequest("fill-3", "1", 1, "behebe", env, 3, 5, Vector.empty, Vector("abgelehnt: y"), 1, 3, Vector(note)))
+    assert(text.contains(s"# Abnahme nach dem Durchlauf davor\n$note"), text)
+    assert(text.contains("Versuch 1:\nabgelehnt: y"), text)
+    assert(!Prompt.fill(FillRequest("fill-1", "1", 1, "x", env, 3, 5, Vector.empty, Vector.empty)).contains("# Abnahme"))
+    assert(Prompt.system(check).contains("Hole(goal, envelope, verify)"))
+
   test("Lesen vor dem Loch: System- und Plan-Prompt (D#51, D#53)"):
     assert(Prompt.system(check).contains("stehen deshalb nie im selben Term"))
     val plan = Prompt.plan(PlanRequest("plan-1", 1, "x", Envelope(Set(OpKind.Hole), ".", 5, 1, Set.empty), 5, Vector.empty))

@@ -51,7 +51,8 @@ object Tighten:
     */
   def holes(t: Term): Vector[(Int, Term.Hole)] =
     def go(t: Term, n: Int): (Int, Vector[(Int, Term.Hole)]) = t match
-      case h: Term.Hole => (n + 1, Vector(n -> h))
+      // ein Loch mit Abnahme belegt zwei Nummern: das Loch und die Abnahme (D#80)
+      case h: Term.Hole => (n + Term.width(h.verify), Vector(n -> h))
       case Term.Seq(steps, _) =>
         steps.foldLeft((n, Vector.empty[(Int, Term.Hole)])) { case ((k, acc), s) =>
           val (k2, hs) = go(s, k)
@@ -68,7 +69,7 @@ object Tighten:
   /** Term => Term: ersetzt die Hüllen der genannten Agentenschritte. */
   def apply(t: Term, changes: Map[Int, Change]): Term =
     def go(t: Term, n: Int): (Int, Term) = t match
-      case Term.Hole(g, e, o) => (n + 1, Term.Hole(g, changes.get(n).fold(e)(_.applyTo(e)), o))
+      case Term.Hole(g, e, o, v) => (n + Term.width(v), Term.Hole(g, changes.get(n).fold(e)(_.applyTo(e)), o, v))
       case Term.Seq(steps, o) =>
         val (k, out) = steps.foldLeft((n, Vector.empty[Term])) { case ((k, acc), s) =>
           val (k2, s2) = go(s, k)

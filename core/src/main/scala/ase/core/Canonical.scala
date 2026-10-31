@@ -43,7 +43,7 @@ object Fingerprint:
   private def withoutProse(t: Term): Term = t match
     case Term.Ask(_, o)               => Term.Ask("", o)
     case Term.Done(_, o)              => Term.Done("", o)
-    case Term.Hole(_, e, o)           => Term.Hole("", e, o)
+    case Term.Hole(_, e, o, v)        => Term.Hole("", e, o, v)
     case Term.Seq(steps, o)           => Term.Seq(steps.map(withoutProse), o)
     case Term.If(p, a, b, o)          => Term.If(p, withoutProse(a), withoutProse(b), o)
     case Term.RepeatUntil(b, u, m, o) => Term.RepeatUntil(withoutProse(b), u, m, o)
