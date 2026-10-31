@@ -15,7 +15,8 @@ object Usage:
     * Laufzeit scheiterten. rounds: weitere Runden (D#55). needed: das Budget, das Tor 2 für
     * die angenommenen Teilterme brauchte, also die Schritte vor einem Teilterm plus dessen schlechtester Fall; mindestens
     * steps. fills und tokens: Modellaufrufe für diesen Aufruf. completed: der Aufruf endete mit HoleDone (nicht
-    * abgebrochen, nicht an einer Frage angehalten).
+    * abgebrochen, nicht an einer Frage angehalten). commands: jeder Shell-Aufruf als Programm und Argumente; daraus
+    * liest `ase tighten` die Unterbefehle (D#82).
     */
   final case class Call(
       at: StepId,
@@ -33,7 +34,8 @@ object Usage:
       rounds: Int,
       fills: Int,
       tokens: Long,
-      completed: Boolean
+      completed: Boolean,
+      commands: Set[List[String]] = Set.empty
   )
 
   def of(events: Vector[Event]): Vector[Call] =
@@ -94,7 +96,7 @@ object Usage:
     case Event.Step(_, call, reply) =>
       val withPaths = c.copy(paths = c.paths ++ reply.touched)
       // FileExists braucht keine Operation und zählt nicht als Schritt (Call.op)
-      call.op.fold(withPaths)(k => withPaths.copy(ops = withPaths.ops + k, programs = programs(withPaths, call), steps = c.steps + 1))
+      call.op.fold(withPaths)(k => shell(withPaths, call).copy(ops = withPaths.ops + k, steps = c.steps + 1))
     case Event.Asked(_, _, _)  => c.copy(ops = c.ops + OpKind.Ask, steps = c.steps + 1)
     case Event.Finished(_, _)  => c.copy(steps = c.steps + 1)
     case Event.Hole(a, _, _) if a != c.at => c.copy(ops = c.ops + OpKind.Hole)
@@ -102,9 +104,9 @@ object Usage:
     case Event.HoleDone(at, _) if at != c.at => c.copy(steps = c.steps + 1)
     case _                                   => c
 
-  private def programs(c: Call, call: ase.core.Call): Set[String] = call match
-    case ase.core.Call.Shell(cmd, _) => c.programs + cmd
-    case _                           => c.programs
+  private def shell(c: Call, call: ase.core.Call): Call = call match
+    case ase.core.Call.Shell(cmd, args) => c.copy(programs = c.programs + cmd, commands = c.commands + (cmd :: args))
+    case _                              => c
 
   /** Das tiefste Verzeichnis oder die einzige Datei, unter der alle Pfade liegen; "." wenn sie nichts teilen. None ohne
     * Pfade und wenn einer kein gültiger relativer Pfad ist: ein übergangener Pfad darf nichts enger machen.

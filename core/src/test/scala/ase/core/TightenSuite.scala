@@ -5,8 +5,17 @@ class TightenSuite extends munit.FunSuite:
   private val grep = AllowedCommand("grep", Nil)
   private val wide = Envelope(Set(OpKind.ReadFile, OpKind.EditFile, OpKind.Shell, OpKind.Hole), ".", 8, 1, Set(grep))
 
-  private def call(ops: Set[OpKind], paths: Set[String], steps: Int, needed: Int, env: Envelope = wide, completed: Boolean = true) =
-    Usage.Call(StepId(Vector(1)), "ziel", env, ops, paths, Set.empty, steps, needed, Vector.empty, Vector.empty, Map.empty, 0, 0, 1, 10L, completed)
+  private def call(
+      ops: Set[OpKind],
+      paths: Set[String],
+      steps: Int,
+      needed: Int,
+      env: Envelope = wide,
+      completed: Boolean = true,
+      commands: Set[List[String]] = Set.empty
+  ) =
+    val programs = commands.flatMap(_.headOption)
+    Usage.Call(StepId(Vector(1)), "ziel", env, ops, paths, programs, steps, needed, Vector.empty, Vector.empty, Map.empty, 0, 0, 1, 10L, completed, commands)
 
   test("holes: Nummern wie im Explain, über If und RepeatUntil hinweg (D#75)"):
     val hole = Term.Hole("x", Envelope(Set(OpKind.ReadFile), ".", 2, 0, Set.empty), h)
@@ -91,3 +100,29 @@ class TightenSuite extends munit.FunSuite:
     // kein Grund, wenn der Pfad ohnehin nicht enger würde
     val broad = Vector(call(Set(OpKind.ReadFile), Set("a.md"), 1, 1), call(Set(OpKind.ReadFile), Set("src/B.scala"), 1, 1), call(Set(OpKind.ReadFile), Set("c"), 1, 1))
     assert(!Tighten.propose(1, wide, broad, 3, Tighten.PathEvidence.OneStart).skipped.exists(_.contains("Ausgangsstand")))
+
+  test("propose: Programme auf die aufgerufenen Unterbefehle laut Argument-Policy, nur enger (D#82)"):
+    def aws(sub: String*) = ArgPolicy("aws", sub.toList, Set.empty, Set("--region", "--filters"), Set.empty, Positional.NoArgs)
+    val policies = List(aws("ec2", "describe-instances"), aws("ec2", "run-instances"), aws("ec2", "wait", "instance-running")) ++ ArgPolicy.defaults
+    val all = AllowedCommand("aws", Nil)
+    val env = wide.copy(shellAllowlist = Set(all, grep, AllowedCommand("git", List("status"))))
+    val describe = List("aws", "ec2", "describe-instances", "--region", "eu-central-1")
+    val run = List("aws", "ec2", "run-instances", "--region", "eu-central-1")
+    val calls = Vector(
+      call(Set(OpKind.Shell), Set("."), 2, 2, commands = Set(describe, run)),
+      call(Set(OpKind.Shell), Set("."), 1, 1, commands = Set(describe)),
+      call(Set(OpKind.Shell, OpKind.ReadFile), Set(".", "src/A.scala"), 2, 2, commands = Set(List("grep", "-n", "x", "src")))
+    )
+    val p = Tighten.propose(1, env, calls, 3, policies = policies)
+    val want = Set(AllowedCommand("aws", List("ec2", "describe-instances")), AllowedCommand("aws", List("ec2", "run-instances")), grep)
+    // git nie aufgerufen: fällt weg wie bisher; grep hat keinen Unterbefehl und bleibt, wie er war
+    assertEquals(p.change.shell, Some(want))
+    assert(p.reasons.exists(_.contains("aws ec2 run-instances")), p.reasons)
+    val neu = p.change.applyTo(env)
+    assert(Attenuation.check(neu, env, Location.root, Attenuation.Mode.Flow).isEmpty)
+    // ohne Policies wie vor D#82: nur auf die aufgerufenen Programme
+    assertEquals(Tighten.propose(1, env, calls, 3).change.shell, Some(Set(all, grep)))
+    // ein Eintrag, der schon enger ist als die Policy, bleibt; einer, der nichts zuließ, fällt weg
+    val narrow = wide.copy(shellAllowlist = Set(AllowedCommand("aws", List("ec2", "run-instances", "--region")), AllowedCommand("aws", List("s3api"))))
+    val q = Tighten.propose(1, narrow, Vector.fill(3)(call(Set(OpKind.Shell), Set("."), 1, 1, commands = Set(run))), 3, policies = policies)
+    assertEquals(q.change.shell, Some(Set(AllowedCommand("aws", List("ec2", "run-instances", "--region")))))

@@ -92,22 +92,30 @@ object Tighten:
     * minCalls abgeschlossenen Aufrufen bleibt alles, wie es ist: Was wenige Läufe nicht gebraucht haben, braucht der
     * nächste vielleicht. Abgebrochene Aufrufe zählen zum Genutzten, aber nicht zur Mindestzahl; das Budget bleibt, sobald
     * einer nicht abgeschlossen ist oder Tor 2 einen Teilterm abgelehnt hat (vielleicht am Budget). evidence: Der Pfad wird nur
-    * enger, wenn die Läufe verschiedene Fälle zeigen (PathEvidence.Varied); sonst bleibt er, mit Grund.
+    * enger, wenn die Läufe verschiedene Fälle zeigen (PathEvidence.Varied); sonst bleibt er, mit Grund. policies: die
+    * Argument-Policies der Konfiguration; mit ihnen wird ein Programm auf die aufgerufenen Unterbefehle enger (D#82).
     */
-  def propose(step: Int, e: Envelope, calls: Vector[Usage.Call], minCalls: Int, evidence: PathEvidence = PathEvidence.Varied): Proposal =
+  def propose(
+      step: Int,
+      e: Envelope,
+      calls: Vector[Usage.Call],
+      minCalls: Int,
+      evidence: PathEvidence = PathEvidence.Varied,
+      policies: List[ArgPolicy] = Nil
+  ): Proposal =
     val done = calls.count(_.completed)
     if calls.isEmpty || done < minCalls then
       Proposal(step, calls.size, Change(None, None, None, None, None), Nil, List(s"nur $done abgeschlossene Aufrufe, mindestens $minCalls nötig"))
     else
       val used = calls.map(_.ops).reduce(_ ++ _)
-      val programs = calls.map(_.programs).reduce(_ ++ _)
       val kept = e.allowedOps & used
       val ops = Option.when(kept.nonEmpty && kept != e.allowedOps)(kept)
       val opsSkipped = Option.when(kept.isEmpty)("Operationen bleiben: kein Aufruf hat eine genutzt, nur Done")
       val finalOps = ops.getOrElse(e.allowedOps)
       val shellParam = e.shellAllowlist.exists(c => (c.binary :: c.requiredPrefixArgs).exists(_.contains(Placeholder)))
       val shellKept =
-        if !finalOps.contains(OpKind.Shell) then Set.empty[AllowedCommand] else e.shellAllowlist.filter(c => programs.contains(c.binary))
+        if !finalOps.contains(OpKind.Shell) then Set.empty[AllowedCommand]
+        else e.shellAllowlist.flatMap(narrow(_, calls.flatMap(_.commands).toSet, policies))
       val shell = Option.when(!shellParam && shellKept != e.shellAllowlist)(shellKept)
       val shellSkipped = Option.when(shellParam && shellKept != e.shellAllowlist)("Programme bleiben: die Allowlist enthält einen Parameter")
       val open = calls.count(c => !c.completed || c.rejected.contains(Gate.DryRun))
@@ -141,6 +149,16 @@ object Tighten:
         path.map((p, sees) => s"unter ${e.pathPrefix} → unter $p: alle Pfade lagen dort; sieht weiter Ergebnisse unter ${sees.getOrElse(p)}")
       ).flatten
       Proposal(step, calls.size, Change(ops, shell, steps, depth, path), reasons, List(opsSkipped, shellSkipped, stepsSkipped, pathSkipped).flatten)
+
+  /** Was von einem Eintrag der Allowlist bleibt (D#82): für jeden Aufruf, den er zuließ, der Unterbefehl aus der
+    * Argument-Policy, die den Aufruf prüfte, wenn er den Eintrag verlängert (aws → aws ec2 run-instances); sonst der
+    * Eintrag selbst. Ließ er keinen Aufruf zu, bleibt nichts. Jeder neue Eintrag hat den alten als Präfix (D#21).
+    */
+  private def narrow(c: AllowedCommand, commands: Set[List[String]], policies: List[ArgPolicy]): Set[AllowedCommand] =
+    commands.collect { case cmd :: args if c.allows(cmd, args) =>
+      ArgPolicy.find(policies, cmd, args).map(_.prefixArgs).filter(_.startsWith(c.requiredPrefixArgs))
+        .fold(c)(AllowedCommand(cmd, _))
+    }
 
   private def show(s: Set[OpKind]): String = s.toList.sortBy(_.ordinal).mkString(", ")
 

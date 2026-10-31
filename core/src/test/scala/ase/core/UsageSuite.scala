@@ -52,3 +52,17 @@ class UsageSuite extends munit.FunSuite:
     assertEquals(Usage.commonPrefix(Set("src/A.scala", "README.md")), Some("."))
     // ein ungültiger Pfad (etwa mit Backslash) macht nichts enger (Review)
     assertEquals(Usage.commonPrefix(Set("README.md", "src\\Main.scala")), None)
+
+  test("Shell-Aufrufe mit Argumenten für ase tighten (D#82)"):
+    val shell = Envelope(Set(OpKind.Shell), ".", 4, 0, Set(AllowedCommand("aws", Nil)))
+    def aws(at: StepId, args: String*) =
+      Event.Step(at, Call.Shell("aws", args.toList), Reply(List("."), Right(StepResult(Some(0), Some(""))), ""))
+    val events = Vector(
+      Event.Hole(id(1), "a", shell),
+      aws(id(1, 1, 1), "ec2", "describe-instances", "--region", "eu-central-1"),
+      aws(id(1, 1, 2), "ec2", "run-instances", "--region", "eu-central-1"),
+      Event.HoleDone(id(1), "fertig")
+    )
+    val c = Usage.of(events).head
+    assertEquals(c.programs, Set("aws"))
+    assertEquals(c.commands.map(_.take(3)), Set(List("aws", "ec2", "describe-instances"), List("aws", "ec2", "run-instances")))

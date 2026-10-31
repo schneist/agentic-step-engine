@@ -23,7 +23,7 @@ object FlowTighten:
       val calls = matching.flatMap((_, es, _, _) => Usage.of(es)).groupBy(_.at.parts)
       val evidence = pathEvidence(flow, matching.map((r, _, _, term) => (r, term)))
       val proposals = Tighten.holes(flow.term).map { (n, hole) =>
-        Tighten.propose(n, hole.envelope, calls.getOrElse(Vector(n), Vector.empty), minCalls, evidence)
+        Tighten.propose(n, hole.envelope, calls.getOrElse(Vector(n), Vector.empty), minCalls, evidence, check.argPolicies)
       }
       val changes = proposals.filterNot(_.change.isEmpty).map(p => p.step -> p.change).toMap
       val (newest, _, root, bound) = matching.maxBy((r, _, _, _) => (r.modified, r.dir))
