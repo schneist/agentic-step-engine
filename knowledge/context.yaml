@@ -655,8 +655,8 @@ open:
   - { id: "O#30", type: open, status: resolved, source: "findings.md#O#30", verified: 2026-10-29, resolved_by: "D#65" }
   - { id: "O#31", type: open, status: resolved, source: "findings.md#O#31", verified: 2026-10-29, resolved_by: "D#66" }
   - { id: "O#36", type: open, status: resolved, source: "findings.md#O#36", verified: 2026-10-30, title: "D#77 umsetzen", resolved_by: "D#79" }
-  - { id: "O#39", type: open, status: open, source: "findings.md#O#39", verified: 2026-10-31, title: "M# für D#80: Abnahme an Eval 6 nie gescheitert (M#22), braucht ein schwereres Fixture; Prompt von D#80 verschiebt die Reparatur an Eval 6 (M#23, M#24), Planner-Basis Eval 1 bis 6 offen" }
-  - { id: "O#40", type: open, status: open, source: "findings.md#O#40", verified: 2026-10-31, title: "Spot-Maschinen in AWS als Flow; Agentenschritte härten in Stufen (offen, tighten, Abnahme, einfrieren), gemessen an Eval 7 mit aws-Double" }
+  - { id: "O#39", type: open, status: open, source: "findings.md#O#39", verified: 2026-10-31, title: "M# für D#80: Abnahme an Eval 6 nie gescheitert (M#22), an Eval 7 greift sie in 10/10 Läufen und holt 3 zurück (M#27); Prompt von D#80 verschiebt die Reparatur an Eval 6 (M#23, M#24), Planner-Basis Eval 1 bis 6 offen" }
+  - { id: "O#40", type: open, status: open, source: "findings.md#O#40", verified: 2026-10-31, title: "Spot-Maschinen in AWS als Flow; Härtung in Stufen an Eval 7: offen 0/10 (M#25), Gerüst 0/10 (M#26), mit Abnahme 3/10 (M#27); offen: vorübergehende Fehler, Runden, Einfrieren" }
   - { id: "O#41", type: open, status: open, source: "findings.md#O#41", verified: 2026-10-31, title: "Werte von valuedFlags werden nicht als Pfad geprüft (aws --body, --user-data file://)" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
@@ -723,8 +723,8 @@ evals:
     title: cloud-start (Spot-Rechnung gegen aws-Double)
     decided_by: ["D#81"]
     relates_to: ["O#40", "O#41"]
-    note: "bin/aws ist das Double, Zustand in ../.cloud-stub; eigene Runner-Konfiguration; check.sh gegen loesung.json, Fixture und falsche Zone geprüft; nicht im Harness"
-    measurements: []
+    note: "bin/aws ist das Double, Zustand in ../.cloud-stub; eigene Runner-Konfiguration; check.sh gegen loesung.json, Fixture und falsche Zone geprüft; nicht im Harness. Stufen der Härtung: M#25 offen 0/10, M#26 Gerüst 0/10, M#27 mit Abnahme 3/10"
+    measurements: ["M#25", "M#26", "M#27"]
   - id: eval.lib
     type: eval
     status: implemented
