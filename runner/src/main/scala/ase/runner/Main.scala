@@ -279,7 +279,7 @@ object Main extends IOApp:
     yield code
 
   /** `ase series begin` (D#77): Schlüssel und Bedingungen vor dem ersten Lauf. Liest Hülle, check.sh, Fixture und
-    * Aufgabe oder Flow der Eval, Modell und Effort aus der Konfiguration, geänderte Dateien aus der Ausgabe von
+    * Aufgabe oder Flow der Eval, Modell, Effort und den System-Prompt aus der Konfiguration, geänderte Dateien aus der Ausgabe von
     * `git status --porcelain` (--status). Führt nichts aus und gibt nichts frei.
     */
   private def seriesBegin(cmd: Command.SeriesBegin): IO[ExitCode] =
@@ -308,7 +308,9 @@ object Main extends IOApp:
         checkSha,
         m.provider.toString,
         m.model,
-        m.effort
+        m.effort,
+        // der System-Prompt hängt nur von der Prüfkonfiguration ab (D#86)
+        Some(Canonical.sha256Hex(Prompt.system(config.check)))
       )
       // git status --porcelain: zwei Zeichen Status, ein Leerzeichen, dann der Pfad
       dirty = status.linesIterator.map(_.drop(3).trim).filter(_.nonEmpty).toList

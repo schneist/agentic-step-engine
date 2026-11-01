@@ -28,7 +28,7 @@ Rohdaten (Record-Logs, Laufverzeichnisse) bleiben lokal in `record/`, nicht im R
 
 ## Wann vergleichbar
 
-Zwei Serien sind vergleichbar, wenn ihr Schlüssel gleich ist (Fassung, Hülle, Fixture, Prüfskript, Anbieter, Modell, Effort), ihr Datensatz dieselbe Version hat und beide zählen. Dann unterscheidet sie im Wesentlichen der ase-Commit. Sonst ist es kein Vergleich, sondern eine neue Basis.
+Zwei Serien sind vergleichbar, wenn ihr Schlüssel gleich ist (Fassung, Hülle, Fixture, Prüfskript, Anbieter, Modell, Effort, seit D#86 auch der System-Prompt aus der Prüfkonfiguration), ihr Datensatz dieselbe Version hat und beide zählen. Dann unterscheidet sie im Wesentlichen der ase-Commit. Sonst ist es kein Vergleich, sondern eine neue Basis.
 
 `ase compare BASIS KANDIDAT` prüft das und nennt, was sich unterscheidet. Für Erfolg, Tokens und Dauer urteilt es „besser“ oder „schlechter“ nur, wenn sich die Intervalle oder Spannen nicht überlappen; sonst „Rauschen“. Rauschen ist der Normalfall: 10 von 10 heißt nur, dass die wahre Quote über etwa 72 % liegt, 5 von 5 nur über etwa 57 %. Die Dauer wird nur bei gleicher Parallelität verglichen.
 

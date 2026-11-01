@@ -432,8 +432,8 @@ interpreters:
     type: runner
     status: implemented
     source: runner/src/main/scala/ase/runner/Series.scala#Series
-    verified: 2026-10-30
-    decided_by: ["D#77", "D#79"]
+    verified: 2026-11-01
+    decided_by: ["D#77", "D#79", "D#86"]
     tested_by: [ase.runner.SeriesSuite]
     note: "Messserie als Datensatz: Key (Fassung, Hülle, Fixture als Tree-Hash, check.sh, Anbieter, Modell, Effort), Conditions, Standing mit Gründen (DirtyTree, TooFewRuns, RunsNotAsPlanned, FixtureChanged, StartNotFixture, MixedKeys), Run je Lauf; Comparison nur aus Comparison.of (gleicher Schlüssel, gleiche Version, beide zählen), Wilson-Intervall, Urteil Noise/Better/Worse; line rendert die M#-Zeile. Befehle in Main, Ablauf in evals/series.sh"
   - id: runner.treehash
@@ -611,6 +611,7 @@ decisions:
   - { id: "D#83", type: decision, status: decided, source: "findings.md#D#83", verified: 2026-11-01, title: "Wertregeln für Flags mit Wert: Path (Präfix, dann Pfad im Arbeitsverzeichnis, zählt zu den Pfaden des Aufrufs) oder Pattern; Konfiguration programs[].values", tested_by: [ase.core.ArgPolicySuite, ase.runner.RunnerSuite] }
   - { id: "D#84", type: decision, status: decided, source: "findings.md#D#84", verified: 2026-11-01, title: "Eval 8 cloud-vorpruefung: Prüfung vor dem teuren Schritt, bestanden ist ask ohne schreibenden aws-Aufruf", tested_by: [evals/8-cloud-vorpruefung/check.sh] }
   - { id: "D#85", type: decision, status: decided, source: "findings.md#D#85", verified: 2026-11-01, title: "Plan-Prompt: ein fester Done-Text behauptet nur, was feste Schritte geprüft haben; sonst Programm, If und Ask (M#33)", tested_by: [ase.model.AnthropicSuite] }
+  - { id: "D#86", type: decision, status: decided, source: "findings.md#D#86", verified: 2026-11-01, title: "Serien-Schlüssel mit promptSha (SHA-256 des System-Prompts aus der Prüfkonfiguration), optional für alte Datensätze", tested_by: [ase.runner.SeriesSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -661,7 +662,7 @@ open:
   - { id: "O#39", type: open, status: open, source: "findings.md#O#39", verified: 2026-10-31, title: "M# für D#80: Abnahme an Eval 6 nie gescheitert (M#22), an Eval 7 greift sie in 10/10 Läufen und holt 3 zurück (M#27); Prompt von D#80 verschiebt die Reparatur an Eval 6 (M#23, M#24), Planner-Basis Eval 1 bis 6 offen" }
   - { id: "O#40", type: open, status: open, source: "findings.md#O#40", verified: 2026-10-31, title: "Spot-Maschinen in AWS als Flow; Härtung in Stufen an Eval 7: offen 0/10 (M#25), Gerüst 0/10 (M#26), mit Abnahme 3/10 (M#27), mit RepeatUntil 5/10 und 9/10 (M#28, M#29), Runden des Bucket-Schritts behoben 9/10 (M#30), eingefroren 8/10 (M#31); Start-Flow seit 01.11. in ducktest ohne Agentenschritt; Eval 8 Vorprüfung: offener Plan 0/10, Tor im Gerüst 10/10 (M#33, M#34); offen: vorübergehende Fehler, scopePrefix für START.md, echter Lauf (Regel für feste Done-Texte ist D#85, M#35 7/10)" }
   - { id: "O#41", type: open, status: resolved, source: "findings.md#O#41", verified: 2026-11-01, resolved_by: "D#83", title: "Werte von valuedFlags werden nicht als Pfad geprüft (aws --body, --user-data file://); seit D#83 mit Wertregel" }
-  - { id: "O#42", type: open, status: open, source: "findings.md#O#42", verified: 2026-11-01, title: "Serien-Schlüssel sieht die Argument-Policies nicht: M#31 und M#32 gleicher Schlüssel bei anderem System-Prompt" }
+  - { id: "O#42", type: open, status: resolved, source: "findings.md#O#42", verified: 2026-11-01, resolved_by: "D#86", title: "Serien-Schlüssel sieht die Argument-Policies nicht: M#31 und M#32 gleicher Schlüssel bei anderem System-Prompt" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }

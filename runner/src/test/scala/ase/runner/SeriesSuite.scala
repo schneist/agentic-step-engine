@@ -115,6 +115,16 @@ class SeriesSuite extends munit.ScalaCheckSuite:
     val dirty = record.copy(standing = Standing.DoesNotCount(NonEmptyList.of(NotCounting.DirtyTree(List("a.scala")))))
     assertEquals(Comparison.of(record, dirty).left.map(_.render), Left("nicht vergleichbar: der Kandidat zählt nicht: Arbeitsbaum geändert (a.scala)"))
 
+  test("Schlüssel: promptSha (D#86) ist optional; ohne ihn bleibt der Hash alter Datensätze, mit ihm unterscheidet er die Serien"):
+    val withPrompt = key.copy(promptSha = Some("p" * 64))
+    assertNotEquals(withPrompt.hash, key.hash)
+    assertEquals(Series.parse(Series.encode(record.copy(key = withPrompt)).noSpaces).map(_.key.promptSha), Right(Some("p" * 64)))
+    assertEquals(Series.parse(Series.encode(record).noSpaces).map(_.key.promptSha), Right(None))
+    assertEquals(
+      Comparison.of(record, record.copy(key = withPrompt)).left.map(_.render),
+      Left(s"nicht vergleichbar, der Schlüssel unterscheidet sich:\n  promptSha: – gegen ${"p" * 12}…")
+    )
+
   test("M#-Zeile aus dem Datensatz (playbook/evals.md)"):
     assertEquals(
       Series.line("M#19", record),

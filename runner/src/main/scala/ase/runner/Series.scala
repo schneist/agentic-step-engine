@@ -23,6 +23,8 @@ object Series:
 
   /** Was gleich sein muss, damit zwei Serien vergleichbar sind. source ist nur der Dateiname, die Fassung steht in
     * sourceSha; fixtureSha ist ein Tree-Hash (TreeHash), envelopeSha der SHA-256 des kanonischen JSON der Hülle.
+    * promptSha: SHA-256 des System-Prompts aus der Prüfkonfiguration (Argument-Policies, Skripte, Verschachtelungsgrenze),
+    * D#86; fehlt in Datensätzen vor D#86, deren Hash bleibt dadurch gleich.
     */
   final case class Key(
       kind: SourceKind,
@@ -33,7 +35,8 @@ object Series:
       checkSha: String,
       provider: String,
       model: String,
-      effort: String
+      effort: String,
+      promptSha: Option[String] = None
   ):
     def fields: List[(String, String)] = List(
       "kind" -> kind.toString,
@@ -45,7 +48,7 @@ object Series:
       "provider" -> provider,
       "model" -> model,
       "effort" -> effort
-    )
+    ) ++ promptSha.map("promptSha" -> _).toList
 
     def hash: String = Canonical.sha256Hex(Canonical.print(encodeKey(this)))
 
@@ -218,7 +221,10 @@ object Series:
       * die Intervalle (Erfolg) oder Spannen (Tokens, Dauer) nicht überlappen; die Dauer nur bei gleicher Parallelität.
       */
     def of(baseline: Record, candidate: Record): Either[NotComparable, Comparison] =
-      val differing = baseline.key.fields.zip(candidate.key.fields).collect { case ((k, a), (_, b)) if a != b => (k, a, b) }
+      // Felder beider Schlüssel; ein Feld, das nur eine Seite hat (promptSha vor D#86), zählt als Unterschied
+      val (bk, ck) = (baseline.key.fields.toMap, candidate.key.fields.toMap)
+      val differing = (baseline.key.fields ++ candidate.key.fields).map(_._1).distinct
+        .map(k => (k, bk.getOrElse(k, "–"), ck.getOrElse(k, "–"))).filter((_, a, b) => a != b)
       for
         _ <- Either.cond(baseline.schema == candidate.schema, (), NotComparable.SchemaMismatch(baseline.schema, candidate.schema))
         _ <- NonEmptyList.fromList(differing).map(NotComparable.KeyMismatch(_)).toLeft(())
@@ -460,7 +466,8 @@ object Series:
       provider <- str(c, "provider")
       model <- str(c, "model")
       effort <- str(c, "effort")
-    yield Key(kind, source, sourceSha, envelopeSha, fixtureSha, checkSha, provider, model, effort)
+      promptSha <- c.downField("promptSha").focus.traverse(_.asString.toRight("promptSha: erwartet einen Text"))
+    yield Key(kind, source, sourceSha, envelopeSha, fixtureSha, checkSha, provider, model, effort, promptSha)
 
   private def decodeConditions(c: ACursor): Either[String, Conditions] =
     for
