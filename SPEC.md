@@ -132,6 +132,7 @@ MODELLADAPTER (model)
 - tool_choice: auto (erzwungenes any/tool ist auf claude-opus-5-5 ein 400). Prompt weist an, submit_term zu benutzen; eine Antwort ohne submit_term zählt als Fehlversuch.
 - Plan (Aufgabe → Term, darf Agentenschritte enthalten) und Fill (Agentenschritt: Ziel + Hülle + Scope-Kontext → Teilterm). Beim Fill steht die Hülle explizit im Prompt.
 - Werkzeugbeschreibungen sind Prompts: Namen und Beschreibungen so, wie das Modell die Konzepte aus dem Training kennt.
+- Plan-Prompt: feste Schritte, wo sie bekannt sind, Löcher, wo Daten entscheiden; Lesen vor dem Loch (D#51, D#53); ein fester Done-Text am Ende behauptet nur, was feste Schritte davor geprüft haben, sonst Programm, If und Ask (D#85).
 - Ungültiges JSON, fehlender submit_term-Aufruf oder DryRun-Verstoß: Fehler als Text zurück, max 3 Versuche, dann Abbruch mit Begründung.
 - API-Key aus Umgebungsvariable.
 

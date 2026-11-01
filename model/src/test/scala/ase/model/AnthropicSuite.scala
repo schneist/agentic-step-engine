@@ -107,6 +107,9 @@ class AnthropicSuite extends munit.FunSuite:
     val plan = Prompt.plan(PlanRequest("plan-1", 1, "x", Envelope(Set(OpKind.Hole), ".", 5, 1, Set.empty), 5, Vector.empty))
     assert(plan.contains("stehen vor dem Loch, das ihr Ergebnis\nverarbeitet"), plan)
     assert(plan.contains("WriteFile überschreibt nie"), plan)
+    // fester Done-Text nur nach Prüfung durch feste Schritte, sonst Programm, If und Ask (D#85)
+    assert(plan.contains("behauptet nur, was feste Schritte davor geprüft haben"), plan)
+    assert(plan.contains("bei\nErfolg Done, sonst Ask"), plan)
 
   test("System-Prompt nennt jede Argument-Policy"):
     val s = Prompt.system(check)

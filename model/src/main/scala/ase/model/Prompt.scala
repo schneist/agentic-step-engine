@@ -128,7 +128,10 @@ object Prompt:
        |Schreibe einen Term, der die Aufgabe löst. Setze feste Schritte, wo du sie schon kennst, und Löcher, wo erst
        |Daten entscheiden. Lese- und Suchschritte, die du schon kennst, stehen vor dem Loch, das ihr Ergebnis
        |verarbeitet. Lege eine Datei, die ein Loch schreiben soll, nicht vorher leer an: WriteFile überschreibt nie.
-       |Ein Mensch gibt den Term einmal frei; danach läuft er ohne Rückfrage. Liegt die Aufgabe
+       |Ein Mensch gibt den Term einmal frei; danach läuft er ohne Rückfrage. Ein fester Done-Text am Ende
+       |behauptet nur, was feste Schritte davor geprüft haben; was ein Loch in seinem Done-Text meldet, prüft der
+       |Term nicht. Hängt der Erfolg an einem Loch oder einem Programm, prüfe ihn mit einem Programm und If: bei
+       |Erfolg Done, sonst Ask. Liegt die Aufgabe
        |außerhalb der Wurzel-Hülle, ändere nichts an ihr vorbei, sondern frage mit Ask.${errors(r.errors)}
        |
        |Rufe $toolName mit dem Term auf.""".stripMargin
