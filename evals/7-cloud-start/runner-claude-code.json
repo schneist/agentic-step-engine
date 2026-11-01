@@ -77,7 +77,13 @@
         "--tag-specifications",
         "--count"
       ],
-      "positional": "NoArgs"
+      "positional": "NoArgs",
+      "values": {
+        "--user-data": {
+          "type": "Path",
+          "prefix": "file://"
+        }
+      }
     },
     {
       "binary": "aws",
@@ -158,7 +164,12 @@
         "--key",
         "--body"
       ],
-      "positional": "NoArgs"
+      "positional": "NoArgs",
+      "values": {
+        "--body": {
+          "type": "Path"
+        }
+      }
     },
     {
       "binary": "aws",

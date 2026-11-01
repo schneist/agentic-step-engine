@@ -38,7 +38,8 @@ object Attenuation:
     ops ++ prefix ++ scope ++ shell ++ depth ++ steps
 
   /** Well-Formedness: ein Loch muss lösbar beschränkt sein (D#21). Jeder erlaubte Befehl muss nutzbar sein:
-    * es gibt eine Argument-Policy, und unter einem engeren pathPrefix als "." nimmt er Pfade an (D#27, D#31).
+    * es gibt eine Argument-Policy, und unter einem engeren pathPrefix als "." nimmt er Pfade an (D#27, D#31), als
+    * Argument oder als Wert eines Flags nach Regel Path (D#83).
     */
   def wellFormed(e: Envelope, loc: Location, config: CheckConfig = CheckConfig.default): List[Violation] =
     val root = RelPath.parse(e.pathPrefix).exists(_.isEmpty)
@@ -50,7 +51,7 @@ object Attenuation:
       else if policies.isEmpty then
         val commands = sameBinary.map(p => (p.binary :: p.prefixArgs).mkString(" ")).distinct.sorted.mkString(", ")
         Some(s"„${c.show}“: requiredPrefixArgs legt nur einen Unterbefehl fest, keine Flags, Muster oder Pfade; möglich ist: $commands")
-      else if !root && policies.forall(_.positional == Positional.NoArgs) then
+      else if !root && !policies.exists(_.takesPaths) then
         Some(s"„${c.show}“ nimmt keine Pfade und berührt damit das ganze Arbeitsverzeichnis, nicht nur ${e.pathPrefix}")
       else None
     }

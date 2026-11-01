@@ -243,6 +243,22 @@ class RunnerSuite extends munit.FunSuite:
     ).foreach(bad => assert(RunnerConfig.parse(s"""{"programs":[$bad]}""").isLeft, bad))
     assert(RunnerConfig.parse("""{"programs":[{"binary":"p"},{"binary":"p"}]}""").isLeft)
 
+  test("programs: Wertregeln für Flags mit Wert, nur für valuedFlags, Muster müssen gültig sein (D#83)"):
+    val c = RunnerConfig.parse("""{"programs":[{"binary":"aws","args":["s3api","put-object"],"valuedFlags":["--key","--body","--user-data"],
+      "positional":"NoArgs","values":{"--body":{"type":"Path"},"--user-data":{"type":"Path","prefix":"file://"},
+      "--key":{"type":"Pattern","regex":"^paket/.*$"}}}]}""").fold(fail(_), identity).check
+    assertEquals(c.argPolicies.last.values,
+      Map("--body" -> ValueRule.Path(), "--user-data" -> ValueRule.Path("file://"), "--key" -> ValueRule.Pattern("^paket/.*$")))
+    List(
+      """"values":{"--bucket":{"type":"Path"}}""",
+      """"values":{"--key":{"type":"Pfad"}}""",
+      """"values":{"--key":{"type":"Pattern","regex":"("}}""",
+      """"values":{"--key":{"type":"Pattern"}}""",
+      """"values":{"--key":{"type":"Path","regex":"x"}}""",
+      """"values":{"--key":"Path"}""",
+      """"values":[]"""
+    ).foreach(bad => assert(RunnerConfig.parse(s"""{"programs":[{"binary":"aws","valuedFlags":["--key"],$bad}]}""").isLeft, bad))
+
   // eine andere Form als good (ReadFile statt ListDir): BestOfN stimmt über die Form ab (D#65)
   private val other = Term.Seq(List(Term.ReadFile("docs/a.md", h), Term.Hole("Schreibe a.md", Envelope(Set(OpKind.WriteFile), "a.md", 2, 0, Set.empty), h)), h)
 

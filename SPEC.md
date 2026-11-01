@@ -107,7 +107,7 @@ INTERPRETER (alle über AgentAlg)
     git diff    --stat --name-only                     Pfade nach --
     git log     --oneline -n                           Revisionsbereich, Pfade nach --
     sbt test    keine                                  keine
-  Weitere Programme stehen in der Runner-Konfiguration unter programs, mit derselben Art Policy und runsCode, den Pfaden, deren Code sie ausführen (D#68).
+  Weitere Programme stehen in der Runner-Konfiguration unter programs, mit derselben Art Policy und runsCode, den Pfaden, deren Code sie ausführen (D#68). Je Flag mit Wert kann values eine Regel nennen (D#83): Path (nach einem Präfix ein Pfad im Arbeitsverzeichnis, geprüft wie ReadFile, zählt zu den Pfaden des Aufrufs) oder Pattern (der ganze Wert passt auf ein Muster); ohne Regel ist der Wert freier Text, der nicht mit "-" beginnt.
   Ohne Pfadargument berührt ein Aufruf das Arbeitsverzeichnis "." (D#27); kombinierte Kurz-Flags (-rn) sind erlaubt, wenn jedes einzelne erlaubt ist.
   Das AdversarialFill-Gesetz gilt für Syscalls der Engine, nicht für Kindprozesse erlaubter Programme.
   ListDir (D#61): breitenweise über eine Warteschlange, je Verzeichnis nach Namen sortiert, Einträge als Pfade unter dem angefragten Pfad, Verzeichnisse mit "/"; Symlinks gezeigt, nicht verfolgt; Verzeichnisse namens .git gezeigt, nicht betreten; höchstens 2000 Einträge, dann ein Hinweis. touched ist das angefragte Verzeichnis.
@@ -143,7 +143,7 @@ Aufgabe → Plan (mit bestOfN n Kandidaten je Runde, D#63) → DryRun (CheckedTe
 =====================================================================
 EVALS
 =====================================================================
-Sieben Aufgaben, Details zu Eval 6 (Integrations-Use-Case, deterministisch und live) und Eval 7 (Spot-Rechnung gegen ein Double der AWS CLI, O#40, D#81) in evals/README.md. Erfolgsquote über n Läufe; Ergebnis als Datensatz measurements/M<n>.json und M#-Eintrag nach playbook/evals.md (D#77). evals/series.sh misst eine Eval (ase series begin und end), evals/harness.sh alle sechs mit derselben Konfiguration (D#64); ase compare vergleicht zwei Serien nur bei gleichem Schlüssel. Prüfvertrag: check.sh WORKDIR OUTCOME (D#17).
+Acht Aufgaben, Details zu Eval 6 (Integrations-Use-Case, deterministisch und live), Eval 7 (Spot-Rechnung gegen ein Double der AWS CLI, O#40, D#81) und Eval 8 (Vorprüfung vor dem teuren Schritt gegen dasselbe Double, D#84) in evals/README.md. Erfolgsquote über n Läufe; Ergebnis als Datensatz measurements/M<n>.json und M#-Eintrag nach playbook/evals.md (D#77). evals/series.sh misst eine Eval (ase series begin und end), evals/harness.sh alle sechs mit derselben Konfiguration (D#64); ase compare vergleicht zwei Serien nur bei gleichem Schlüssel. Prüfvertrag: check.sh WORKDIR OUTCOME (D#17).
 
 =====================================================================
 TESTS

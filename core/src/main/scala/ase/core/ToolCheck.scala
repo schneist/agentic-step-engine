@@ -36,7 +36,7 @@ object ToolCheck:
       _ <- parsed.rejected.headOption.map((a, r) => ToolError.ShellArgRejected(cmd, a, r)).toLeft(())
       // jeder Pfad, ohne Pfad das Arbeitsverzeichnis (D#27)
       touched <- parsed.touched.traverse(path(_, env).map(RelPath.show))
-      normalized <- parsed.pathAt.traverse(i => path(args(i), env).map(i -> RelPath.show(_)))
+      normalized <- parsed.pathAt.traverse((i, prefix) => path(args(i).drop(prefix.length), env).map(p => i -> (prefix + RelPath.show(p))))
       _ <- program(cmd, env)
     yield
       val byIndex = normalized.toMap

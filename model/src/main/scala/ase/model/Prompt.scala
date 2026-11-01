@@ -96,7 +96,11 @@ object Prompt:
 
   private def policy(p: ArgPolicy): String =
     val name = (p.binary :: p.prefixArgs).mkString(" ")
-    val flags = (p.flags.toList ++ p.valuedFlags.toList.map(_ + " <n>") ++ p.prefixFlags.toList.map(_ + "…")).sorted
+    val valued = p.valuedFlags.toList.map(f => p.values.get(f) match
+      case None                         => s"$f <n>"
+      case Some(ValueRule.Path(prefix)) => s"$f <${prefix}Pfad>"
+      case Some(ValueRule.Pattern(rx))  => s"$f <Text nach Muster $rx>")
+    val flags = (p.flags.toList ++ valued ++ p.prefixFlags.toList.map(_ + "…")).sorted
     val positional = p.positional match
       case Positional.NoArgs                         => "keine weiteren Argumente"
       case Positional.Paths                          => "dann Pfade"

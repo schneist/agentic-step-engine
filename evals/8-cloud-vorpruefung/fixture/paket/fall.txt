@@ -1,0 +1,5 @@
+fall               rumpf-v12
+gitter             fein
+endzeit_s          20
+schreibintervall_s 1.0
+kerne              16

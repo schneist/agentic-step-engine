@@ -9,7 +9,8 @@ enum Positional:
   case RevisionThenPathsAfterDashDash
 
 /** Argument-Policy pro Programm (D#12): erlaubte Flags als Allowlist, Nicht-Flag-Argumente sind Pfade.
-  * Nennt ein Aufruf keinen Pfad, berührt er das Arbeitsverzeichnis "." (D#27).
+  * Nennt ein Aufruf keinen Pfad, berührt er das Arbeitsverzeichnis "." (D#27). values: was der Wert eines Flags mit
+  * Wert sein darf (D#83); ohne Regel ist er beliebiger Text, der nicht mit "-" beginnt.
   */
 final case class ArgPolicy(
     binary: String,
@@ -17,8 +18,19 @@ final case class ArgPolicy(
     flags: Set[String],
     valuedFlags: Set[String],
     prefixFlags: Set[String],
-    positional: Positional
-)
+    positional: Positional,
+    values: Map[String, ValueRule] = Map.empty
+):
+  /** Nimmt der Befehl Pfade an: als Nicht-Flag-Argument oder als Wert eines Flags nach Regel Path (D#83)? */
+  def takesPaths: Boolean = positional != Positional.NoArgs || values.values.exists(_.isInstanceOf[ValueRule.Path])
+
+/** Regel für den Wert eines Flags mit Wert (D#83). Path: nach einem festen Präfix wie "file://" ein Pfad im
+  * Arbeitsverzeichnis, geprüft wie bei ReadFile; er zählt zu den Pfaden des Aufrufs. Pattern: Text, der ganz auf das
+  * Muster passt.
+  */
+enum ValueRule:
+  case Path(prefix: String = "")
+  case Pattern(regex: String)
 
 object ArgPolicy:
   val defaults: List[ArgPolicy] = List(
@@ -45,10 +57,10 @@ object ArgPolicy:
   def find(policies: List[ArgPolicy], cmd: String, args: List[String]): Option[ArgPolicy] =
     policies.filter(p => p.binary == cmd && args.startsWith(p.prefixArgs)).maxByOption(_.prefixArgs.size)
 
-  /** Abgelehnte Argumente mit Grund und die ausdrücklich genannten Pfade; pathAt sind deren Stellen in args
-    * (Execute gibt dort den normalisierten Pfad weiter).
+  /** Abgelehnte Argumente mit Grund und die ausdrücklich genannten Pfade; pathAt sind deren Stellen in args mit dem
+    * Präfix, das dort vor dem Pfad steht (Execute gibt dort Präfix und normalisierten Pfad weiter).
     */
-  final case class Parsed(rejected: List[(String, String)], paths: List[String], pathAt: List[Int]):
+  final case class Parsed(rejected: List[(String, String)], paths: List[String], pathAt: List[(Int, String)]):
     /** Was der Aufruf berührt: ohne Pfadargument das Arbeitsverzeichnis (D#27). */
     def touched: List[String] = if paths.isEmpty then List(".") else paths
 
@@ -67,21 +79,33 @@ object ArgPolicy:
       val all = (policy.flags ++ policy.valuedFlags ++ policy.prefixFlags.map(_ + "…")).toList.sorted
       if all.isEmpty then "keine" else all.mkString(" ")
 
-    // paths: Pfad mit seiner Stelle in args
+    def value(arg: String, v: String, i: Int): Either[String, Option[(String, Int, String)]] =
+      policy.values.get(arg) match
+        case None => Right(None)
+        case Some(ValueRule.Path(prefix)) =>
+          if v.startsWith(prefix) && v.length > prefix.length then Right(Some((v.drop(prefix.length), i, prefix)))
+          else Left(s"Wert „$v“ muss ein Pfad${if prefix.isEmpty then "" else s" nach „$prefix“"} sein")
+        case Some(ValueRule.Pattern(regex)) =>
+          Either.cond(v.matches(regex), None, s"Wert „$v“ passt nicht auf das Muster $regex")
+
+    // paths: Pfad mit seiner Stelle in args und dem Präfix davor
     @annotation.tailrec
-    def loop(rest: List[String], afterDashDash: Boolean, positionals: Int, rejected: List[(String, String)], paths: List[(String, Int)]): Parsed =
+    def loop(rest: List[String], afterDashDash: Boolean, positionals: Int, rejected: List[(String, String)], paths: List[(String, Int, String)]): Parsed =
       val i = args.size - rest.size
       rest match
-        case Nil => Parsed(rejected.reverse, paths.reverse.map(_._1), paths.reverse.map(_._2))
+        case Nil => Parsed(rejected.reverse, paths.reverse.map(_._1), paths.reverse.map(p => (p._2, p._3)))
         case arg :: tail if afterDashDash =>
-          loop(tail, true, positionals, rejected, (arg, i) :: paths)
+          loop(tail, true, positionals, rejected, (arg, i, "") :: paths)
         case "--" :: tail =>
           if dashDashAllowed then loop(tail, true, positionals, rejected, paths)
           else loop(tail, false, positionals, ("--", "„--“ ist hier nicht vorgesehen") :: rejected, paths)
         case arg :: tail if arg.startsWith("-") && arg != "-" =>
           if policy.valuedFlags(arg) then
             tail match
-              case value :: more if !value.startsWith("-") => loop(more, false, positionals, rejected, paths)
+              case v :: more if !v.startsWith("-") =>
+                value(arg, v, i + 1) match
+                  case Right(path)   => loop(more, false, positionals, rejected, path.toList ++ paths)
+                  case Left(reason)  => loop(more, false, positionals, (arg, reason) :: rejected, paths)
               case _ => loop(tail, false, positionals, (arg, "erwartet einen Wert") :: rejected, paths)
           else if flagAllowed(arg) then loop(tail, false, positionals, rejected, paths)
           else loop(tail, false, positionals, (arg, s"Flag nicht erlaubt; erlaubt sind: $allowedFlags") :: rejected, paths)
@@ -90,10 +114,10 @@ object ArgPolicy:
             case NoArgs =>
               loop(tail, false, positionals, (arg, "keine weiteren Argumente erlaubt") :: rejected, paths)
             case Paths =>
-              loop(tail, false, positionals + 1, rejected, (arg, i) :: paths)
+              loop(tail, false, positionals + 1, rejected, (arg, i, "") :: paths)
             case PatternThenPaths =>
               if positionals == 0 then loop(tail, false, 1, rejected, paths)
-              else loop(tail, false, positionals + 1, rejected, (arg, i) :: paths)
+              else loop(tail, false, positionals + 1, rejected, (arg, i, "") :: paths)
             case PathsAfterDashDash =>
               loop(tail, false, positionals, (arg, "Pfade erst nach „--“") :: rejected, paths)
             case RevisionThenPathsAfterDashDash =>

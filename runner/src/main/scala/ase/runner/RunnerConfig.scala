@@ -122,7 +122,7 @@ object RunnerConfig:
   private def program(json: Json): Either[String, Program] =
     for
       o <- obj(json, "programs")
-      _ <- only(o, "programs", "binary", "args", "flags", "valuedFlags", "prefixFlags", "positional", "runsCode")
+      _ <- only(o, "programs", "binary", "args", "flags", "valuedFlags", "prefixFlags", "positional", "runsCode", "values")
       binary <- o("binary").flatMap(_.asString).filter(Name.matches).toRight("programs: binary muss ein Programmname ohne Pfad sein")
       at = s"programs: $binary"
       args <- strings(o, "args", at)
@@ -138,7 +138,34 @@ object RunnerConfig:
       )
       runsCode <- strings(o, "runsCode", at)
       _ <- runsCode.find(p => RelPath.parse(p).isLeft).map(p => s"$at: runsCode „$p“ ist kein Pfad im Arbeitsverzeichnis").toLeft(())
-    yield Program(ArgPolicy(binary, args, flags.toSet, valued.toSet, prefix.toSet, positional), runsCode)
+      values <- o("values").fold(Map.empty[String, ValueRule].asRight[String])(valueRules(_, at, valued.toSet))
+    yield Program(ArgPolicy(binary, args, flags.toSet, valued.toSet, prefix.toSet, positional, values), runsCode)
+
+  /** Wertregeln je Flag mit Wert (D#83): {"--body": {"type": "Path"}, "--user-data": {"type": "Path", "prefix": "file://"},
+    * "--query": {"type": "Pattern", "regex": "^…$"}}. Nur für Flags aus valuedFlags; ein Muster muss sich übersetzen lassen.
+    */
+  private def valueRules(json: Json, at: String, valued: Set[String]): Either[String, Map[String, ValueRule]] =
+    obj(json, s"$at: values").flatMap(_.toList.traverse { (flag, j) =>
+      val here = s"$at: values „$flag“"
+      for
+        _ <- Either.cond(valued(flag), (), s"$here ist kein Flag aus valuedFlags")
+        r <- obj(j, here)
+        rule <- r("type").flatMap(_.asString) match
+          case Some("Path") =>
+            for
+              _ <- only(r, here, "type", "prefix")
+              prefix <- str(r, "prefix", "").leftMap(e => s"$here: $e")
+            yield ValueRule.Path(prefix)
+          case Some("Pattern") =>
+            for
+              _ <- only(r, here, "type", "regex")
+              regex <- r("regex").flatMap(_.asString).toRight(s"$here: regex fehlt")
+              _ <- Either.catchOnly[java.util.regex.PatternSyntaxException](java.util.regex.Pattern.compile(regex))
+                .leftMap(e => s"$here: Muster ungültig: ${e.getDescription}")
+            yield ValueRule.Pattern(regex)
+          case _ => Left(s"$here: type ist Path oder Pattern")
+      yield flag -> rule
+    }).map(_.toMap)
 
   private def strings(o: JsonObject, name: String, at: String): Either[String, List[String]] =
     o(name).fold(List.empty[String].asRight[String])(

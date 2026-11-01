@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Dasselbe Double wie in Eval 7 (D#81); Zustand und Aufrufe liegen wie dort in WORKDIR/../.cloud-stub.
+exec "$(dirname "$0")/../../7-cloud-start/bin/aws" "$@"

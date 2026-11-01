@@ -8,7 +8,7 @@
 - **Rechte pro Agentenschritt.** Im selben Lauf darf ein Agentenschritt nur `CHANGELOG.md` ändern, ein anderer nur unter `docs/`.
 - **Vorhersagbar.** Die Sprache ist klein und total: Jeder Lauf endet, und wie viele Schritte er höchstens braucht, steht vor dem Start fest ([Einordnung](#einordnung)).
 - **Einmal freigeben, oft laufen lassen.** Ein Flow hat einen stabilen Hash und läuft mit `--approve <hash> --no-ask` auch in CI.
-- **Erprobt.** Mit Claude bestand jede der sechs Standard-Testaufgaben 10 von 10 Läufen; eine siebte mit eingespielten Fehlern zeigt, wo es noch hakt ([Zahlen](#wie-zuverlässig-es-ist)).
+- **Erprobt.** Mit Claude bestand jede der sechs Standard-Testaufgaben 10 von 10 Läufen; zwei weitere gegen ein Double der AWS CLI zeigen, wo es noch hakt ([Zahlen](#wie-zuverlässig-es-ist)).
 
 Prototyp in Scala 3 mit Kommandozeile, Apache License 2.0. Gedacht für Abläufe, die man einmal festlegt und oft laufen lässt, nicht als Ersatz für Claude Code oder Cursor im Alltag.
 
@@ -151,11 +151,11 @@ Ein Coding-Agent wie Claude Code lässt sich gut einzäunen. Der Plan-Modus zeig
 - **Kein Zurückrollen.** Was gelaufen ist, bleibt gelaufen.
 - **Mehr Modellaufrufe.** Ein Plan und je Agentenschritt mindestens ein Fill. Claude braucht je nach Aufgabe 11k bis 61k Tokens je Lauf, ein Flow mit vier Agentenschritten wie in Eval 7 rund 135k bis 160k. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
 - **Kleine Sprache.** Sie bearbeitet Dateien und ruft eine kleine Liste von Shell-Befehlen auf, mehr nicht.
-- **Werte von Flags sind keine geprüften Pfade.** Pfade als Argumente prüft `ase` wie bei `ReadFile`, den Wert eines Flags mit Wert nicht. Bei einem eigenen Programm wie `aws` kann `--body DATEI` oder `--user-data file://DATEI` eine Datei außerhalb des Arbeitsverzeichnisses lesen und hochladen. Solche Flags nur erlauben, wenn das in Ordnung ist (O#41).
+- **Werte von Flags prüft `ase` nur mit Regel.** Pfade als Argumente prüft `ase` wie bei `ReadFile`; den Wert eines Flags mit Wert nur, wenn die Argument-Policy ihm eine Regel gibt: ein Pfad im Arbeitsverzeichnis (`--body`, `--user-data file://`) oder ein Muster (D#83). Ohne Regel ist der Wert frei. Bei einem eigenen Programm wie `aws` also jedem Flag, das eine Datei liest oder Befehle trägt, eine Regel geben.
 
 ## Wie zuverlässig es ist
 
-Sieben Testaufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Die ersten sechs liefen je 10-mal mit claude-opus-5-5 (effort high, über Claude Code), jedes Mal in einer frischen Kopie, geprüft von einem Skript. Gemessen am 29.10.2026 (M#7 bis M#10, M#12, M#13), vor der Abnahme (D#80): Seitdem ist der System-Prompt länger, und an Eval 6 änderte das, wie oft ein Agentenschritt eine Datei vor dem Ändern noch einmal liest (M#24). Eine neue Messung der sechs steht aus.
+Acht Testaufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Die ersten sechs liefen je 10-mal mit claude-opus-5-5 (effort high, über Claude Code), jedes Mal in einer frischen Kopie, geprüft von einem Skript. Gemessen am 29.10.2026 (M#7 bis M#10, M#12, M#13), vor der Abnahme (D#80): Seitdem ist der System-Prompt länger, und an Eval 6 änderte das, wie oft ein Agentenschritt eine Datei vor dem Ändern noch einmal liest (M#24). Eine neue Messung der sechs steht aus.
 
 | Eval | Aufgabe | Erfolg | Tokens ø je Lauf |
 |---|---|---|---|

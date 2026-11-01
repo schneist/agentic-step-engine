@@ -196,8 +196,8 @@ policies:
     type: policy
     status: implemented
     source: core/src/main/scala/ase/core/ArgPolicy.scala#ArgPolicy
-    verified: 2026-10-27
-    decided_by: ["D#12", "D#27"]
+    verified: 2026-11-01
+    decided_by: ["D#12", "D#27", "D#83"]
   - id: policy.scopeFilter
     type: policy
     status: implemented
@@ -608,6 +608,8 @@ decisions:
   - { id: "D#80", type: decision, status: decided, source: "findings.md#D#80", verified: 2026-10-31, title: "Abnahme eines Agentenschritts: Hole mit verify (Programm, Bedingung, max Durchläufe); Tor 1 prüft, dass der Agentenschritt den Code der Abnahme nicht ändern darf", tested_by: [core.VerifySuite] }
   - { id: "D#81", type: decision, status: decided, source: "findings.md#D#81", verified: 2026-10-31, title: "Eval 7 cloud-start gegen ein Double der AWS CLI (bin/aws), Zustand neben dem Arbeitsverzeichnis, eigene Runner-Konfiguration, series.sh mit <eval>/bin im PATH", tested_by: [evals/7-cloud-start/check.sh] }
   - { id: "D#82", type: decision, status: decided, source: "findings.md#D#82", verified: 2026-10-31, title: "ase tighten engt Programme auf die aufgerufenen Unterbefehle ein (prefixArgs der Argument-Policy)", tested_by: [ase.core.TightenSuite, ase.core.UsageSuite] }
+  - { id: "D#83", type: decision, status: decided, source: "findings.md#D#83", verified: 2026-11-01, title: "Wertregeln für Flags mit Wert: Path (Präfix, dann Pfad im Arbeitsverzeichnis, zählt zu den Pfaden des Aufrufs) oder Pattern; Konfiguration programs[].values", tested_by: [ase.core.ArgPolicySuite, ase.runner.RunnerSuite] }
+  - { id: "D#84", type: decision, status: decided, source: "findings.md#D#84", verified: 2026-11-01, title: "Eval 8 cloud-vorpruefung: Prüfung vor dem teuren Schritt, bestanden ist ask ohne schreibenden aws-Aufruf", tested_by: [evals/8-cloud-vorpruefung/check.sh] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -657,7 +659,7 @@ open:
   - { id: "O#36", type: open, status: resolved, source: "findings.md#O#36", verified: 2026-10-30, title: "D#77 umsetzen", resolved_by: "D#79" }
   - { id: "O#39", type: open, status: open, source: "findings.md#O#39", verified: 2026-10-31, title: "M# für D#80: Abnahme an Eval 6 nie gescheitert (M#22), an Eval 7 greift sie in 10/10 Läufen und holt 3 zurück (M#27); Prompt von D#80 verschiebt die Reparatur an Eval 6 (M#23, M#24), Planner-Basis Eval 1 bis 6 offen" }
   - { id: "O#40", type: open, status: open, source: "findings.md#O#40", verified: 2026-10-31, title: "Spot-Maschinen in AWS als Flow; Härtung in Stufen an Eval 7: offen 0/10 (M#25), Gerüst 0/10 (M#26), mit Abnahme 3/10 (M#27), mit RepeatUntil 5/10 und 9/10 (M#28, M#29), Runden des Bucket-Schritts behoben 9/10 (M#30), eingefroren 8/10 (M#31); Start-Flow seit 01.11. in ducktest ohne Agentenschritt; offen: vorübergehende Fehler, echter Lauf" }
-  - { id: "O#41", type: open, status: open, source: "findings.md#O#41", verified: 2026-10-31, title: "Werte von valuedFlags werden nicht als Pfad geprüft (aws --body, --user-data file://)" }
+  - { id: "O#41", type: open, status: resolved, source: "findings.md#O#41", verified: 2026-11-01, resolved_by: "D#83", title: "Werte von valuedFlags werden nicht als Pfad geprüft (aws --body, --user-data file://); seit D#83 mit Wertregel" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }
@@ -725,6 +727,16 @@ evals:
     relates_to: ["O#40", "O#41"]
     note: "bin/aws ist das Double, Zustand in ../.cloud-stub; eigene Runner-Konfiguration; check.sh gegen loesung.json, Fixture und falsche Zone geprüft; nicht im Harness. Stufen der Härtung: M#25 offen 0/10, M#26 Gerüst 0/10, M#27 mit Abnahme 3/10, RepeatUntil statt Abnahme 5/10 (M#28), mit Abschluss über die Maschine 9/10 (M#29), mit sts als festem Schritt vor dem Bucket 9/10 und Bucket ohne Schreibaufrufe in der letzten Runde (M#30), eingefroren 8/10 bei einem Drittel weniger Tokens (M#31)"
     measurements: ["M#25", "M#26", "M#27", "M#28", "M#29", "M#30", "M#31"]
+  - id: eval.8
+    type: eval
+    status: implemented
+    source: evals/8-cloud-vorpruefung/
+    verified: 2026-11-01
+    title: cloud-vorpruefung (Paket mit Fehlern, Vorprüfung vor dem ersten aws-Aufruf)
+    decided_by: ["D#84"]
+    relates_to: ["O#40", "eval.7"]
+    note: "Fixture wie Eval 7 mit zwei Regelverstößen im Paket; infra/vorpruefung.sh als Skript in Hülle und Konfiguration; bin/aws ruft das Double von Eval 7; check.sh verlangt ask ohne schreibenden aws-Aufruf; von Hand geprüft; nicht im Harness"
+    measurements: []
   - id: eval.lib
     type: eval
     status: implemented

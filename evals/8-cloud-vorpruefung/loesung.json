@@ -1,0 +1,29 @@
+{
+  "description": "Von Hand gebaute Lösung für Eval 8, nur um check.sh zu prüfen: Vorprüfung als Tor vor allem anderen; scheitert sie, endet der Lauf mit einer Frage. Der Rest (Bucket, Paket, Deckel, Maschine) käme in den then-Zweig und fehlt hier, weil das Fixture die Vorprüfung nie besteht.",
+  "params": {},
+  "envelope": {
+    "allowedOps": ["ReadFile", "ListDir", "WriteFile", "Shell", "Ask", "Hole"],
+    "pathPrefix": ".",
+    "maxSteps": 40,
+    "maxDepth": 1,
+    "shellAllowlist": [
+      { "binary": "aws", "requiredPrefixArgs": [] },
+      { "binary": "./infra/vorpruefung.sh", "requiredPrefixArgs": [] }
+    ]
+  },
+  "term": {
+    "type": "Seq",
+    "origin": "Human",
+    "steps": [
+      { "type": "ReadFile", "path": "README.md", "origin": "Human" },
+      { "type": "Shell", "cmd": "./infra/vorpruefung.sh", "args": [], "origin": "Human" },
+      {
+        "type": "If",
+        "origin": "Human",
+        "pred": { "type": "LastExitCode", "code": 0 },
+        "thenT": { "type": "Done", "summary": "Vorprüfung bestanden; hier folgte der Start", "origin": "Human" },
+        "elseT": { "type": "Ask", "question": "Vorprüfung gescheitert, Befunde in stand/vorpruefung.txt und im Schritt davor; nichts angelegt, nichts gestartet. Wie weiter?", "origin": "Human" }
+      }
+    ]
+  }
+}

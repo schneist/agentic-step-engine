@@ -36,6 +36,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Abnahme** (`verify`): Programm und Bedingung an einem Agentenschritt. Nach jedem Durchlauf läuft das Programm unter der umgebenden Hülle; erfüllt sein Ergebnis die Bedingung nicht, entscheidet der Agent erneut, höchstens max-mal (D#80). Nicht zu verwechseln mit DryRun, das prüft, bevor etwas läuft.
 - **Double**: Ein Programm, das sich nach außen wie ein echtes verhält, aber nur einen Zustand in einer Datei ändert. Eval 7 nutzt eines für die AWS CLI (`evals/7-cloud-start/bin/aws`, D#81).
 - **Härtung**: Ein Agentenschritt wird über Messungen enger: offen, eingeengt (`ase tighten`), mit Abnahme, zuletzt ein statischer Schritt, dessen wechselnde Werte Parameter sind (O#40).
+- **Vorprüfung**: Ein billiges Skript des Fixtures, das vor dem teuren Schritt läuft und ihn bei einem Befund verhindert; als Tor im Flow `Shell` plus `If(LastExitCode 0, …, Ask)` (Eval 8, D#84).
 - **Hülle** (`Envelope`): Was in einem Agentenschritt maximal passieren darf: erlaubte Operationen, Pfadpräfix, maximale Schritte, maximale Tiefe, Shell-Allowlist.
 - **Attenuation**: Die Regel, dass eine innere Hülle nie weiter ist als die äußere. Nach Mark Miller (Object Capabilities).
 - **Envelope-Monotonie**: Dasselbe wie Attenuation, als Gesetz formuliert und per Property-Test geprüft.
@@ -54,6 +55,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Ausrollen**: Ein rekursives Schema als endliche Folge von Ebenen schreiben, Term_k verweist nur auf Term_{k-1} (D#10).
 - **Well-Formedness**: Ein Agentenschritt ist lösbar beschränkt: maxSteps ≥ 1, allowedOps nicht leer, maxDepth ≥ 0.
 - **Argument-Policy**: Pro erlaubtem Shell-Programm die erlaubten Flags; alle anderen Argumente sind Pfade und werden wie Dateipfade geprüft (D#12).
+- **Wertregel** (`ValueRule`): Was der Wert eines Flags mit Wert sein darf: ein Pfad im Arbeitsverzeichnis nach einem festen Präfix (`Path`), oder Text nach einem Muster (`Pattern`). Ohne Regel ist der Wert frei (D#83).
 - **Workspace**: Das Arbeitsverzeichnis eines Laufs. Kein Pfad darf es verlassen.
 - **Marshalling**: Aufbereitung von Ergebnissen für das Modell: Kürzung mit Hinweis, Fehler als Handlungsanweisung; baut auch den Scope.
 - **Outcome**: Ausgang eines Laufs: done, ask oder aborted. Geht an `check.sh` (D#17).
@@ -398,6 +400,14 @@ Manche Agentenschritte haben ein Ergebnis, das ein Programm prüfen kann: Die Te
 ### Warum Eval 7 gegen ein Double läuft (D#81)
 
 Eine Serie braucht n Läufe, und jeder Lauf startet eine Maschine. Gegen AWS kostet das Geld, braucht Rechte, die die Engine noch nicht eng genug fassen kann (O#41), und trifft jedes Mal auf einen anderen Zustand: andere Preise, andere Zonen, mal einen Einzug. Ein Double antwortet immer gleich, also misst die Serie das Modell und den Flow, nicht den Tag bei AWS. Es spielt die Fehler aus dem Runbook in jedem Lauf ein, an AWS kommen sie selten und zufällig. Der Preis: Es kennt nur die Unterbefehle, die das Runbook braucht, und wertet `--query` nicht aus. Ob ein Flow, der am Double besteht, auch an AWS besteht, zeigt erst der eine echte Lauf am Ende (O#40, Schritt 6). Der Zustand liegt neben dem Arbeitsverzeichnis, damit ein Fill ihn weder lesen noch fälschen kann; sonst bestünde ein Agentenschritt die Prüfung, indem er state.json schreibt.
+
+### Warum ein Eval die Prüfung vor dem teuren Schritt misst und nicht den Schritt (D#84)
+
+In ducktest ging die meiste Arbeit nicht am Start verloren, sondern danach: Das Paket war falsch, und das zeigte sich erst auf der laufenden Maschine, nach Minuten Einrichtung und Stunden Rechnung. Die Prüfungen gab es, aber als Zeile im Runbook, die ein Mensch liest und vergleicht. Ein Flow kann sie erzwingen: ein Skript mit Exit-Code, ein Tor, danach erst aws. Ob ein Modell diese Reihenfolge von selbst findet, wenn das README sie verlangt, ist die Frage, die Eval 8 stellt; ob ein Gerüst sie hält, die zweite. Darum misst Eval 8 den Fall, in dem die Prüfung scheitert: Bestanden ist, wer nichts anlegt, nichts startet und fragt. Ein heiles Paket wäre Eval 7. Die Prüfung ist ein Skript des Fixtures und nicht Teil von ase, weil die Regeln zum Paket gehören; ase stellt nur sicher, dass sie vor dem teuren Schritt läuft und ihr Ergebnis zählt.
+
+### Warum ein Flag mit Wert eine Regel für den Wert bekommt, und nur Pfad oder Muster (D#83)
+
+Die Argument-Policy prüft, was ein Aufruf berührt: Jedes Nicht-Flag-Argument ist ein Pfad und geht durch dieselbe Prüfung wie ReadFile. Der Wert eines Flags war davon ausgenommen, weil die ersten Programme (`git log -n 3`) dort nur Zahlen hatten. Bei `aws s3api put-object --body DATEI` ist der Wert aber ein Pfad, und ohne Prüfung liest der Aufruf jede Datei des Rechners und lädt sie hoch; bei `ssm send-command --parameters` ist der Wert eine Shell-Zeile, die auf einer anderen Maschine läuft. Beides ist genau das, was die Policy sonst verhindert, nur hinter einem Flag. Das Flag ganz zu verbieten, ginge nicht: Ohne `--body` gibt es kein Hochladen. Darum sagt die Policy jetzt je Flag, was der Wert sein darf. Zwei Regeln reichen: Ein Pfad geht durch die vorhandene Pfadprüfung und zählt zu den Pfaden des Aufrufs, damit Scope und Explain ihn wie jeden anderen sehen; ein Muster prüft Text, ohne ihn zu deuten. Mehr wäre eine Grammatik je Programm, und die hat ase bewusst nicht (D#12: keine Shell-Interpretation). Ein Präfix wie `file://` gehört zur Regel, nicht zum Pfad, weil die CLI es verlangt und RelPath es ablehnen muss. Ein Flag ohne Regel bleibt, wie es war, damit die Prompts der sechs Evals unverändert bleiben und ihre Messungen weiter gelten; wer die Regel braucht, trägt sie ein und misst neu.
 
 ### Warum tighten Unterbefehle einengt und nicht Argumente (D#82)
 
