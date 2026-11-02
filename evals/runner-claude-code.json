@@ -6,5 +6,30 @@
     "endpoint": "/mnt/c/Users/schne/.local/bin/claude.exe",
     "workDir": "/mnt/c/Users/schne/AppData/Local/Temp/ase-claude"
   },
-  "scripts": ["./run-tests.sh"]
+  "scripts": [
+    "./run-tests.sh"
+  ],
+  "sandbox": {
+    "programs": {
+      "sbt": {
+        "mounts": [
+          {
+            "path": "/opt/sbt"
+          },
+          {
+            "path": "~/.sbt",
+            "write": true
+          },
+          {
+            "path": "~/.ivy2",
+            "write": true
+          },
+          {
+            "path": "~/.cache/coursier",
+            "write": true
+          }
+        ]
+      }
+    }
+  }
 }

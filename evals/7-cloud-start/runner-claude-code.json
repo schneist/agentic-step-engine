@@ -187,5 +187,17 @@
       ],
       "positional": "NoArgs"
     }
-  ]
+  ],
+  "sandbox": {
+    "programs": {
+      "aws": {
+        "mounts": [
+          {
+            "path": "../.cloud-stub",
+            "write": true
+          }
+        ]
+      }
+    }
+  }
 }

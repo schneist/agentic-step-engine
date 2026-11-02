@@ -311,6 +311,39 @@ class RunnerSuite extends munit.FunSuite:
     // ein Flow ohne implicits schreibt kein Feld
     assert(!Flow.encode(flow.copy(implicits = Implicits.empty)).noSpaces.contains("implicits"))
 
+  test("sandbox: Standard an, false schaltet ab, Zusätze nur für Programme, Workspace-Code ohne Netz (D#88)"):
+    assertEquals(RunnerConfig.default.exec.sandbox, Sandbox.On(Map.empty))
+    assertEquals(RunnerConfig.parse("{}").map(_.exec.sandbox), Right(Sandbox.On(Map.empty)))
+    val off = RunnerConfig.parse("""{"sandbox": false}""").fold(fail(_), identity)
+    assertEquals((off.exec.sandbox, off.explain.sandbox), (Sandbox.Off, Some(Sandbox.Off)))
+    val c = RunnerConfig.parse(
+      """{"sandbox": {"programs": {"aws": {"net": true, "mounts": [{"path": "~/.aws"}, {"path": "../.stub", "write": true}]},
+        |"sbt": {"mounts": [{"path": "~/.sbt", "write": true}]}}}}""".stripMargin
+    ).fold(fail(_), identity)
+    val expected = Sandbox.On(Map(
+      "aws" -> Extra(net = true, List(Mount("~/.aws", writable = false), Mount("../.stub", writable = true))),
+      "sbt" -> Extra(net = false, List(Mount("~/.sbt", writable = true)))
+    ))
+    // Explain und Execute bekommen dieselbe Sandbox aus derselben Datei
+    assertEquals((c.exec.sandbox, c.explain.sandbox), (expected, Some(expected)))
+    List(
+      """{"sandbox": {"programs": {"./run-tests.sh": {"net": true}}}}""",
+      """{"sandbox": {"programs": {"sbt": {"net": true}}}}""",
+      """{"programs": [{"binary": "python3", "runsCode": ["."]}], "sandbox": {"programs": {"python3": {"net": true}}}}""",
+      """{"sandbox": {"programs": {"aws": {"mounts": [{"path": "~root/.aws"}]}}}}""",
+      """{"sandbox": {"programs": {"aws": {"mounts": [{"path": ""}]}}}}""",
+      """{"sandbox": {"programs": {"aws": {"env": {}}}}}""",
+      """{"sandbox": "aus"}"""
+    ).foreach(bad => assert(RunnerConfig.parse(bad).isLeft, bad))
+
+  test("Explain nennt die Sandbox unten; ist sie aus, steht das in der ersten Zeile (D#88)"):
+    val checked = DryRun.plan(good, root, check).fold(v => fail(v.toString), identity)
+    val on = Explain.render(checked, ExplainConfig.default.copy(sandbox = Some(Sandbox.default)))
+    assert(on.linesIterator.toList.last.startsWith("sandbox   jeder Aufruf sieht nur das Arbeitsverzeichnis"), on)
+    val off = Explain.render(checked, ExplainConfig.default.copy(sandbox = Some(Sandbox.Off)))
+    assert(off.linesIterator.next().startsWith("sandbox   AUS"), off)
+    assert(!Explain.render(checked).contains("sandbox"))
+
   // eine andere Form als good (ReadFile statt ListDir): BestOfN stimmt über die Form ab (D#65)
   private val other = Term.Seq(List(Term.ReadFile("docs/a.md", h), Term.Hole("Schreibe a.md", Envelope(Set(OpKind.WriteFile), "a.md", 2, 0, Set.empty), h)), h)
 

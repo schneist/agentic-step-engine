@@ -12,7 +12,7 @@ Menschen, die eine wiederkehrende Aufgabe haben, bei der neunzig Prozent fest si
 
 ## 3. Was es nicht ist
 
-Kein allgemeiner Chat-Agent. Kein Ersatz für Code-Review. Kein Sandbox-Produkt; die Sicherheit kommt aus Prüfung und Hüllen, nicht aus Isolation, und ein Container drumherum bleibt sinnvoll.
+Kein allgemeiner Chat-Agent. Kein Ersatz für Code-Review. Kein Sandbox-Produkt; die Sicherheit kommt aus Prüfung und Hüllen, nicht aus Isolation. Die Sandbox je Programmaufruf (D#88) begrenzt nur, was ungeprüfter Code aus dem Arbeitsverzeichnis außerhalb davon erreicht; ein Container drumherum bleibt sinnvoll.
 
 ## 4. Herkunft
 
@@ -138,10 +138,10 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Verlangtes n** (`series.json`): Wie viele Läufe eine Eval für eine Serie verlangt, die zählt; ohne die Datei 10 (D#77).
 - **Pflicht-Flag** (`required`, je Programm): Flag mit Wert, das jeder Aufruf eines Programms genau einmal tragen muss, auch eine Abnahme; geprüft an Tor 1 und 2, auch in Plänen des Modells (D#87).
 - **Implizites Flag** (`implicits` im Flow): Wert eines Pflicht-Flags, den der Flow einmal nennt und die Elaboration in jeden passenden Aufruf einsetzt, auch in Fills. Im Eingabeterm ausdrücklich gesetzt lässt die Elaboration ihn nicht durch (D#87).
-- **Elaboration** (`Implicits.elaborate`): Die Funktion, die implizite Flags vor jedem DryRun einsetzt, immer, ohne Flow mit leerer Tabelle; `Implicits.strip` ist ihre Umkehrung für die Anzeige. Der Hash geht über ihr Ergebnis.
-- **Sandbox** (`bwrap`): Eigene Namespaces für jeden Prozess eines Shell-Aufrufs; er sieht Systemverzeichnisse nur lesbar, das Arbeitsverzeichnis schreibbar, ein leeres HOME und kein Netz. Eigenschaft des Interpreters, nicht der Hülle (D#88).
-- **Zusatz** (`programs[].sandbox`): Was ein Programm über den Standard der Sandbox hinaus bekommt: Netz und Einhängungen außerhalb des Arbeitsverzeichnisses, je nur lesbar oder schreibbar. Skripte und `runsCode`-Programme bekommen keinen (D#88).
-- **Einhängung** (mount): Ein Pfad von außen, den die Sandbox einem Prozess sichtbar macht; alles andere gibt es für ihn nicht (D#88). Begriff aus der Typtheorie für das Ausfüllen dessen, was der Quelltext offen lässt, wie der Scala-Compiler implizite Parameter einsetzt (D#87).
+- **Elaboration** (`Implicits.elaborate`): Die Funktion, die implizite Flags vor jedem DryRun einsetzt, immer, ohne Flow mit leerer Tabelle; `Implicits.strip` ist ihre Umkehrung für die Anzeige. Der Hash geht über ihr Ergebnis. Begriff aus der Typtheorie für das Ausfüllen dessen, was der Quelltext offen lässt, wie der Scala-Compiler implizite Parameter einsetzt (D#87).
+- **Sandbox** (`bwrap`): Eigene Namespaces für jeden Prozess eines Shell-Aufrufs; er sieht Systemverzeichnisse nur lesbar, das Arbeitsverzeichnis schreibbar, ein leeres HOME, ein eigenes /tmp und kein Netz, und seine Hintergrundprozesse enden mit ihm. Eigenschaft des Interpreters, nicht der Hülle; `"sandbox": false` schaltet sie bewusst ab (D#88).
+- **Zusatz** (`sandbox.programs`): Was ein Programm über den Standard der Sandbox hinaus bekommt: Netz und Einhängungen außerhalb des Arbeitsverzeichnisses, je nur lesbar oder schreibbar. Skripte bekommen keinen; Programme, die Workspace-Code ausführen, Einhängungen, aber kein Netz (D#88).
+- **Einhängung** (mount): Ein Pfad von außen, den die Sandbox einem Prozess sichtbar macht; alles andere gibt es für ihn nicht. Absolut, unter `~` oder relativ zum Arbeitsverzeichnis; nie das Arbeitsverzeichnis selbst oder etwas, das es enthält (D#88).
 
 ## 8. Warum
 
@@ -305,7 +305,7 @@ Explain kennt nur die Pfade im Term, Execute die aufgelösten; ein Symlink kann 
 
 ### Warum bekannte Grenzen bleiben (D#43)
 
-Die verbleibenden Lücken (Zeitfenster zwischen Prüfung und Syscall, Lesen über vorhandene Hardlinks, Kindprozesse nach dem Ende, Replay ohne Schreibvorgänge der Kindprozesse) brauchen entweder Workspace-Code, den der Mensch ohnehin freigibt (D#12), oder Mittel des Betriebssystems wie Namespaces oder einen Container. Das wäre ein eigenes Vorhaben. Sie stehen hier, damit niemand mehr Sicherheit annimmt, als es gibt.
+Die verbleibenden Lücken (Zeitfenster zwischen Prüfung und Syscall, Lesen über vorhandene Hardlinks, Kindprozesse nach dem Ende, Replay ohne Schreibvorgänge der Kindprozesse) brauchen entweder Workspace-Code, den der Mensch ohnehin freigibt (D#12), oder Mittel des Betriebssystems wie Namespaces oder einen Container. Das wäre ein eigenes Vorhaben. Sie stehen hier, damit niemand mehr Sicherheit annimmt, als es gibt. Seit der Sandbox (D#88) enden Kindprozesse mit ihrem Aufruf; die anderen drei bleiben, denn die Engine selbst liest und schreibt außerhalb der Sandbox, und ein Skript kann weiter einen Symlink nach draußen anlegen.
 
 ### Warum der Modelladapter kein Gespräch führt (D#44)
 
@@ -416,6 +416,8 @@ Ein Aufruf von `aws` ohne `--profile` nimmt das Standardprofil der Maschine, ohn
 Die Hüllen dieser Engine sind Capabilities (D#25): Was ein Agentenschritt nicht in der Hand hat, kann er nicht tun. Das gilt für alles, was durch den Term geht. Ein Skript im Arbeitsverzeichnis geht nicht durch den Term. Es läuft als derselbe Nutzer wie die Engine, mit dessen Home-Verzeichnis und dessen Netz, und hält damit jede Fähigkeit, die der Nutzer hält, auch die Zugangsdaten für ein Cloud-Konto. Die Prüfung an Tor 1 und 2 sagt über dieses Skript nichts, außer dass ein Mensch es freigegeben hat (D#12). Das Betriebssystem kann dieselbe Idee eine Ebene tiefer umsetzen: Ein Prozess in eigenen Namespaces sieht nur, was ihm eingehängt wurde, und was er nicht sieht, gibt es für ihn nicht. Ein Skript ohne Netz und ohne Home-Verzeichnis kann kein Profil umgehen, weil es keines erreicht. Die geprüften Aufrufe bekommen, was ihr Programm erklärt, etwa `aws` die Zugangsdaten lesbar und das Netz; ungeprüfter Code bekommt nichts davon. So trägt jeder Prozess genau die Fähigkeit, die seine Prüfung deckt.
 
 Die Sandbox steht nicht in der Hülle, obwohl sie wie eine Berechtigung aussieht. Hüllen werden abgeschwächt, vom Modell in Plänen geschrieben und von `ase tighten` verändert; eine Sandbox, die ein Plan weiter machen kann, wäre keine. Sie gehört zu den festen Zusätzen des Interpreters wie die Umgebung aus D#36: nicht verhandelbar, darum auch nicht im Term, im Hash oder im Prompt. Das Modell merkt davon nur, dass ein Skript ohne Netz anders scheitert. Was die Sandbox nicht ändert: Ein Skript bleibt ungeprüfter Code und kann das Arbeitsverzeichnis beliebig verändern, auch Dateien, die der Term danach liest. Dafür bleibt die Regel aus D#62. Der Gewinn ist, dass seine Wirkung im Arbeitsverzeichnis endet.
+
+Ein Programm wie `sbt` führt ebenfalls ungeprüften Code aus, die Tests aus dem Repository, braucht aber seine Caches. Es bekommt darum Einhängungen, aber nie Netz: Ein Cache ist eine Datei, die man im Explain sieht; Netz ist der Weg, auf dem Code Daten hinausträgt. Die Zusätze stehen einmal je Programm unter `sandbox` in der Konfiguration und unter dem Explain in einer Zeile, nicht an jedem Aufruf, aus demselben Grund wie die impliziten Flags (D#87): Was in jeder Zeile gleich ist, liest niemand.
 
 ### Warum der System-Prompt in den Serien-Schlüssel gehört und als eigenes Feld (D#86)
 

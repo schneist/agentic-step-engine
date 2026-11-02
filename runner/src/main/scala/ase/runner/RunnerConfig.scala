@@ -16,7 +16,8 @@ import scala.concurrent.duration.*
 final case class RunnerConfig(model: ModelConfig, exec: ExecConfig, check: CheckConfig, explain: ExplainConfig, planRounds: Int, bestOfN: Int = 1)
 
 object RunnerConfig:
-  val default: RunnerConfig = RunnerConfig(ModelConfig.default, ExecConfig.default, CheckConfig.default, ExplainConfig.default, 3)
+  val default: RunnerConfig =
+    RunnerConfig(ModelConfig.default, ExecConfig.default, CheckConfig.default, ExplainConfig.default.copy(sandbox = Some(ExecConfig.default.sandbox)), 3)
 
   def parse(text: String): Either[String, RunnerConfig] =
     parser.parse(text).left.map(e => s"Kein gültiges JSON: ${e.message}").flatMap(decode)
@@ -25,7 +26,7 @@ object RunnerConfig:
     val d = default
     for
       o <- obj(json, "Konfiguration")
-      _ <- only(o, "Konfiguration", "model", "limits", "nestingLimit", "planRounds", "bestOfN", "explainDenials", "scripts", "programs")
+      _ <- only(o, "Konfiguration", "model", "limits", "nestingLimit", "planRounds", "bestOfN", "explainDenials", "scripts", "programs", "sandbox")
       m <-o("model").fold(d.model.asRight[String])(modelConfig(_, d.model))
       e <- o("limits").fold(d.exec.asRight[String])(limits(_, d.exec))
       nesting <- int(o, "nestingLimit", d.check.nestingLimit)
@@ -37,21 +38,59 @@ object RunnerConfig:
       required <- requiredOf(programs, policies)
       denials <- o("explainDenials").fold(d.explain.explainDenials.asRight[String])(commands)
       _ <- Either.cond(nesting >= 1 && rounds >= 1 && bestOf >= 1, (), "nestingLimit, planRounds und bestOfN müssen mindestens 1 sein")
-    yield RunnerConfig(
-      m,
-      e,
-      d.check.copy(
+      check = d.check.copy(
         nestingLimit = nesting,
         argPolicies = policies,
         workspaceCode = programs.foldLeft(d.check.workspaceCode)((m, p) =>
           if p.runsCode.isEmpty then m else m.updated(p.policy.binary, (m.getOrElse(p.policy.binary, Nil) ++ p.runsCode).distinct)
         ),
         required = required
-      ),
-      ExplainConfig(denials),
+      )
+      sandbox <- o("sandbox").fold(ExecConfig.default.sandbox.asRight[String])(sandboxOf(_, check))
+    yield RunnerConfig(
+      m,
+      e.copy(sandbox = sandbox),
+      check,
+      // dieselbe Sandbox für Explain und Execute (D#88)
+      ExplainConfig(denials, Some(sandbox)),
       rounds,
       bestOf
     )
+
+  /** Sandbox (D#88): false schaltet sie bewusst ab; sonst {"programs": {"aws": {"net": true, "mounts": [{"path":
+    * "~/.aws"}, {"path": "../.cloud-stub", "write": true}]}}}. Zusätze nur für Programme mit Namen, nie für Skripte;
+    * ein Programm, das Workspace-Code ausführt (D#12), bekommt Einhängungen, aber kein Netz: sein Code ist ungeprüft.
+    */
+  private def sandboxOf(json: Json, check: CheckConfig): Either[String, Sandbox] =
+    json.asBoolean match
+      case Some(false) => Right(Sandbox.Off)
+      case Some(true)  => Right(Sandbox.default)
+      case None =>
+        for
+          o <- obj(json, "sandbox")
+          _ <- only(o, "sandbox", "programs")
+          ps <- o("programs").fold(JsonObject.empty.asRight[String])(obj(_, "sandbox: programs"))
+          extras <- ps.toList.traverse { (cmd, j) =>
+            val at = s"sandbox: $cmd"
+            for
+              _ <- Either.cond(Name.matches(cmd), (), s"$at: nur ein Programmname, kein Skript und kein Pfad")
+              e <- obj(j, at)
+              _ <- only(e, at, "net", "mounts")
+              net <- e("net").fold(false.asRight[String])(_.asBoolean.toRight(s"$at: net erwartet true oder false"))
+              _ <- Either.cond(!net || check.runsWorkspaceCode(cmd).isEmpty, (), s"$at: führt Workspace-Code aus und bekommt darum kein Netz")
+              ms <- e("mounts").fold(List.empty[Json].asRight[String])(_.asArray.map(_.toList).toRight(s"$at: mounts erwartet eine Liste"))
+              mounts <- ms.traverse { mj =>
+                for
+                  m <- obj(mj, s"$at: mounts")
+                  _ <- only(m, s"$at: mounts", "path", "write")
+                  path <- m("path").flatMap(_.asString).filter(_.nonEmpty).toRight(s"$at: mounts braucht path")
+                  _ <- Either.cond(!path.startsWith("~") || path == "~" || path.startsWith("~/"), (), s"$at: „$path“: nur ~ oder ~/…")
+                  write <- m("write").fold(false.asRight[String])(_.asBoolean.toRight(s"$at: write erwartet true oder false"))
+                yield Mount(path, write)
+              }
+            yield cmd -> Extra(net, mounts)
+          }
+        yield Sandbox.On(extras.toMap)
 
   /** provider bestimmt die Standards der übrigen Felder (D#47). */
   private def modelConfig(json: Json, fallback: ModelConfig): Either[String, ModelConfig] =

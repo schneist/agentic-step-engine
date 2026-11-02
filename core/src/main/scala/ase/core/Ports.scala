@@ -21,7 +21,8 @@ final case class ExecConfig(
     excerptTailLines: Int,
     shellTimeout: FiniteDuration,
     maxEditBytes: Long,
-    shellEnv: List[String]
+    shellEnv: List[String],
+    sandbox: Sandbox = Sandbox.default
 )
 
 object ExecConfig:

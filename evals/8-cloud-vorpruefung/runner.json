@@ -183,5 +183,17 @@
   ],
   "scripts": [
     "./infra/vorpruefung.sh"
-  ]
+  ],
+  "sandbox": {
+    "programs": {
+      "aws": {
+        "mounts": [
+          {
+            "path": "../.cloud-stub",
+            "write": true
+          }
+        ]
+      }
+    }
+  }
 }

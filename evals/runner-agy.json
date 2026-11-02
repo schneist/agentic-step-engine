@@ -5,6 +5,33 @@
     "endpoint": "/mnt/c/Users/schne/AppData/Local/agy/bin/agy.exe",
     "workDir": "/mnt/c/Users/schne/AppData/Local/Temp/ase-agy"
   },
-  "limits": { "shellTimeoutSeconds": 600 },
-  "scripts": ["./run-tests.sh"]
+  "limits": {
+    "shellTimeoutSeconds": 600
+  },
+  "scripts": [
+    "./run-tests.sh"
+  ],
+  "sandbox": {
+    "programs": {
+      "sbt": {
+        "mounts": [
+          {
+            "path": "/opt/sbt"
+          },
+          {
+            "path": "~/.sbt",
+            "write": true
+          },
+          {
+            "path": "~/.ivy2",
+            "write": true
+          },
+          {
+            "path": "~/.cache/coursier",
+            "write": true
+          }
+        ]
+      }
+    }
+  }
 }

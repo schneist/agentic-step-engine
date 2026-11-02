@@ -21,7 +21,9 @@ final class LocalTools[F[_]] private (fs: LocalTools.Fs)(using F: Sync[F]) exten
   def call(call: Call, envelope: Envelope): F[Reply] = F.blocking(fs.run(call, envelope))
 
 object LocalTools:
-  /** Prüft Plattform und Arbeitsverzeichnis; das Arbeitsverzeichnis wird einmal mit toRealPath aufgelöst. */
+  /** Prüft Plattform und Arbeitsverzeichnis; das Arbeitsverzeichnis wird einmal mit toRealPath aufgelöst. Mit
+    * Sandbox (D#88) auch, ob bwrap hier läuft, und die Einhängungen; fehlt eines, startet nichts.
+    */
   def open[F[_]: Sync](workspace: Path, config: ExecConfig, check: CheckConfig): F[Either[ExecuteError, Tools[F]]] =
     Sync[F].blocking {
       for
@@ -31,8 +33,64 @@ object LocalTools:
             val r = workspace.toRealPath()
             Either.cond(Files.isDirectory(r), r, ExecuteError.InvalidWorkspace(workspace.toString, "kein Verzeichnis"))
           catch case NonFatal(e) => Left(ExecuteError.InvalidWorkspace(workspace.toString, e.toString))
-      yield LocalTools[F](Fs(root, config, check.argPolicies))
+        jail <- config.sandbox match
+          case Sandbox.Off        => Right(None)
+          case Sandbox.On(extras) => Jail.open(root, extras).map(Some(_))
+      yield LocalTools[F](Fs(root, config, check.argPolicies, jail))
     }
+
+  /** Was die Sandbox zur Laufzeit braucht (D#88): bwrap, HOME, Programmverzeichnisse und die aufgelösten
+    * Einhängungen je Programm.
+    */
+  private[core] final case class Jail(
+      bwrap: Path,
+      home: Option[Path],
+      pathDirs: List[String],
+      javaHome: Option[String],
+      extras: Map[String, Extra],
+      mounts: Map[String, List[(Path, Boolean)]]
+  ):
+    def argv(root: Path, cmd: String): List[String] =
+      val extra = Sandbox.extraFor(Sandbox.On(extras), cmd)
+      val ms = if cmd.startsWith("./") then Nil else mounts.getOrElse(cmd, Nil)
+      bwrap.toString :: Sandbox.argv(extra, ms, root, home, pathDirs, javaHome)
+
+  private[core] object Jail:
+    def open(root: Path, extras: Map[String, Extra]): Either[ExecuteError, Jail] =
+      def unavailable(reason: String) = ExecuteError.SandboxUnavailable(reason)
+      val home = sys.env.get("HOME").filter(_.startsWith("/")).map(Path.of(_).normalize)
+      val pathDirs = safePath(sys.env.getOrElse("PATH", ""), root)
+      for
+        bwrap <- pathDirs.iterator.map(d => Path.of(d).resolve("bwrap"))
+          .find(p => Files.isRegularFile(p) && Files.isExecutable(p)).toRight(unavailable("bwrap ist nicht im PATH"))
+        mounts <- extras.toList.sortBy(_._1).traverse((cmd, e) =>
+          Sandbox.mounts(e, root, home).leftMap(r => unavailable(s"Einhängung für $cmd: $r")).map(cmd -> _)
+        )
+        // eine schreibbare Einhängung, die fehlt, legt ase an; das ist, was die Konfiguration verlangt
+        _ <-
+          try Right(mounts.flatMap(_._2).collect { case (p, true) if !Files.exists(p) => Files.createDirectories(p) })
+          catch case NonFatal(e) => Left(unavailable(s"Einhängung anlegen: ${e.getMessage}"))
+        jail = Jail(bwrap, home, pathDirs, sys.env.get("JAVA_HOME"), extras, mounts.toMap)
+        _ <- probe(jail, root).leftMap(unavailable)
+      yield jail
+
+    /** Ein Aufruf von true in der Sandbox: zeigt, ob Namespaces hier erlaubt sind. */
+    private def probe(jail: Jail, root: Path): Either[String, Unit] =
+      val trueExe = List("/usr/bin/true", "/bin/true").find(p => Files.isExecutable(Path.of(p))).getOrElse("true")
+      try
+        val pb = new ProcessBuilder((jail.argv(root, "true") :+ trueExe).asJava)
+        pb.redirectErrorStream(true)
+        val proc = pb.start()
+        proc.getOutputStream.close()
+        val done = proc.waitFor(ProbeSeconds, TimeUnit.SECONDS)
+        val out = new String(proc.getInputStream.readNBytes(2000), UTF_8).trim
+        if !done then
+          proc.destroyForcibly()
+          Left(s"bwrap antwortet nicht in $ProbeSeconds s")
+        else Either.cond(proc.exitValue == 0, (), s"bwrap endet mit ${proc.exitValue}${if out.isEmpty then "" else s": $out"}")
+      catch case NonFatal(e) => Left(s"bwrap startet nicht: ${e.getMessage}")
+
+  private val ProbeSeconds = 10L
 
   private val ReaderGraceMillis = 2000L
   private val KillWaitSeconds = 5L
@@ -91,7 +149,7 @@ object LocalTools:
   /** grep liest das Git-Verzeichnis nicht mit, auch nicht bei grep -r über "." (für das Modell unsichtbar). */
   private[core] def grepArgs(args: List[String]): List[String] = "--exclude-dir=.git" :: args
 
-  private[core] final class Fs(root: Path, config: ExecConfig, policies: List[ArgPolicy]):
+  private[core] final class Fs(root: Path, config: ExecConfig, policies: List[ArgPolicy], jail: Option[Jail] = None):
     private val path: List[String] = safePath(sys.env.getOrElse("PATH", ""), root)
 
     private def at(segments: Vector[String]): Path = segments.foldLeft(root)(_.resolve(_))
@@ -359,7 +417,9 @@ object LocalTools:
 
     private def process(cmd: String, exe: Path, args: List[String], touched: List[String]): Reply =
       val git = cmd == "git"
-      val argv = exe.toString :: (if git then gitArgs(args) else if cmd == "grep" then grepArgs(args) else args)
+      val program = exe.toString :: (if git then gitArgs(args) else if cmd == "grep" then grepArgs(args) else args)
+      // mit Sandbox startet bwrap das Programm (D#88); die Argumente des Programms bleiben dieselben
+      val argv = jail.fold(program)(_.argv(root, cmd) ++ program)
       val pb = new ProcessBuilder(argv.asJava)
       pb.directory(root.toFile)
       pb.redirectErrorStream(true)
@@ -368,6 +428,8 @@ object LocalTools:
       config.shellEnv
         .flatMap(k => (if k == "PATH" then Some(path.mkString(":")) else sys.env.get(k)).map(k -> _))
         .foreach((k, v) => environment.put(k, v))
+      // in der Sandbox ist /tmp leer und eigen; ein TMPDIR von außen gäbe es dort nicht
+      if jail.isDefined && environment.containsKey("TMPDIR") then environment.put("TMPDIR", "/tmp")
       if git then gitEnv(root).foreach((k, v) => environment.put(k, v))
       val proc = pb.start()
       // stdin leer

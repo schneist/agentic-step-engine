@@ -470,6 +470,8 @@ object Main extends IOApp:
       // ohne Schlüssel läuft ein Term ohne Löcher trotzdem; ein Fill endet dann mit dem Fehler
       model = transport.fold[FillModel[IO]](e => _ => IO.raiseError(ModelUnavailable(e)), t => ModelAdapter[IO](t, config.model, config.check))
       ask = if cmd.noAsk then AskHandler.nonInteractive[IO] else interactiveAsk
+      // ohne Sandbox die erste Zeile des Laufs (D#88)
+      _ <- IO.whenA(config.exec.sandbox == Sandbox.Off)(IO.println(s"sandbox   ${Sandbox.describe(Sandbox.Off)}"))
       _ <- IO.println(s"approved  ${approved.termHash.short}  → $record\n")
       // Ausgangsstand für ase tighten (D#78); nur mit --summary, und ein Fehler beim Lesen lässt das Feld weg
       start <- cmd.summary.flatTraverse(_ => TreeHash.collect(cmd.workspace).attempt.map(_.toOption))

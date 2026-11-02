@@ -340,9 +340,10 @@ interpreters:
     type: interpreter
     status: implemented
     source: core/src/main/scala/ase/core/LocalTools.scala#LocalTools
-    verified: 2026-10-29
-    decided_by: ["D#29", "D#31", "D#61"]
-    note: Pfadprüfung über toRealPath, Shell ohne Shell, Timeout samt Kindprozessen, git gehärtet; ListDir rekursiv (walk)
+    verified: 2026-11-02
+    decided_by: ["D#29", "D#31", "D#61", "D#88"]
+    tested_by: [ase.core.LocalToolsSuite, ase.core.SandboxSuite]
+    note: "Pfadprüfung über toRealPath, Shell ohne Shell, Timeout samt Kindprozessen, git gehärtet; ListDir rekursiv (walk); jeder Prozess in bwrap (Sandbox.scala, LocalTools.Jail: Probe beim Öffnen, Einhängungen je Programm aus ExecConfig.sandbox); sandbox: false in der Runner-Konfiguration schaltet ab"
   - id: int.toolCheck
     type: interpreter
     status: implemented
@@ -623,7 +624,7 @@ decisions:
   - { id: "D#85", type: decision, status: decided, source: "findings.md#D#85", verified: 2026-11-01, title: "Plan-Prompt: ein fester Done-Text behauptet nur, was feste Schritte geprüft haben; sonst Programm, If und Ask (M#33)", tested_by: [ase.model.AnthropicSuite] }
   - { id: "D#86", type: decision, status: decided, source: "findings.md#D#86", verified: 2026-11-01, title: "Serien-Schlüssel mit promptSha (SHA-256 des System-Prompts aus der Prüfkonfiguration), optional für alte Datensätze", tested_by: [ase.runner.SeriesSuite] }
   - { id: "D#87", type: decision, status: decided, source: "findings.md#D#87", verified: 2026-11-02, title: "Pflicht-Flags je Programm (programs[].required), implizite Flags im Flow, Elaboration vor jedem DryRun; Hash über den elaborierten Term, Explain zeigt die Bindung einmal", tested_by: [ase.core.ImplicitsSuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite] }
-  - { id: "D#88", type: decision, status: decided, source: "findings.md#D#88", verified: 2026-11-02, title: "Sandbox je Programmaufruf mit bwrap, Zusätze je Programm in der Konfiguration, nie für Skripte; Umsetzung in O#44, noch nicht im Code" }
+  - { id: "D#88", type: decision, status: decided, source: "findings.md#D#88", verified: 2026-11-02, title: "Sandbox je Programmaufruf mit bwrap, Zusätze je Programm unter sandbox.programs, nie für Skripte, Workspace-Code ohne Netz; umgesetzt mit O#44", tested_by: [ase.core.SandboxSuite, ase.runner.RunnerSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -676,7 +677,7 @@ open:
   - { id: "O#41", type: open, status: resolved, source: "findings.md#O#41", verified: 2026-11-01, resolved_by: "D#83", title: "Werte von valuedFlags werden nicht als Pfad geprüft (aws --body, --user-data file://); seit D#83 mit Wertregel" }
   - { id: "O#42", type: open, status: resolved, source: "findings.md#O#42", verified: 2026-11-01, resolved_by: "D#86", title: "Serien-Schlüssel sieht die Argument-Policies nicht: M#31 und M#32 gleicher Schlüssel bei anderem System-Prompt" }
   - { id: "O#43", type: open, status: resolved, source: "findings.md#O#43", verified: 2026-11-02, resolved_by: "D#87", title: "Umsetzung von D#87 mit Messung M#39 (Eval 7, 10/10)" }
-  - { id: "O#44", type: open, status: open, source: "findings.md#O#44", verified: 2026-11-02, title: "Umsetzung von D#88 (Sandbox je Programmaufruf), nach O#43" }
+  - { id: "O#44", type: open, status: open, source: "findings.md#O#44", verified: 2026-11-02, title: "Umsetzung von D#88: Code, Tests, Eval-Konfigurationen fertig; offen die Kontrollserie an Eval 1" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }

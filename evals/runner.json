@@ -1,3 +1,28 @@
 {
-  "scripts": ["./run-tests.sh"]
+  "scripts": [
+    "./run-tests.sh"
+  ],
+  "sandbox": {
+    "programs": {
+      "sbt": {
+        "mounts": [
+          {
+            "path": "/opt/sbt"
+          },
+          {
+            "path": "~/.sbt",
+            "write": true
+          },
+          {
+            "path": "~/.ivy2",
+            "write": true
+          },
+          {
+            "path": "~/.cache/coursier",
+            "write": true
+          }
+        ]
+      }
+    }
+  }
 }

@@ -29,8 +29,12 @@ enum ExecuteError:
   case RecordUnavailable(path: String, reason: String)
   /** Die Record-Datei läge im Arbeitsverzeichnis; ein Fill könnte sie lesen oder ändern. */
   case RecordInsideWorkspace(path: String)
+  /** Die Sandbox ist eingeschaltet, läuft hier aber nicht, oder eine Einhängung ist ungültig (D#88). */
+  case SandboxUnavailable(reason: String)
 
   def message: String = this match
+    case SandboxUnavailable(reason) =>
+      s"Sandbox (D#88) nicht verfügbar: $reason. bubblewrap installieren (bwrap) oder in der Konfiguration bewusst sandbox: false setzen."
     case UnsupportedPlatform(os)          => s"Execute läuft nur unter Linux (WSL oder CI), nicht unter $os (D#29)."
     case InvalidWorkspace(path, reason)   => s"Arbeitsverzeichnis $path: $reason"
     case RecordUnavailable(path, reason)  => s"Record-Log $path: $reason"

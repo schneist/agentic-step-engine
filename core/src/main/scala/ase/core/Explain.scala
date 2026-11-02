@@ -1,9 +1,10 @@
 package ase.core
 
 /** explainDenials (D#24): Befehle, die Explain als „nicht erlaubt, u. a.“ nennt. Welche Programme Workspace-Code
-  * ausführen, steht in der Prüfkonfiguration des CheckedTerm (D#39, D#40).
+  * ausführen, steht in der Prüfkonfiguration des CheckedTerm (D#39, D#40). sandbox: dieselbe wie in der ExecConfig
+  * des Laufs, aus derselben Runner-Konfiguration (D#88); ohne Angabe keine Zeile.
   */
-final case class ExplainConfig(explainDenials: List[AllowedCommand])
+final case class ExplainConfig(explainDenials: List[AllowedCommand], sandbox: Option[Sandbox] = None)
 
 object ExplainConfig:
   val default: ExplainConfig = ExplainConfig(
@@ -41,8 +42,11 @@ object Explain:
       Option.when(implicits.nonEmpty)(s"implizit  ${Text.visible(implicits.lines.mkString(" · "))} (in jedem Aufruf)")
     val footer = Vector(s"shell     ${if allowlist.isEmpty then "keine" else Text.visible(allowlist.mkString(", "))}") ++
       Option.when(denied.nonEmpty)(s"nicht erlaubt, u. a.: ${denied.mkString(", ")}") ++
-      Option.when(warned.nonEmpty)(s"Warnung: erlaubt, obwohl in explainDenials: ${warned.mkString(", ")}")
-    (header ++ Vector("") ++ body ++ Vector("") ++ footer).mkString("\n")
+      Option.when(warned.nonEmpty)(s"Warnung: erlaubt, obwohl in explainDenials: ${warned.mkString(", ")}") ++
+      config.sandbox.collect { case s: Sandbox.On => s"sandbox   ${Text.visible(Sandbox.describe(s))}" }
+    // ohne Sandbox die erste Zeile, damit es niemand überliest (D#88)
+    val off = config.sandbox.collect { case Sandbox.Off => s"sandbox   ${Sandbox.describe(Sandbox.Off)}" }.toVector
+    (off ++ header ++ Vector("") ++ body ++ Vector("") ++ footer).mkString("\n")
 
   /** Einrückung, nächste Schrittnummer, Ergebnisse, die vor diesem Knoten entstanden sein können. */
   final case class State(indent: Int, next: Int, prior: Vector[Scope.Seen])
