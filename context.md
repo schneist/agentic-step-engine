@@ -136,6 +136,9 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Ausgangsstand** (`workspaceSha`): Tree-Hash des Arbeitsverzeichnisses vor einem Lauf, in summary.json. `ase tighten` engt einen Pfad nur ein, wenn die Läufe mindestens zwei verschiedene zeigen (D#78).
 - **Datensatz einer Serie** (`Series.Record`): Schlüssel, Bedingungen, Stand und die Kennzahlen jedes Laufs als JSON, gebaut von `ase series end`, übernommen nach measurements/M<n>.json; die M#-Zeile wird daraus gerendert (D#77, D#79).
 - **Verlangtes n** (`series.json`): Wie viele Läufe eine Eval für eine Serie verlangt, die zählt; ohne die Datei 10 (D#77).
+- **Pflicht-Flag** (`programs[].required`): Flag mit Wert, das jeder Aufruf eines Programms genau einmal tragen muss, geprüft an Tor 1 und 2, auch in Plänen des Modells (D#87).
+- **Implizites Flag** (`implicits` im Flow): Wert eines Pflicht-Flags, den der Flow einmal nennt und die Elaboration in jeden passenden Aufruf einsetzt, auch in Fills. Im Term ausdrücklich gesetzt ist es ein Fehler (D#87).
+- **Elaboration** (`Implicits.elaborate`): Die Funktion Term => Term, die implizite Flags vor jedem DryRun einsetzt; der Hash geht über ihr Ergebnis. Begriff aus der Typtheorie für das Ausfüllen dessen, was der Quelltext offen lässt, wie der Scala-Compiler implizite Parameter einsetzt (D#87).
 
 ## 8. Warum
 
@@ -400,6 +403,10 @@ Manche Agentenschritte haben ein Ergebnis, das ein Programm prüfen kann: Die Te
 ### Warum Eval 7 gegen ein Double läuft (D#81)
 
 Eine Serie braucht n Läufe, und jeder Lauf startet eine Maschine. Gegen AWS kostet das Geld, braucht Rechte, die die Engine noch nicht eng genug fassen kann (O#41), und trifft jedes Mal auf einen anderen Zustand: andere Preise, andere Zonen, mal einen Einzug. Ein Double antwortet immer gleich, also misst die Serie das Modell und den Flow, nicht den Tag bei AWS. Es spielt die Fehler aus dem Runbook in jedem Lauf ein, an AWS kommen sie selten und zufällig. Der Preis: Es kennt nur die Unterbefehle, die das Runbook braucht, und wertet `--query` nicht aus. Ob ein Flow, der am Double besteht, auch an AWS besteht, zeigt erst der eine echte Lauf am Ende (O#40, Schritt 6). Der Zustand liegt neben dem Arbeitsverzeichnis, damit ein Fill ihn weder lesen noch fälschen kann; sonst bestünde ein Agentenschritt die Prüfung, indem er state.json schreibt.
+
+### Warum Pflicht-Flags in die Konfiguration gehören und ihre Werte einmal in den Flow (D#87)
+
+Ein Aufruf von `aws` ohne `--profile` nimmt das Standardprofil der Maschine, ohne `--region` scheitert er. Welches Konto ein Lauf berührt, soll im freigegebenen Term stehen und nicht davon abhängen, auf welcher Maschine er läuft. Dafür genügt es zu verlangen, dass jeder Aufruf die Flags trägt, und das kann die Konfiguration für jeden Term sagen, auch für einen, den das Modell plant. Stehen dieselben zwei Paare aber in jedem von elf Aufrufen, liest der Mensch beim Freigeben elfmal dasselbe und übersieht die zwölfte Zeile, die anders ist. Eine Prüfung, die im Rauschen untergeht, ist keine. Scala löst dieselbe Spannung mit impliziten Parametern: Die Signatur verlangt den Wert, an der Aufrufstelle steht er nicht, der Compiler setzt ihn ein, und im übersetzten Programm steht er überall. Hier genauso: Der Flow nennt den Wert einmal, eine eigene Funktion setzt ihn vor der Prüfung in jeden Aufruf ein, auch in die Teilterme der Agentenschritte, und Hash, Prüfung und Ausführung sehen den vollständigen Term. Nur die Anzeige kürzt. Sie darf das, weil kein Aufruf einen anderen Wert tragen kann: Ein ausdrücklich gesetztes implizites Flag ist ein Fehler. In Scala gewinnt das ausdrückliche Argument; hier wäre das genau der Weg, auf dem ein Agentenschritt das Konto wechselt. Die Engine hängt die Werte auch nicht erst beim Ausführen an, wie die festen Zusätze aus D#36: Jene sind immer gleich und schließen nur Wege, dieser Wert entscheidet, wo der Lauf wirkt, und gehört darum in das, was der Hash bindet.
 
 ### Warum der System-Prompt in den Serien-Schlüssel gehört und als eigenes Feld (D#86)
 
