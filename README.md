@@ -146,12 +146,12 @@ Ein Coding-Agent wie Claude Code lässt sich gut einzäunen. Der Plan-Modus zeig
 
 ## Grenzen
 
-- **Kein Schutz vor Code im Repository.** `ase` schützt vor dem, was das Modell tut. Erlaubte Programme wie `./run-tests.sh` oder `sbt test` laufen ohne Sandbox und können alles, was der Nutzer kann. Explain markiert sie als „führt Workspace-Code aus“ und warnt vor einem Agentenschritt, der solchen Code ändern darf. Für Isolation gehört ein Container drumherum.
+- **Kein Schutz vor Code im Repository.** `ase` schützt vor dem, was das Modell tut. Erlaubte Programme wie `./run-tests.sh` oder `sbt test` laufen ohne Sandbox und können alles, was der Nutzer kann. Explain markiert sie als „führt Workspace-Code aus“ und warnt vor einem Agentenschritt, der solchen Code ändern darf. Für Isolation gehört ein Container drumherum. Auch implizite Flags (D#87) gelten nur für Aufrufe im Term: Ein Skript kann `aws` mit jedem Profil aufrufen, das der Nutzer hat. Eine Sandbox je Aufruf ist entschieden (D#88), aber noch nicht gebaut.
 - **Geprüft werden Ort und Art, nicht Inhalt.** Ein Agentenschritt kann innerhalb seiner Hülle schlechte Arbeit machen. Hüllen, die ein Modell selbst plant, können weiter sein als nötig. Den Explain muss also jemand lesen.
 - **Kein Zurückrollen.** Was gelaufen ist, bleibt gelaufen.
 - **Mehr Modellaufrufe.** Ein Plan und je Agentenschritt mindestens ein Fill. Claude braucht je nach Aufgabe 11k bis 61k Tokens je Lauf, ein Flow mit vier Agentenschritten wie in Eval 7 rund 135k bis 160k. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
 - **Kleine Sprache.** Sie bearbeitet Dateien und ruft eine kleine Liste von Shell-Befehlen auf, mehr nicht.
-- **Werte von Flags prüft `ase` nur mit Regel.** Pfade als Argumente prüft `ase` wie bei `ReadFile`; den Wert eines Flags mit Wert nur, wenn die Argument-Policy ihm eine Regel gibt: ein Pfad im Arbeitsverzeichnis (`--body`, `--user-data file://`) oder ein Muster (D#83). Ohne Regel ist der Wert frei. Bei einem eigenen Programm wie `aws` also jedem Flag, das eine Datei liest oder Befehle trägt, eine Regel geben.
+- **Werte von Flags prüft `ase` nur mit Regel.** Pfade als Argumente prüft `ase` wie bei `ReadFile`; den Wert eines Flags mit Wert nur, wenn die Argument-Policy ihm eine Regel gibt: ein Pfad im Arbeitsverzeichnis (`--body`, `--user-data file://`) oder ein Muster (D#83). Ohne Regel ist der Wert frei. Bei einem eigenen Programm wie `aws` also jedem Flag, das eine Datei liest oder Befehle trägt, eine Regel geben. Flags, die bestimmen, wo ein Aufruf wirkt, etwa `--profile` und `--region`, als `required` führen; dann scheitert jeder Aufruf ohne sie an der Prüfung.
 
 ## Wie zuverlässig es ist
 
@@ -203,14 +203,15 @@ ase run  --plan todo.plan.json --envelope evals/1-todos/envelope.json --config $
 
 ## Einen Flow schreiben
 
-Ein Flow ist ein JSON-Objekt mit genau vier Feldern:
+Ein Flow ist ein JSON-Objekt mit vier Pflichtfeldern und einem optionalen:
 
 - `description`: Text.
 - `params`: Name → Regex. Die Werte kommen als `name=wert` zu `ase plan`.
 - `envelope`: die Hülle des Flows. Sie darf nicht weiter sein als `--envelope`.
 - `term`: der Term. Jeder Knoten hat `type` und `origin: "Human"`.
+- `implicits` (optional): je Programm Flag → Wert, etwa `{"aws": {"--profile": "${profile}", "--region": "eu-central-1"}}`. Nur für Pflicht-Flags, die die Konfiguration unter `programs[].required` nennt (D#87).
 
-`${name}` wird nach dem Parsen und nur in Textfeldern ersetzt, nie als JSON. Ein ungebundener Name ist ein Fehler. Vorlagen sind [flows/release.json](flows/release.json) und [flows/red-test.json](flows/red-test.json). Vor dem ersten Lauf `ase plan --flow …` aufrufen und den Explain lesen.
+`${name}` wird nach dem Parsen und nur in Textfeldern ersetzt, nie als JSON. Ein ungebundener Name ist ein Fehler. `ase` setzt implizite Flags vor jeder Prüfung in jeden Aufruf des Programms ein, auch in die Teilterme der Agentenschritte; der Explain zeigt sie einmal im Kopf und die Schritte ohne sie. Steht ein implizites Flag schon im Term, lehnt `ase` ab. Vorlagen sind [flows/release.json](flows/release.json) und [flows/red-test.json](flows/red-test.json). Vor dem ersten Lauf `ase plan --flow …` aufrufen und den Explain lesen.
 
 Was ein Flow wie der Release-Flow im eigenen Repository braucht: `ase.json` mit `{ "scripts": ["./run-tests.sh"] }`, denn Skripte laufen nur, wenn sie dort stehen. Dazu `release-envelope.json`, die äußere Hülle; sie muss mindestens so weit sein wie die Hülle im Flow, am einfachsten ist eine Kopie des Felds `envelope` aus `flows/release.json`. `ase plan` braucht für jeden Parameter in `params` einen Wert, der zur Regex passt. Das Record-Log muss außerhalb von `--workspace` liegen. Mit `--workspace .` und ohne `--record` bricht `ase run` ab, denn der Standard `record/…` läge im Arbeitsverzeichnis.
 

@@ -215,7 +215,7 @@ object Main extends IOApp:
           val (candidates, agreeing) = planned.vote match
             case Some(BestOfN.Vote.Majority(_, agreeing, of)) => (of, agreeing)
             case _                                            => (1, 1)
-          val file = PlanFile(source, sha, checked.rootEnvelope, checked.params, checked.term, planned.calls, planned.rejections, planned.unusable, planned.tokens, candidates, agreeing, Some(Canonical.sha256Hex(text)))
+          val file = PlanFile(source, sha, checked.rootEnvelope, checked.params, checked.term, planned.calls, planned.rejections, planned.unusable, planned.tokens, candidates, agreeing, Some(Canonical.sha256Hex(text)), checked.implicits)
           // fingerprint: Struktur ohne origin (D#19), für den Vergleich mit einem Referenzflow (playbook/evals.md)
           IO.blocking(Files.writeString(cmd.out, PlanFile.encode(file).spaces2 + "\n", UTF_8)) >>
             IO.println(Explain.render(checked, config.explain)) >>
@@ -234,13 +234,17 @@ object Main extends IOApp:
       _ <- IO.println(s"plan      ${planned.calls} Modellaufrufe · ${planned.rejections} Ablehnungen an Tor 1 · ${planned.tokens} Tokens")
     yield planned
 
-  /** Ein Flow braucht kein Modell. Ein Verstoß an Tor 1 ist eine Ablehnung (Exit 3); Fehler beim Binden der Parameter
-    * sind Eingabefehler (Exit 1).
+  /** Ein Flow braucht kein Modell. Ein Verstoß an Tor 1 ist eine Ablehnung (Exit 3), auch ein implizites Flag, das
+    * schon im Term steht; Fehler beim Binden der Parameter und eine Tabelle impliziter Flags, die nicht zur
+    * Konfiguration passt, sind Eingabefehler (Exit 1). Erst elaborieren, dann prüfen (D#87).
     */
   private def planFlow(text: String, values: Map[String, String], root: Envelope, config: RunnerConfig): IO[Planned] =
     for
       bound <- orFail(Flow.parse(text, config.check.nestingLimit).flatMap(Flow.bind(_, values, root)).leftMap(_.toString))
-      planned <- DryRun.plan(bound.term, bound.envelope, config.check, values) match
+      _ <- orFail(Implicits.check(bound.implicits, config.check))
+      checked = Implicits.elaborate(bound.term, bound.implicits, config.check.argPolicies)
+        .flatMap(DryRun.plan(_, bound.envelope, config.check, values, bound.implicits))
+      planned <- checked match
         case Right(checked) => IO.pure(Planned(Some(checked), 0, 0, 0, 0L, Vector.empty))
         case Left(vs) =>
           val reasons = vs.toList.map(_.render)
@@ -432,7 +436,9 @@ object Main extends IOApp:
       _ <- orFail(Attenuation.check(file.envelope, root, Location.root / "envelope", Attenuation.Mode.Flow) match
         case Nil => Right(())
         case vs  => Left(vs.map(_.render).mkString("\n")))
-      checked <- orFail(DryRun.plan(file.term, file.envelope, config.check, file.params).leftMap(_.toList.map(_.render).mkString("\n")))
+      // die Plan-Datei trägt den elaborierten Term; ase run elaboriert nicht neu, prüft nur die Tabelle (D#87)
+      _ <- orFail(Implicits.check(file.implicits, config.check))
+      checked <- orFail(DryRun.plan(file.term, file.envelope, config.check, file.params, file.implicits).leftMap(_.toList.map(_.render).mkString("\n")))
       explain = Explain.render(checked, config.explain)
       _ <- IO.println(explain)
       approved <- approve(checked, cmd.approve)
@@ -470,7 +476,9 @@ object Main extends IOApp:
       started <- IO.monotonic
       result <- Execute.local[IO](approved, cmd.workspace, model, ask, config.exec, Some(record)).flatMap(e => orFail(e.leftMap(_.message)))
       ended <- IO.monotonic
-      _ <- IO.println(RunLog.render(result.events, RunLog.Footer(file.rejections, Some(record.toString), file.calls, file.tokens)))
+      checked = approved.checked
+      shown = (cmd: String, args: List[String]) => Implicits.stripArgs(cmd, args, checked.implicits, checked.config.argPolicies)
+      _ <- IO.println(RunLog.render(result.events, RunLog.Footer(file.rejections, Some(record.toString), file.calls, file.tokens), shown))
       seconds = (ended - started).toMillis / 1000.0
       _ <- cmd.summary.traverse_(p =>
         IO.blocking(Files.writeString(p, Summary.of(file, approved, result, seconds, record.toAbsolutePath.normalize.toString, start).spaces2 + "\n", UTF_8))

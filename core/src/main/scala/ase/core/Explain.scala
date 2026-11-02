@@ -25,7 +25,8 @@ object Explain:
     val root = checked.rootEnvelope
     val check = checked.config
     val code = codePaths(checked.term, check)
-    val (body, _, _) = AgentAlg.fromTerm(checked.term)(interpreter(code, check))(State(0, 1, Vector.empty))
+    val implicits = checked.implicits
+    val (body, _, _) = AgentAlg.fromTerm(checked.term)(interpreter(code, check, implicits))(State(0, 1, Vector.empty))
     val allowlist = root.shellAllowlist.toList.map(_.show).sorted
     val denied = config.explainDenials.filterNot(Attenuation.allowedBy(root.shellAllowlist, _)).map(_.show)
     val warned = config.explainDenials.filter(Attenuation.allowedBy(root.shellAllowlist, _)).map(_.show)
@@ -35,7 +36,9 @@ object Explain:
       s"explain   ${checked.termHash.short}",
       // der volle Hash, den die Freigabe bestätigt (Approval.approve)
       s"hash      ${checked.termHash.hex}"
-    ) ++ Option.when(params.nonEmpty)(s"params    ${Text.visible(params.toList.sorted.map((k, v) => s"$k=$v").mkString(" "))}")
+    ) ++ Option.when(params.nonEmpty)(s"params    ${Text.visible(params.toList.sorted.map((k, v) => s"$k=$v").mkString(" "))}") ++
+      // einmal hier statt in jeder Zeile; die Schritte zeigen nur, was davon abweicht (D#87)
+      Option.when(implicits.nonEmpty)(s"implizit  ${Text.visible(implicits.lines.mkString(" · "))} (in jedem Aufruf)")
     val footer = Vector(s"shell     ${if allowlist.isEmpty then "keine" else Text.visible(allowlist.mkString(", "))}") ++
       Option.when(denied.nonEmpty)(s"nicht erlaubt, u. a.: ${denied.mkString(", ")}") ++
       Option.when(warned.nonEmpty)(s"Warnung: erlaubt, obwohl in explainDenials: ${warned.mkString(", ")}")
@@ -97,8 +100,12 @@ object Explain:
     val scope = e.scopePrefix.fold("")(s => s" · sieht Ergebnisse unter $s")
     s"darf $ops · unter ${e.pathPrefix}$scope · max $steps · Tiefe ${e.maxDepth}${shell.getOrElse("")}"
 
-  private def interpreter(code: List[Vector[String]], check: CheckConfig): AgentAlg[Out] = new AgentAlg[Out]:
+  private def interpreter(code: List[Vector[String]], check: CheckConfig, implicits: Implicits): AgentAlg[Out] = new AgentAlg[Out]:
     private def pad(indent: Int): String = "  " * indent
+
+    /** Ein Aufruf ohne die Paare, die die Elaboration genau so eingesetzt hat (D#87). */
+    private def command(cmd: String, args: List[String]): String =
+      (cmd :: Implicits.stripArgs(cmd, args, implicits, check.argPolicies)).mkString(" ")
     private def note(text: String, indent: Int): String = "   " + pad(indent) + Text.visible(text)
 
     /** Prosa als Block unter einer Zeile, Zeilenumbrüche sichtbar als \n wie in der Zeile (H3); umbrochen nur für die
@@ -128,7 +135,7 @@ object Explain:
     def moveFile(from: String, to: String, origin: Origin): Out[StepResult] = step(s"verschiebt $from nach $to", List(from, to))
     def shell(cmd: String, args: List[String], origin: Origin): Out[StepResult] =
       val marker = if check.runsWorkspaceCode(cmd).isDefined then " (führt Workspace-Code aus)" else ""
-      step(s"führt aus: ${(cmd :: args).mkString(" ")}$marker", Scope.shellPaths(cmd, args, check))
+      step(s"führt aus: ${command(cmd, args)}$marker", Scope.shellPaths(cmd, args, check))
     def ask(question: String, origin: Origin): Out[StepResult] =
       if textFitsInLine(question) then step(s"fragt: „${Text.visible(question)}“", Nil)
       else step("fragt:", Nil, i => textBlock("Frage", question, i + 1))
@@ -146,6 +153,9 @@ object Explain:
         else prefix.toList.flatMap(p => code.filter(RelPath.overlaps(p, _))).map(c => RelPath.show(c)).distinct.sorted
       val seen = Scope.visible(prior, envelope).map(_.step).distinct
       val runsCode = envelope.shellAllowlist.toList.filter(c => check.runsWorkspaceCode(c.binary).isDefined).map(_.show).sorted
+      // die impliziten Flags gelten auch für die Aufrufe, die der Agent hier schreibt (D#87)
+      val implicitHere = envelope.shellAllowlist.toList.map(_.binary).distinct.sorted
+        .filter(b => implicits.pairs(b).nonEmpty).map(b => s"$b ${implicits.pairs(b).mkString(" ")}")
       // Execute filtert nach aufgelösten Pfaden und zeigt höchstens diese Ergebnisse, nie mehr (D#42)
       val sees =
         if seen.isEmpty then "kann keine früheren Ergebnisse sehen"
@@ -156,12 +166,13 @@ object Explain:
         note(envelopeText(envelope), s.indent),
         note(sees, s.indent)
       ) ++ Option.when(changesCode.nonEmpty)(note(s"Hinweis: darf Code ändern, der im Lauf ausgeführt wird (${changesCode.mkString(", ")})", s.indent)) ++
-        Option.when(runsCode.nonEmpty)(note(s"Hinweis: darf Workspace-Code ausführen (${runsCode.mkString(", ")})", s.indent))
+        Option.when(runsCode.nonEmpty)(note(s"Hinweis: darf Workspace-Code ausführen (${runsCode.mkString(", ")})", s.indent)) ++
+        Option.when(implicitHere.nonEmpty)(note(s"implizit in jedem Aufruf: ${implicitHere.mkString(" · ")}", s.indent))
       val verifyLines = verify.toVector.flatMap { v =>
         val marker = if check.runsWorkspaceCode(v.cmd).isDefined then " (führt Workspace-Code aus)" else ""
         val passes = if v.max == 1 then "1 Durchlauf" else s"${v.max} Durchläufe"
         Vector(
-          f"${s.next + 1}%-3d" + pad(s.indent) + Text.visible(s"Abnahme: führt aus: ${v.command}$marker"),
+          f"${s.next + 1}%-3d" + pad(s.indent) + Text.visible(s"Abnahme: führt aus: ${command(v.cmd, v.args)}$marker"),
           note(s"bestanden, wenn ${Pred.show(v.until)}; sonst entscheidet der Agent erneut, höchstens $passes", s.indent)
         )
       }

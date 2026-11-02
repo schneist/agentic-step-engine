@@ -53,7 +53,7 @@ object Execute:
   def checkConfig(approved: ApprovedTerm): CheckConfig = approved.checked.config
 
   def run[F[_]: Monad](approved: ApprovedTerm, ports: Ports[F], config: ExecConfig): F[RunResult] =
-    Engine[F](ports, config, checkConfig(approved), approved.checked.rootEnvelope).run(approved.term, approved.termHash)
+    Engine[F](ports, config, checkConfig(approved), approved.checked.rootEnvelope, approved.checked.implicits).run(approved.term, approved.termHash)
 
   /** Lauf im Arbeitsverzeichnis, unter Linux; mit record schreibt er das Ereignislog als JSON Lines mit. */
   def local[F[_]: Sync](

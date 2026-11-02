@@ -33,6 +33,8 @@ object RunnerConfig:
       bestOf <- int(o, "bestOfN", d.bestOfN)
       scripts <- o("scripts").fold(List.empty[String].asRight[String])(scriptList)
       programs <- o("programs").fold(List.empty[Program].asRight[String])(programList(_, d.check.argPolicies))
+      policies = d.check.argPolicies ++ scripts.map(ArgPolicy.script) ++ programs.map(_.policy)
+      required <- requiredOf(programs, policies)
       denials <- o("explainDenials").fold(d.explain.explainDenials.asRight[String])(commands)
       _ <- Either.cond(nesting >= 1 && rounds >= 1 && bestOf >= 1, (), "nestingLimit, planRounds und bestOfN müssen mindestens 1 sein")
     yield RunnerConfig(
@@ -40,10 +42,11 @@ object RunnerConfig:
       e,
       d.check.copy(
         nestingLimit = nesting,
-        argPolicies = d.check.argPolicies ++ scripts.map(ArgPolicy.script) ++ programs.map(_.policy),
+        argPolicies = policies,
         workspaceCode = programs.foldLeft(d.check.workspaceCode)((m, p) =>
           if p.runsCode.isEmpty then m else m.updated(p.policy.binary, (m.getOrElse(p.policy.binary, Nil) ++ p.runsCode).distinct)
-        )
+        ),
+        required = required
       ),
       ExplainConfig(denials),
       rounds,
@@ -101,8 +104,28 @@ object RunnerConfig:
         .toRight(s"scripts: „${j.noSpaces}“ ist kein Skript der Form ./pfad")
     ))
 
-  /** Ein Programm aus programs (D#68): seine Argument-Policy und die Pfade, deren Code es ausführt (leer: keinen). */
-  private final case class Program(policy: ArgPolicy, runsCode: List[String])
+  /** Ein Programm aus programs (D#68): seine Argument-Policy, die Pfade, deren Code es ausführt (leer: keinen), und
+    * seine Pflicht-Flags (D#87).
+    */
+  private final case class Program(policy: ArgPolicy, runsCode: List[String], required: Set[String])
+
+  /** Pflicht-Flags je Programm (D#87). Sie gehören dem Programm, nicht der einzelnen Policy: Jede Policy desselben
+    * Programms, auch eine eingebaute, muss dieselben nennen, sonst ließe die ohne Pflicht jeden Aufruf durch
+    * (ArgPolicy.find nimmt das längste Präfix).
+    */
+  private def requiredOf(programs: List[Program], policies: List[ArgPolicy]): Either[String, Map[String, Set[String]]] =
+    val declared = programs.groupBy(_.policy.binary)
+    declared.toList.sortBy(_._1).traverse { (binary, ps) =>
+      val sets = ps.map(_.required).distinct
+      val builtIn = policies.count(_.binary == binary) > ps.size
+      sets match
+        case List(r) if r.isEmpty => Right(binary -> r)
+        case List(r) if builtIn =>
+          Left(s"programs: $binary hat eingebaute Argument-Policies ohne required; Pflicht-Flags müssen für jede Policy des Programms gelten")
+        case List(r) => Right(binary -> r)
+        case _ =>
+          Left(s"programs: $binary nennt in verschiedenen Einträgen verschiedene required (${sets.map(_.toList.sorted.mkString("[", ", ", "]")).mkString(" gegen ")}); Pflicht-Flags gehören dem Programm")
+    }.map(_.filter(_._2.nonEmpty).toMap)
 
   private val Name = "^[A-Za-z0-9][A-Za-z0-9._+-]*$".r
   private val Flag = "^--?[A-Za-z0-9][A-Za-z0-9-]*$".r
@@ -122,7 +145,7 @@ object RunnerConfig:
   private def program(json: Json): Either[String, Program] =
     for
       o <- obj(json, "programs")
-      _ <- only(o, "programs", "binary", "args", "flags", "valuedFlags", "prefixFlags", "positional", "runsCode", "values")
+      _ <- only(o, "programs", "binary", "args", "flags", "valuedFlags", "prefixFlags", "positional", "runsCode", "values", "required")
       binary <- o("binary").flatMap(_.asString).filter(Name.matches).toRight("programs: binary muss ein Programmname ohne Pfad sein")
       at = s"programs: $binary"
       args <- strings(o, "args", at)
@@ -139,7 +162,13 @@ object RunnerConfig:
       runsCode <- strings(o, "runsCode", at)
       _ <- runsCode.find(p => RelPath.parse(p).isLeft).map(p => s"$at: runsCode „$p“ ist kein Pfad im Arbeitsverzeichnis").toLeft(())
       values <- o("values").fold(Map.empty[String, ValueRule].asRight[String])(valueRules(_, at, valued.toSet))
-    yield Program(ArgPolicy(binary, args, flags.toSet, valued.toSet, prefix.toSet, positional, values), runsCode)
+      // --profile= neben --profile umginge „genau einmal“ und die Wertregel (D#87)
+      _ <- prefix.find(p => valued.contains(p.dropRight(1))).map(p => s"$at: Präfix-Flag „$p“ hat denselben Namen wie ein Flag mit Wert").toLeft(())
+      required <- strings(o, "required", at)
+      _ <- required.find(f => !valued.contains(f)).map(f => s"$at: required „$f“ ist kein Flag aus valuedFlags").toLeft(())
+      // ein Pfad in jedem Aufruf änderte Sicht und Explain jedes Aufrufs (D#87)
+      _ <- required.find(f => values.get(f).exists(_.isInstanceOf[ValueRule.Path])).map(f => s"$at: required „$f“ hat eine Wertregel Path; Pflicht-Flags sind kein Pfad").toLeft(())
+    yield Program(ArgPolicy(binary, args, flags.toSet, valued.toSet, prefix.toSet, positional, values), runsCode, required.toSet)
 
   /** Wertregeln je Flag mit Wert (D#83): {"--body": {"type": "Path"}, "--user-data": {"type": "Path", "prefix": "file://"},
     * "--query": {"type": "Pattern", "regex": "^…$"}}. Nur für Flags aus valuedFlags; ein Muster muss sich übersetzen lassen.

@@ -5,13 +5,16 @@ import cats.data.NonEmptyList
 /** Konfiguration der Prüfung: Verschachtelungsgrenze (D#10) und Argument-Policies (D#12).
   * workspaceCode (D#12): Programme, die Code aus dem Arbeitsverzeichnis ausführen, und dessen Pfade; Programme, die
   * mit "./" beginnen, führen sich selbst aus. pathless (D#39): Befehle, deren Ausgabe ohne Pfadargument keine
-  * Dateiinhalte trägt. Beide bestimmen mit, was ein Loch sieht (Scope.shellPaths).
+  * Dateiinhalte trägt. Beide bestimmen mit, was ein Loch sieht (Scope.shellPaths). required (D#87): je Programm die
+  * Flags mit Wert, die jeder Aufruf genau einmal trägt, auch eine Abnahme; eine Eigenschaft des Programms, nicht der
+  * einzelnen Policy, sonst ließe eine Policy ohne Pflicht jeden Aufruf durch.
   */
 final case class CheckConfig(
     nestingLimit: Int,
     argPolicies: List[ArgPolicy],
     workspaceCode: Map[String, List[String]],
-    pathless: List[AllowedCommand]
+    pathless: List[AllowedCommand],
+    required: Map[String, Set[String]] = Map.empty
 ):
   def runsWorkspaceCode(cmd: String): Option[List[String]] =
     if cmd.startsWith("./") then Some(List(cmd.drop(2))) else workspaceCode.get(cmd)
@@ -27,7 +30,8 @@ object CheckConfig:
 /** Tor 1 und Tor 2: führt nichts aus, prüft den Term gegen eine Hülle. */
 object DryRun:
   /** Ein geprüfter Term (D#11). Nur DryRun erzeugt ihn; freigegeben ist er damit noch nicht. Er trägt die
-    * Prüfkonfiguration und die gebundenen Flow-Parameter, damit Explain und Execute dieselben verwenden (D#40).
+    * Prüfkonfiguration, die gebundenen Flow-Parameter und die impliziten Flags, damit Explain, Execute und Replay
+    * dieselben verwenden (D#40, D#87).
     */
   final class CheckedTerm private[DryRun] (
       val term: Term,
@@ -36,7 +40,8 @@ object DryRun:
       val worstCaseSteps: Long,
       val depth: Int,
       val config: CheckConfig,
-      val params: Map[String, String]
+      val params: Map[String, String],
+      val implicits: Implicits
   )
 
   /** Ein Fill-Teilterm, der Tor 2 bestanden hat (D#11). Läuft ohne eigene Freigabe (D#6). */
@@ -47,14 +52,18 @@ object DryRun:
       val worstCaseSteps: Long
   )
 
-  /** params: die Werte, die Flow.bind schon in den Term eingesetzt hat; nur zur Anzeige im Explain (D#22). */
+  /** params: die Werte, die Flow.bind schon in den Term eingesetzt hat; nur zur Anzeige im Explain (D#22).
+    * implicits: die Paare, die Implicits.elaborate schon eingesetzt hat; Explain zeigt sie einmal, Tor 2 setzt sie in
+    * jeden Fill ein (D#87). DryRun prüft den Term so, wie er ist: Er muss schon elaboriert sein.
+    */
   def plan(
       term: Term,
       root: Envelope,
       config: CheckConfig,
-      params: Map[String, String] = Map.empty
+      params: Map[String, String] = Map.empty,
+      implicits: Implicits = Implicits.empty
   ): Either[NonEmptyList[Violation], CheckedTerm] =
-    analyse(term, root, config).map(a => CheckedTerm(term, root, TermHash.of(term, root), a.worstCase, a.holeDepth, config, params))
+    analyse(term, root, config).map(a => CheckedTerm(term, root, TermHash.of(term, root), a.worstCase, a.holeDepth, config, params, implicits))
 
   /** Ein Fill ohne einen einzigen Schritt (auch ohne Done) würde das Loch stumm beenden; er ist ein Fehlversuch (D#56). */
   def fill(term: Term, hole: Envelope, config: CheckConfig): Either[NonEmptyList[Violation], CheckedFill] =
@@ -181,7 +190,10 @@ object DryRun:
         case None => Vector(Violation.NoArgPolicy(loc, cmd, args))
         case Some(p) =>
           val parsed = ArgPolicy.parse(p, args)
+          // doppelt lehnt parse ab; hier nur, was fehlt (D#87)
+          val missing = ctx.config.required.getOrElse(cmd, Set.empty).toList.sorted.filterNot(parsed.valued)
           parsed.rejected.toVector.map((arg, reason) => Violation.ShellArgRejected(loc / "args", cmd, arg, reason)) ++
+            missing.map(Violation.RequiredFlagMissing(loc / "args", cmd, _)) ++
             parsed.touched.toVector.flatMap(path(_, loc / "args", ctx))
       Analysis(op(OpKind.Shell, ctx) ++ allowlist ++ policy, 1L, Some(Process), 0)
 

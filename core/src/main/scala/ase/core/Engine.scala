@@ -45,7 +45,8 @@ private[core] object Engine:
     /** Lauf endet: ask ohne Antwort, Limits, Versuche erschöpft. */
     case Halt(outcome: Outcome)
 
-private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, check: CheckConfig, root: Envelope)(using F: Monad[F]):
+/** implicits: die impliziten Flags aus dem CheckedTerm; Tor 2 setzt sie in jeden Fill ein, bevor DryRun ihn prüft (D#87). */
+private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, check: CheckConfig, root: Envelope, implicits: Implicits = Implicits.empty)(using F: Monad[F]):
   import Engine.*
 
   type Res = F[(State, Either[Stop, StepResult])]
@@ -220,7 +221,7 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
           // laufende Nummer des Fills an dieser Position, über Versuche und Durchläufe hinweg (StepId)
           val fillNo = s.fills.getOrElse(h.at, 0) + 1
           val request =
-            FillRequest(callId, h.at.show, k, h.goal, env, remaining, check.nestingLimit, scopeLines(s.scope, env), errors, round, config.maxRoundsPerHole, h.verified)
+            FillRequest(callId, h.at.show, k, h.goal, env, remaining, check.nestingLimit, scopeLines(s.scope, env), errors, round, config.maxRoundsPerHole, h.verified, implicits)
           ports.model.fill(request).flatMap { reply =>
             val sCalled = s.copy(modelCalls = s.modelCalls + 1, fills = s.fills.updated(h.at, fillNo))
             emit(sCalled, Event.Fill(h.at, k, callId, reply)).flatMap { s1 =>
@@ -233,13 +234,14 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
                 case ModelReply.Answer(text, _) =>
                   Submission.decode(text, env, check.nestingLimit, Origin.Model(callId)) match
                     case Left(e) => reject(Gate.Decode, None, List(Marshal(e)))
-                    case Right(term) =>
-                      DryRun.fill(term, env, check) match
-                        case Left(vs) => reject(Gate.DryRun, Some(term), vs.toList.map(Marshal(_)))
-                        case Right(cf) if cf.worstCaseSteps < 0 || cf.worstCaseSteps > remaining =>
+                    case Right(raw) =>
+                      // erst die impliziten Flags einsetzen, dann prüfen: DryRun sieht, was laufen wird (D#87)
+                      Implicits.elaborate(raw, implicits, check.argPolicies).flatMap(term => DryRun.fill(term, env, check).map((term, _))) match
+                        case Left(vs) => reject(Gate.DryRun, Some(raw), vs.toList.map(Marshal(_)))
+                        case Right((term, cf)) if cf.worstCaseSteps < 0 || cf.worstCaseSteps > remaining =>
                           val v = Violation.StepBudgetExceeded(Location.root, cf.worstCaseSteps, remaining)
                           reject(Gate.DryRun, Some(term), List(Marshal(v)))
-                        case Right(cf) => accepted(ctx, h, round, k, fillNo, errors, counted, remaining, cf, s1)
+                        case Right((_, cf)) => accepted(ctx, h, round, k, fillNo, errors, counted, remaining, cf, s1)
             }
           }
       }

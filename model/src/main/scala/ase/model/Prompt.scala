@@ -82,7 +82,7 @@ object Prompt:
        |
        |# Programme
        |Nur Programme aus der shellAllowlist der Hülle, jeweils mit diesen Argumenten:
-       |${check.argPolicies.map(policy).mkString("\n")}
+       |${check.argPolicies.map(policy).mkString("\n")}${required(check)}
        |- ./skript (ein Skript im Arbeitsverzeichnis): ohne Argumente.
        |Ohne Pfadargument berührt ein Programm das ganze Arbeitsverzeichnis "."; das ist nur unter pathPrefix "." erlaubt.
        |Kombinierte Kurz-Flags (-rn) gehen, wenn jedes einzeln erlaubt ist.
@@ -90,6 +90,22 @@ object Prompt:
        |# Ablehnungen
        |Verstößt ein Term gegen die Regeln, wird er nicht ausgeführt; du bekommst die Gründe und lieferst einen neuen.
        |Höchstens ${check.nestingLimit} Ebenen Seq, If und RepeatUntil ineinander.""".stripMargin
+
+  /** Nur mit Pflicht-Flags, damit der Prompt ohne sie Zeichen für Zeichen gleich bleibt (promptSha, D#86, D#87). */
+  private def required(check: CheckConfig): String =
+    val programs = check.required.toList.filter(_._2.nonEmpty).sortBy(_._1)
+    if programs.isEmpty then ""
+    else
+      val each = programs.map((b, fs) => s"jeder Aufruf von $b trägt ${fs.toList.sorted.mkString(" und ")} genau einmal").mkString("; ")
+      s"\n- Pflicht-Flags: $each, auch in verify. Nennt die Anfrage eines Lochs sie als implizit, setzt die Engine sie\n" +
+        "  selbst ein; dann schreibst du sie nicht."
+
+  /** Nur für Programme, die die Hülle des Lochs erlaubt. */
+  private def implicitFlags(i: Implicits, e: Envelope): String =
+    val here = Implicits(i.byProgram.filter((b, _) => e.shellAllowlist.exists(_.binary == b)))
+    if here.isEmpty then ""
+    else "\n\n# Implizite Flags\nDiese setzt die Engine in jeden Aufruf ein, auch in verify; schreibe sie nicht:\n" +
+      here.lines.map("- " + _).mkString("\n")
 
   private def show(cs: List[AllowedCommand]): String =
     if cs.isEmpty then "sonst nichts" else cs.map(c => s"„${c.show}“").mkString(", ")
@@ -151,7 +167,7 @@ object Prompt:
        |
        |# Hülle dieses Lochs
        |${envelopeJson(r.envelope)}
-       |Verbleibende Schritte (für alle Runden zusammen): ${r.remainingSteps}
+       |Verbleibende Schritte (für alle Runden zusammen): ${r.remainingSteps}${implicitFlags(r.implicits, r.envelope)}
        |
        |# Ergebnisse früherer Schritte, die dieses Loch sieht
        |$scope${verified(r.verified)}${errors(r.errors)}

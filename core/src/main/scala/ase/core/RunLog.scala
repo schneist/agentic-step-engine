@@ -26,13 +26,13 @@ object RunLog:
     case Term.If(_, a, b, _)          => s"If(${brief(a)}, ${brief(b)})"
     case Term.RepeatUntil(b, _, m, _) => s"RepeatUntil(${brief(b)}, max $m)"
 
-  private def target(c: Call): (String, String) = c match
+  private def target(c: Call, shown: (String, List[String]) => List[String]): (String, String) = c match
     case Call.ReadFile(p)        => ("read", p)
     case Call.ListDir(p)         => ("list", p)
     case Call.WriteFile(p, _)    => ("write", p)
     case Call.EditFile(p, _, _)  => ("edit", p)
     case Call.MoveFile(f, t)     => ("move", s"$f → $t")
-    case Call.Shell(cmd, args)   => ("shell", (cmd :: args).mkString(" "))
+    case Call.Shell(cmd, args)   => ("shell", (cmd :: shown(cmd, args)).mkString(" "))
     case Call.FileExists(p)      => ("exists", p)
 
   /** Spalte vor der Operation: Nummer auf oberster Ebene, sonst eingerückt nach Loch-Tiefe. */
@@ -54,12 +54,15 @@ object RunLog:
         case Limit.Time(seconds)   => s"Zeitlimit $seconds s erreicht"
         case Limit.Depth(max)      => s"Tiefenlimit $max erreicht"
 
-  def render(events: Vector[Event], footer: Footer): String =
+  /** shown: Argumente eines Shell-Aufrufs, wie sie das Log zeigt; der Runner kürzt um die impliziten Flags
+    * (Implicits.stripArgs, D#87), das Record-Log behält sie.
+    */
+  def render(events: Vector[Event], footer: Footer, shown: (String, List[String]) => List[String] = (_, args) => args): String =
     val body = events.flatMap {
       case Event.Start(_, _, _) => Vector.empty
       case Event.Step(_, _: Call.FileExists, _) => Vector.empty
       case Event.Step(at, call, reply) =>
-        val (op, tgt) = target(call)
+        val (op, tgt) = target(call, shown)
         val result = (call, reply.result) match
           case (_: Call.Shell, Right(r)) => s"exit ${r.exitCode.fold("?")(_.toString)}  (${reply.note})"
           case (_, Right(_))             => if reply.note.isEmpty then "" else s"(${reply.note})"

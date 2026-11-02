@@ -111,6 +111,19 @@ class AnthropicSuite extends munit.FunSuite:
     assert(plan.contains("behauptet nur, was feste Schritte davor geprüft haben"), plan)
     assert(plan.contains("bei\nErfolg Done, sonst Ask"), plan)
 
+  test("Pflicht-Flags im System-Prompt nur, wenn es welche gibt; implizite Flags in der Fill-Anfrage nur für erlaubte Programme (D#87)"):
+    assert(!Prompt.system(check).contains("Pflicht-Flags"))
+    val required = check.copy(required = Map("aws" -> Set("--region", "--profile")))
+    val s = Prompt.system(required)
+    assert(s.contains("- Pflicht-Flags: jeder Aufruf von aws trägt --profile und --region genau einmal, auch in verify."), s)
+    assert(s.contains("Nennt die Anfrage eines Lochs sie als implizit, setzt die Engine sie\n  selbst ein; dann schreibst du sie nicht."), s)
+    val implicits = Implicits(Map("aws" -> Map("--region" -> "eu-central-1")))
+    val awsEnv = Envelope(Set(OpKind.Shell), ".", 3, 0, Set(AllowedCommand("aws", List("ec2"))))
+    val text = Prompt.fill(FillRequest("fill-1", "1", 1, "x", awsEnv, 3, 5, Vector.empty, Vector.empty, implicits = implicits))
+    assert(text.contains("# Implizite Flags\nDiese setzt die Engine in jeden Aufruf ein, auch in verify; schreibe sie nicht:\n- aws: --region eu-central-1"), text)
+    val noAws = Envelope(Set(OpKind.ReadFile), ".", 3, 0, Set.empty)
+    assert(!Prompt.fill(FillRequest("fill-1", "1", 1, "x", noAws, 3, 5, Vector.empty, Vector.empty, implicits = implicits)).contains("Implizite"))
+
   test("System-Prompt nennt jede Argument-Policy"):
     val s = Prompt.system(check)
     check.argPolicies.foreach(p => assert(s.contains("- " + (p.binary :: p.prefixArgs).mkString(" ") + ":"), p))

@@ -60,7 +60,8 @@ final case class FillRequest(
     errors: Vector[String],
     round: Int = 1,
     maxRounds: Int = 1,
-    verified: Vector[String] = Vector.empty
+    verified: Vector[String] = Vector.empty,
+    implicits: Implicits = Implicits.empty
 )
 
 /** Werkzeuge am Rand: Dateisystem und Prozesse. Prüft Pfade und Befehle zur Laufzeit gegen die Hülle. */

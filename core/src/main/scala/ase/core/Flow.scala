@@ -6,8 +6,10 @@ import io.circe.{Json, parser}
 import java.util.regex.PatternSyntaxException
 import scala.util.matching.Regex
 
-/** Ein von Menschen geschriebener Term mit Hülle und typisierten Parametern (D#22). params: Name → Regex. */
-final case class Flow(description: String, params: Map[String, String], envelope: Envelope, term: Term)
+/** Ein von Menschen geschriebener Term mit Hülle und typisierten Parametern (D#22). params: Name → Regex.
+  * implicits: optional, je Programm Flag → Wert für Pflicht-Flags; Werte dürfen ${name} enthalten (D#87).
+  */
+final case class Flow(description: String, params: Map[String, String], envelope: Envelope, term: Term, implicits: Implicits = Implicits.empty)
 
 enum FlowError:
   case Decode(error: DecodeError)
@@ -29,22 +31,26 @@ object Flow:
     def err(e: DecodeError) = FlowError.Decode(e)
     for
       o <- json.asObject.toRight(err(DecodeError.Malformed(root, "ein Objekt")))
-      _ <- o.keys.find(k => !Set("description", "params", "envelope", "term")(k)).map(k => err(DecodeError.UnknownField(root, k))).toLeft(())
+      _ <- o.keys.find(k => !Set("description", "params", "envelope", "term", "implicits")(k)).map(k => err(DecodeError.UnknownField(root, k))).toLeft(())
+      implicits <- o("implicits").fold(Implicits.empty.asRight[FlowError])(Implicits.decode(_).leftMap(e => err(DecodeError.Malformed(root / "implicits", e))))
       description <- o("description").flatMap(_.asString).toRight(err(DecodeError.MissingField(root, "description")))
       paramsObj <- o("params").flatMap(_.asObject).toRight(err(DecodeError.MissingField(root, "params")))
       params <- paramsObj.toList.traverse((k, v) => v.asString.map(k -> _).toRight(err(DecodeError.Malformed(root / "params" / k, "Text"))))
       envelope <- o("envelope").toRight(err(DecodeError.MissingField(root, "envelope"))).flatMap(Codec.decodeEnvelope(_, root / "envelope").leftMap(err))
       term <- o("term").toRight(err(DecodeError.MissingField(root, "term")))
         .flatMap(Codec.decodeTerm(_, OriginMode.Required, DecodeLimits.all(nestingLimit)).leftMap(err))
-    yield Flow(description, params.toMap, envelope, term)
+    yield Flow(description, params.toMap, envelope, term, implicits)
 
-  /** Ein Flow als JSON, wie decode ihn liest; Terme mit origin. Für Flows, die ein Werkzeug schreibt (D#75). */
+  /** Ein Flow als JSON, wie decode ihn liest; Terme mit origin. Für Flows, die ein Werkzeug schreibt (D#75).
+    * implicits nur, wenn es welche gibt: ein Flow ohne bleibt Zeichen für Zeichen, wie er war.
+    */
   def encode(f: Flow): Json = Json.obj(
     "description" -> Json.fromString(f.description),
     "params" -> Json.obj(f.params.toList.sorted.map((k, v) => k -> Json.fromString(v))*),
+    "implicits" -> (if f.implicits.isEmpty then Json.Null else Implicits.encode(f.implicits)),
     "envelope" -> Codec.envelope(f.envelope),
     "term" -> Codec.term(f.term)
-  )
+  ).dropNullValues
 
   /** Bindet die Parameter nach dem Decodieren, nur in Textfeldern des Terms, und prüft die Flow-Hülle gegen die
     * Hülle des Runners. Danach kommt DryRun gegen flow.envelope.
@@ -61,8 +67,11 @@ object Flow:
         Either.cond(rx.matches(values(name)), (), FlowError.InvalidValue(name, values(name), rx.regex))
       )
       term <- mapStrings(flow.term)(substitute(_, values))
+      implicits <- flow.implicits.byProgram.toList.traverse((cmd, fs) =>
+        fs.toList.traverse((f, v) => substitute(v, values).map(f -> _)).map(cmd -> _.toMap)
+      )
       _ <- noViolations(Attenuation.check(flow.envelope, runnerRoot, Location.root / "envelope", Attenuation.Mode.Flow))
-    yield flow.copy(term = term)
+    yield flow.copy(term = term, implicits = Implicits(implicits.toMap))
 
   private def noViolations(v: List[Violation]): Either[FlowError, Unit] =
     Either.cond(v.isEmpty, (), FlowError.EnvelopeTooWide(v))

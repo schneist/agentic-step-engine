@@ -58,9 +58,10 @@ object ArgPolicy:
     policies.filter(p => p.binary == cmd && args.startsWith(p.prefixArgs)).maxByOption(_.prefixArgs.size)
 
   /** Abgelehnte Argumente mit Grund und die ausdrücklich genannten Pfade; pathAt sind deren Stellen in args mit dem
-    * Präfix, das dort vor dem Pfad steht (Execute gibt dort Präfix und normalisierten Pfad weiter).
+    * Präfix, das dort vor dem Pfad steht (Execute gibt dort Präfix und normalisierten Pfad weiter). valued: die Flags
+    * mit Wert, die der Aufruf vor „--“ trägt, jedes höchstens einmal (D#87).
     */
-  final case class Parsed(rejected: List[(String, String)], paths: List[String], pathAt: List[(Int, String)]):
+  final case class Parsed(rejected: List[(String, String)], paths: List[String], pathAt: List[(Int, String)], valued: Set[String] = Set.empty):
     /** Was der Aufruf berührt: ohne Pfadargument das Arbeitsverzeichnis (D#27). */
     def touched: List[String] = if paths.isEmpty then List(".") else paths
 
@@ -88,40 +89,49 @@ object ArgPolicy:
         case Some(ValueRule.Pattern(regex)) =>
           Either.cond(v.matches(regex), None, s"Wert „$v“ passt nicht auf das Muster $regex")
 
-    // paths: Pfad mit seiner Stelle in args und dem Präfix davor
+    // paths: Pfad mit seiner Stelle in args und dem Präfix davor; seen: Flags mit Wert bis hierher
     @annotation.tailrec
-    def loop(rest: List[String], afterDashDash: Boolean, positionals: Int, rejected: List[(String, String)], paths: List[(String, Int, String)]): Parsed =
+    def loop(
+        rest: List[String],
+        afterDashDash: Boolean,
+        positionals: Int,
+        rejected: List[(String, String)],
+        paths: List[(String, Int, String)],
+        seen: Set[String]
+    ): Parsed =
       val i = args.size - rest.size
       rest match
-        case Nil => Parsed(rejected.reverse, paths.reverse.map(_._1), paths.reverse.map(p => (p._2, p._3)))
+        case Nil => Parsed(rejected.reverse, paths.reverse.map(_._1), paths.reverse.map(p => (p._2, p._3)), seen)
         case arg :: tail if afterDashDash =>
-          loop(tail, true, positionals, rejected, (arg, i, "") :: paths)
+          loop(tail, true, positionals, rejected, (arg, i, "") :: paths, seen)
         case "--" :: tail =>
-          if dashDashAllowed then loop(tail, true, positionals, rejected, paths)
-          else loop(tail, false, positionals, ("--", "„--“ ist hier nicht vorgesehen") :: rejected, paths)
+          if dashDashAllowed then loop(tail, true, positionals, rejected, paths, seen)
+          else loop(tail, false, positionals, ("--", "„--“ ist hier nicht vorgesehen") :: rejected, paths, seen)
         case arg :: tail if arg.startsWith("-") && arg != "-" =>
           if policy.valuedFlags(arg) then
+            // ein Flag mit Wert zweimal: das Programm nähme meist den letzten Wert, die Prüfung sähe beide (D#87)
+            val twice = Option.when(seen(arg))((arg, "nur einmal erlaubt"))
             tail match
               case v :: more if !v.startsWith("-") =>
                 value(arg, v, i + 1) match
-                  case Right(path)   => loop(more, false, positionals, rejected, path.toList ++ paths)
-                  case Left(reason)  => loop(more, false, positionals, (arg, reason) :: rejected, paths)
-              case _ => loop(tail, false, positionals, (arg, "erwartet einen Wert") :: rejected, paths)
-          else if flagAllowed(arg) then loop(tail, false, positionals, rejected, paths)
-          else loop(tail, false, positionals, (arg, s"Flag nicht erlaubt; erlaubt sind: $allowedFlags") :: rejected, paths)
+                  case Right(path)   => loop(more, false, positionals, twice.toList ++ rejected, path.toList ++ paths, seen + arg)
+                  case Left(reason)  => loop(more, false, positionals, (arg, reason) :: twice.toList ++ rejected, paths, seen + arg)
+              case _ => loop(tail, false, positionals, (arg, "erwartet einen Wert") :: twice.toList ++ rejected, paths, seen + arg)
+          else if flagAllowed(arg) then loop(tail, false, positionals, rejected, paths, seen)
+          else loop(tail, false, positionals, (arg, s"Flag nicht erlaubt; erlaubt sind: $allowedFlags") :: rejected, paths, seen)
         case arg :: tail =>
           policy.positional match
             case NoArgs =>
-              loop(tail, false, positionals, (arg, "keine weiteren Argumente erlaubt") :: rejected, paths)
+              loop(tail, false, positionals, (arg, "keine weiteren Argumente erlaubt") :: rejected, paths, seen)
             case Paths =>
-              loop(tail, false, positionals + 1, rejected, (arg, i, "") :: paths)
+              loop(tail, false, positionals + 1, rejected, (arg, i, "") :: paths, seen)
             case PatternThenPaths =>
-              if positionals == 0 then loop(tail, false, 1, rejected, paths)
-              else loop(tail, false, positionals + 1, rejected, (arg, i, "") :: paths)
+              if positionals == 0 then loop(tail, false, 1, rejected, paths, seen)
+              else loop(tail, false, positionals + 1, rejected, (arg, i, "") :: paths, seen)
             case PathsAfterDashDash =>
-              loop(tail, false, positionals, (arg, "Pfade erst nach „--“") :: rejected, paths)
+              loop(tail, false, positionals, (arg, "Pfade erst nach „--“") :: rejected, paths, seen)
             case RevisionThenPathsAfterDashDash =>
-              if positionals == 0 then loop(tail, false, 1, rejected, paths)
-              else loop(tail, false, positionals, (arg, "nur eine Revision; Pfade erst nach „--“") :: rejected, paths)
+              if positionals == 0 then loop(tail, false, 1, rejected, paths, seen)
+              else loop(tail, false, positionals, (arg, "nur eine Revision; Pfade erst nach „--“") :: rejected, paths, seen)
 
-    loop(args.drop(policy.prefixArgs.size), false, 0, Nil, Nil)
+    loop(args.drop(policy.prefixArgs.size), false, 0, Nil, Nil, Set.empty)

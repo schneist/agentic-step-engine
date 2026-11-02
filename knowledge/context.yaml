@@ -141,8 +141,17 @@ types:
     type: type
     status: implemented
     source: core/src/main/scala/ase/core/Flow.scala#Flow
-    verified: 2026-10-27
-    decided_by: ["D#22"]
+    verified: 2026-11-02
+    decided_by: ["D#22", "D#87"]
+    note: optionales Feld implicits (D#87), Werte mit ${name} gebunden; encode schreibt es nur, wenn es Einträge hat
+  - id: type.implicits
+    type: type
+    status: implemented
+    source: core/src/main/scala/ase/core/Implicits.scala#Implicits
+    verified: 2026-11-02
+    decided_by: ["D#87"]
+    tested_by: [ase.core.ImplicitsSuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite]
+    note: "je Programm Flag → Wert; check gegen CheckConfig.required, elaborate (Term => Term, Shell und verify, hinter die prefixArgs, explizit gesetzt = ImplicitFlagGiven), strip/stripArgs für Explain und Lauf-Log; im CheckedTerm, in FillRequest und Plan-Datei Version 4"
   - id: type.checkedTerm
     type: type
     status: implemented
@@ -196,8 +205,9 @@ policies:
     type: policy
     status: implemented
     source: core/src/main/scala/ase/core/ArgPolicy.scala#ArgPolicy
-    verified: 2026-11-01
-    decided_by: ["D#12", "D#27", "D#83"]
+    verified: 2026-11-02
+    decided_by: ["D#12", "D#27", "D#83", "D#87"]
+    note: "parse lehnt ein Flag mit Wert ab, das zweimal steht (D#87), und meldet die gesehenen in Parsed.valued; Pflicht-Flags je Programm in CheckConfig.required, geprüft in DryRun.shell (RequiredFlagMissing)"
   - id: policy.scopeFilter
     type: policy
     status: implemented
@@ -411,7 +421,7 @@ interpreters:
     verified: 2026-10-30
     decided_by: ["D#45", "D#46", "D#63", "D#64", "D#74", "D#75", "D#76", "D#79"]
     tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite, ase.runner.SeriesSuite]
-    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 3 mit sourceSha, liest 1 und 2), RunnerConfig.scala (bestOfN, programs D#68), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
+    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 4 mit implicits und elaboriertem Term, liest 1 bis 3), RunnerConfig.scala (bestOfN, programs D#68, programs[].required D#87), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
   - id: core.usage
     type: interpreter
     status: implemented
@@ -612,6 +622,8 @@ decisions:
   - { id: "D#84", type: decision, status: decided, source: "findings.md#D#84", verified: 2026-11-01, title: "Eval 8 cloud-vorpruefung: Prüfung vor dem teuren Schritt, bestanden ist ask ohne schreibenden aws-Aufruf", tested_by: [evals/8-cloud-vorpruefung/check.sh] }
   - { id: "D#85", type: decision, status: decided, source: "findings.md#D#85", verified: 2026-11-01, title: "Plan-Prompt: ein fester Done-Text behauptet nur, was feste Schritte geprüft haben; sonst Programm, If und Ask (M#33)", tested_by: [ase.model.AnthropicSuite] }
   - { id: "D#86", type: decision, status: decided, source: "findings.md#D#86", verified: 2026-11-01, title: "Serien-Schlüssel mit promptSha (SHA-256 des System-Prompts aus der Prüfkonfiguration), optional für alte Datensätze", tested_by: [ase.runner.SeriesSuite] }
+  - { id: "D#87", type: decision, status: decided, source: "findings.md#D#87", verified: 2026-11-02, title: "Pflicht-Flags je Programm (programs[].required), implizite Flags im Flow, Elaboration vor jedem DryRun; Hash über den elaborierten Term, Explain zeigt die Bindung einmal", tested_by: [ase.core.ImplicitsSuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite] }
+  - { id: "D#88", type: decision, status: decided, source: "findings.md#D#88", verified: 2026-11-02, title: "Sandbox je Programmaufruf mit bwrap, Zusätze je Programm in der Konfiguration, nie für Skripte; Umsetzung in O#44, noch nicht im Code" }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -663,6 +675,8 @@ open:
   - { id: "O#40", type: open, status: open, source: "findings.md#O#40", verified: 2026-10-31, title: "Spot-Maschinen in AWS als Flow; Härtung in Stufen an Eval 7: offen 0/10 (M#25), Gerüst 0/10 (M#26), mit Abnahme 3/10 (M#27), mit RepeatUntil 5/10 und 9/10 (M#28, M#29), Runden des Bucket-Schritts behoben 9/10 (M#30), eingefroren 8/10 (M#31); Start-Flow seit 01.11. in ducktest ohne Agentenschritt; Eval 8 Vorprüfung: offener Plan 0/10, Tor im Gerüst 10/10 (M#33, M#34); START.md-Schritt mit scopePrefix 8/10 (M#38); offen: vorübergehende Fehler beim Start, echter Lauf (Regel für feste Done-Texte ist D#85, M#35 7/10)" }
   - { id: "O#41", type: open, status: resolved, source: "findings.md#O#41", verified: 2026-11-01, resolved_by: "D#83", title: "Werte von valuedFlags werden nicht als Pfad geprüft (aws --body, --user-data file://); seit D#83 mit Wertregel" }
   - { id: "O#42", type: open, status: resolved, source: "findings.md#O#42", verified: 2026-11-01, resolved_by: "D#86", title: "Serien-Schlüssel sieht die Argument-Policies nicht: M#31 und M#32 gleicher Schlüssel bei anderem System-Prompt" }
+  - { id: "O#43", type: open, status: open, source: "findings.md#O#43", verified: 2026-11-02, title: "Umsetzung von D#87: Code und Tests fertig; offen ist die Messung an Eval 7" }
+  - { id: "O#44", type: open, status: open, source: "findings.md#O#44", verified: 2026-11-02, title: "Umsetzung von D#88 (Sandbox je Programmaufruf), nach O#43" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }

@@ -12,8 +12,9 @@ import java.security.MessageDigest
   * wurde, die gebundenen Flow-Parameter, der Fingerabdruck der Runner-Konfiguration und die Kosten des Plans.
   * candidates und agreeing: wie viele Pläne die letzte Runde hatte und wie viele davon den Fingerprint des gewählten
   * teilen (BestOfN, D#63); ohne Abstimmung 1 und 1. sourceSha: SHA-256 der Aufgabe oder des Flows als Text, damit
-  * `ase stats` die Läufe einer Fassung zusammenfasst (D#74). Version 3; Version 1 (ohne candidates und agreeing) und
-  * Version 2 (ohne sourceSha) werden weiter gelesen.
+  * `ase stats` die Läufe einer Fassung zusammenfasst (D#74). implicits: die impliziten Flags des Flows (D#87); term ist
+  * schon elaboriert, die Tabelle dient Explain und Tor 2. Version 4; Version 1 (ohne candidates und agreeing),
+  * Version 2 (ohne sourceSha) und Version 3 (ohne implicits) werden weiter gelesen.
   * Kein CheckedTerm: `ase run` prüft neu (DryRun) und gibt nur frei, was dabei herauskommt (D#11).
   */
 final case class PlanFile(
@@ -28,11 +29,12 @@ final case class PlanFile(
     tokens: Long,
     candidates: Int = 1,
     agreeing: Int = 1,
-    sourceSha: Option[String] = None
+    sourceSha: Option[String] = None,
+    implicits: Implicits = Implicits.empty
 )
 
 object PlanFile:
-  val Version = 3
+  val Version = 4
 
   def encode(p: PlanFile): Json = Json.obj(
     "v" -> Json.fromInt(Version),
@@ -41,6 +43,7 @@ object PlanFile:
     "configSha" -> Json.fromString(p.configSha),
     "envelope" -> Codec.envelope(p.envelope),
     "params" -> Json.obj(p.params.toList.sorted.map((k, v) => k -> Json.fromString(v))*),
+    "implicits" -> (if p.implicits.isEmpty then Json.Null else Implicits.encode(p.implicits)),
     "term" -> Codec.term(p.term),
     "plan" -> Json.obj(
       "calls" -> Json.fromInt(p.calls),
@@ -56,7 +59,7 @@ object PlanFile:
     for
       json <- parser.parse(text).leftMap(e => s"Kein gültiges JSON: ${e.message}")
       o <- json.asObject.toRight("Plan-Datei: erwartet ein Objekt")
-      _ <- o.keys.find(k => !Set("v", "source", "sourceSha", "configSha", "envelope", "params", "term", "plan")(k)).map(k => s"Plan-Datei: Feld „$k“ ist nicht vorgesehen").toLeft(())
+      _ <- o.keys.find(k => !Set("v", "source", "sourceSha", "configSha", "envelope", "params", "implicits", "term", "plan")(k)).map(k => s"Plan-Datei: Feld „$k“ ist nicht vorgesehen").toLeft(())
       v <- o("v").flatMap(_.asNumber).flatMap(_.toInt).toRight("Plan-Datei: v fehlt")
       _ <- Either.cond(v >= 1 && v <= Version, (), s"Plan-Datei Version $v wird nicht unterstützt (erwartet 1 bis $Version)")
       source <- str(o, "source")
@@ -66,6 +69,7 @@ object PlanFile:
       params <- o("params").flatMap(_.asObject).toRight("params fehlt").flatMap(
         _.toList.traverse((k, j) => j.asString.map(k -> _).toRight(s"params.$k: erwartet einen Text")).map(_.toMap)
       )
+      implicits <- o("implicits").fold(Implicits.empty.asRight[String])(Implicits.decode(_).leftMap(e => s"Plan-Datei: implicits: $e"))
       term <- o("term").toRight("term fehlt").flatMap(Codec.decodeTerm(_, OriginMode.Required, DecodeLimits.all(nestingLimit)).leftMap(_.message))
       plan <- o("plan").flatMap(_.asObject).toRight("plan fehlt")
       calls <- int(plan, "calls")
@@ -74,7 +78,7 @@ object PlanFile:
       tokens <- plan("tokens").flatMap(_.asNumber).flatMap(_.toLong).toRight("plan.tokens fehlt")
       candidates <- if v == 1 then Right(1) else int(plan, "candidates")
       agreeing <- if v == 1 then Right(1) else int(plan, "agreeing")
-    yield PlanFile(source, configSha, envelope, params, term, calls, rejections, unusable, tokens, candidates, agreeing, sourceSha)
+    yield PlanFile(source, configSha, envelope, params, term, calls, rejections, unusable, tokens, candidates, agreeing, sourceSha, implicits)
 
   /** Fingerabdruck der Runner-Konfiguration: SHA-256 der Datei, ohne Datei "default". Plan und Lauf müssen mit
     * derselben Konfiguration geprüft werden (D#40).

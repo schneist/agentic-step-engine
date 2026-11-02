@@ -36,6 +36,10 @@ enum Violation:
   case InvalidVerify(loc: Location, max: Int)
   /** Das Loch darf Code ändern, den seine Abnahme ausführt (D#80). */
   case VerifierWritable(loc: Location, code: String, prefix: String)
+  /** Ein Aufruf ohne ein Pflicht-Flag seines Programms (D#87). */
+  case RequiredFlagMissing(loc: Location, cmd: String, flag: String)
+  /** Ein implizites Flag steht schon im Term; die Engine setzt es selbst (D#87). */
+  case ImplicitFlagGiven(loc: Location, cmd: String, flag: String)
 
   def loc: Location
 
@@ -85,6 +89,10 @@ enum Violation:
     case VerifierWritable(_, code, prefix) =>
       s"Das Loch darf unter $prefix ändern und damit $code, das seine Abnahme ausführt; so könnte es die Abnahme " +
         s"selbst bestehen lassen. Gib dem Loch einen engeren pathPrefix, unter dem $code nicht liegt."
+    case RequiredFlagMissing(_, cmd, flag) =>
+      s"Jeder Aufruf von $cmd trägt $flag genau einmal; hier fehlt es."
+    case ImplicitFlagGiven(_, cmd, flag) =>
+      s"$flag setzt die Engine in jeden Aufruf von $cmd selbst (implizit); lass es weg."
 
   def render: String = s"${loc.show}: $message"
 

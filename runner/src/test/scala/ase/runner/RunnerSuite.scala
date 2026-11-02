@@ -58,8 +58,13 @@ class RunnerSuite extends munit.FunSuite:
     val file = PlanFile("evals/1-todos/task.md", "default", root, Map("v" -> "1.0"), Term.Seq(List(Term.ReadFile("a", Origin.Model("plan-2"))), h), 2, 1, 0, 4200L)
     val text = PlanFile.encode(file).spaces2
     assertEquals(PlanFile.parse(text, 5), Right(file))
-    assert(PlanFile.parse(text.replace("\"v\" : 3", "\"v\" : 0"), 5).isLeft)
-    assert(PlanFile.parse(text.replace("\"v\" : 3", "\"v\" : 4"), 5).isLeft)
+    assert(PlanFile.parse(text.replace("\"v\" : 4", "\"v\" : 0"), 5).isLeft)
+    assert(PlanFile.parse(text.replace("\"v\" : 4", "\"v\" : 5"), 5).isLeft)
+    // implicits seit Version 4 (D#87); ohne das Feld, wie in Version 3, bleibt die Tabelle leer
+    val bound = file.copy(implicits = Implicits(Map("aws" -> Map("--region" -> "eu-central-1"))))
+    assertEquals(PlanFile.parse(PlanFile.encode(bound).noSpaces, 5), Right(bound))
+    assert(!PlanFile.encode(file).noSpaces.contains("implicits"))
+    assertEquals(PlanFile.parse(PlanFile.encode(file).deepMerge(Json.obj("v" -> Json.fromInt(3))).noSpaces, 5), Right(file))
     // Version 1 ohne candidates und agreeing wird weiter gelesen (D#63)
     val v1 = PlanFile.encode(file).hcursor.downField("plan").withFocus(_.mapObject(_.remove("candidates").remove("agreeing"))).top.get
       .deepMerge(Json.obj("v" -> Json.fromInt(1)))
@@ -258,6 +263,53 @@ class RunnerSuite extends munit.FunSuite:
       """"values":{"--key":"Path"}""",
       """"values":[]"""
     ).foreach(bad => assert(RunnerConfig.parse(s"""{"programs":[{"binary":"aws","valuedFlags":["--key"],$bad}]}""").isLeft, bad))
+
+  private def awsEntry(sub: String, extra: String = """"required":["--profile","--region"]""") =
+    s"""{"binary":"aws","args":["$sub"],"valuedFlags":["--profile","--region","--x"],"positional":"NoArgs",$extra}"""
+
+  test("programs: Pflicht-Flags gehören dem Programm, nicht der Policy (D#87)"):
+    val c = RunnerConfig.parse(s"""{"programs":[${awsEntry("sts")},${awsEntry("ec2")}]}""").fold(fail(_), identity).check
+    assertEquals(c.required, Map("aws" -> Set("--profile", "--region")))
+    assertEquals(RunnerConfig.default.check.required, Map.empty)
+    List(
+      // ein Eintrag ohne Pflicht ließe jeden Aufruf unter ihm ohne Profil durch
+      s"${awsEntry("sts")},${awsEntry("ec2", """"flags":[]""")}",
+      s"""${awsEntry("sts")},${awsEntry("ec2", """"required":["--profile"]""")}""",
+      // nur Flags mit Wert, kein Pfad
+      awsEntry("sts", """"required":["--y"]"""),
+      awsEntry("sts", """"required":["--x"],"values":{"--x":{"type":"Path"}}"""),
+      // --profile= umginge die Zählung
+      awsEntry("sts", """"required":["--profile"],"prefixFlags":["--profile="]"""),
+      // eingebaute Policies desselben Programms haben keine Pflicht
+      """{"binary":"git","args":["show"],"valuedFlags":["-C"],"positional":"NoArgs","required":["-C"]}"""
+    ).foreach(bad => assert(RunnerConfig.parse(s"""{"programs":[$bad]}""").isLeft, bad))
+    // die Präfix-Regel gilt auch ohne Pflicht
+    assert(RunnerConfig.parse("""{"programs":[{"binary":"p","valuedFlags":["--out"],"prefixFlags":["--out="]}]}""").isLeft)
+
+  test("Flow mit implicits: Bindung der Werte, Prüfung gegen die Konfiguration, Explain und Plan-Datei (D#87)"):
+    val config = RunnerConfig.parse(s"""{"programs":[${awsEntry("sts")}]}""").fold(fail(_), identity).check
+    val awsRoot = Envelope(Set(OpKind.Shell), ".", 5, 0, Set(AllowedCommand("aws", Nil)))
+    val text =
+      s"""{"description":"d","params":{"region":"^[a-z0-9-]+$$"},
+         |"implicits":{"aws":{"--region":"$${region}","--profile":"default"}},
+         |"envelope":${Codec.envelope(awsRoot).noSpaces},
+         |"term":{"type":"Shell","cmd":"aws","args":["sts","--x","1"],"origin":"Human"}}""".stripMargin
+    val flow = Flow.parse(text).fold(e => fail(e.toString), identity)
+    assertEquals(Flow.parse(Flow.encode(flow).noSpaces), Right(flow))
+    val bound = Flow.bind(flow, Map("region" -> "eu-central-1"), awsRoot).fold(e => fail(e.toString), identity)
+    assertEquals(bound.implicits, Implicits(Map("aws" -> Map("--region" -> "eu-central-1", "--profile" -> "default"))))
+    assertEquals(Implicits.check(bound.implicits, config), Right(()))
+    assert(Implicits.check(Implicits(Map("aws" -> Map("--x" -> "1"))), config).isLeft)
+    assert(Implicits.check(Implicits(Map("git" -> Map("-n" -> "1"))), config).isLeft)
+    // ohne Elaboration fehlt die Pflicht an Tor 1; mit ihr geht es durch
+    assert(DryRun.plan(bound.term, awsRoot, config).isLeft)
+    val term = Implicits.elaborate(bound.term, bound.implicits, config.argPolicies).fold(v => fail(v.toString), identity)
+    assertEquals(term, Term.Shell("aws", List("sts", "--profile", "default", "--region", "eu-central-1", "--x", "1"), h))
+    val checked = DryRun.plan(term, awsRoot, config, Map("region" -> "eu-central-1"), bound.implicits).fold(v => fail(v.toString), identity)
+    val explain = Explain.render(checked)
+    assert(explain.contains("führt aus: aws sts --x 1"), explain)
+    // ein Flow ohne implicits schreibt kein Feld
+    assert(!Flow.encode(flow.copy(implicits = Implicits.empty)).noSpaces.contains("implicits"))
 
   // eine andere Form als good (ReadFile statt ListDir): BestOfN stimmt über die Form ab (D#65)
   private val other = Term.Seq(List(Term.ReadFile("docs/a.md", h), Term.Hole("Schreibe a.md", Envelope(Set(OpKind.WriteFile), "a.md", 2, 0, Set.empty), h)), h)
