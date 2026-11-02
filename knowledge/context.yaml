@@ -675,7 +675,7 @@ open:
   - { id: "O#40", type: open, status: open, source: "findings.md#O#40", verified: 2026-10-31, title: "Spot-Maschinen in AWS als Flow; Härtung in Stufen an Eval 7: offen 0/10 (M#25), Gerüst 0/10 (M#26), mit Abnahme 3/10 (M#27), mit RepeatUntil 5/10 und 9/10 (M#28, M#29), Runden des Bucket-Schritts behoben 9/10 (M#30), eingefroren 8/10 (M#31); Start-Flow seit 01.11. in ducktest ohne Agentenschritt; Eval 8 Vorprüfung: offener Plan 0/10, Tor im Gerüst 10/10 (M#33, M#34); START.md-Schritt mit scopePrefix 8/10 (M#38); offen: vorübergehende Fehler beim Start, echter Lauf (Regel für feste Done-Texte ist D#85, M#35 7/10)" }
   - { id: "O#41", type: open, status: resolved, source: "findings.md#O#41", verified: 2026-11-01, resolved_by: "D#83", title: "Werte von valuedFlags werden nicht als Pfad geprüft (aws --body, --user-data file://); seit D#83 mit Wertregel" }
   - { id: "O#42", type: open, status: resolved, source: "findings.md#O#42", verified: 2026-11-01, resolved_by: "D#86", title: "Serien-Schlüssel sieht die Argument-Policies nicht: M#31 und M#32 gleicher Schlüssel bei anderem System-Prompt" }
-  - { id: "O#43", type: open, status: open, source: "findings.md#O#43", verified: 2026-11-02, title: "Umsetzung von D#87: Code und Tests fertig; offen ist die Messung an Eval 7" }
+  - { id: "O#43", type: open, status: resolved, source: "findings.md#O#43", verified: 2026-11-02, resolved_by: "D#87", title: "Umsetzung von D#87 mit Messung M#39 (Eval 7, 10/10)" }
   - { id: "O#44", type: open, status: open, source: "findings.md#O#44", verified: 2026-11-02, title: "Umsetzung von D#88 (Sandbox je Programmaufruf), nach O#43" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
@@ -743,7 +743,7 @@ evals:
     decided_by: ["D#81"]
     relates_to: ["O#40", "O#41"]
     note: "bin/aws ist das Double, Zustand in ../.cloud-stub; eigene Runner-Konfiguration; check.sh gegen loesung.json, Fixture und falsche Zone geprüft; nicht im Harness. Stufen der Härtung: M#25 offen 0/10, M#26 Gerüst 0/10, M#27 mit Abnahme 3/10, RepeatUntil statt Abnahme 5/10 (M#28), mit Abschluss über die Maschine 9/10 (M#29), mit sts als festem Schritt vor dem Bucket 9/10 und Bucket ohne Schreibaufrufe in der letzten Runde (M#30), eingefroren 8/10 bei einem Drittel weniger Tokens (M#31), mit Wertregeln 6/10 (M#32, Streuung), START.md-Schritt mit scopePrefix . 8/10 (M#38)"
-    measurements: ["M#25", "M#26", "M#27", "M#28", "M#29", "M#30", "M#31", "M#32", "M#38"]
+    measurements: ["M#25", "M#26", "M#27", "M#28", "M#29", "M#30", "M#31", "M#32", "M#38", "M#39"]
   - id: eval.8
     type: eval
     status: implemented
