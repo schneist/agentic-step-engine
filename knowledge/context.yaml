@@ -677,7 +677,7 @@ open:
   - { id: "O#41", type: open, status: resolved, source: "findings.md#O#41", verified: 2026-11-01, resolved_by: "D#83", title: "Werte von valuedFlags werden nicht als Pfad geprüft (aws --body, --user-data file://); seit D#83 mit Wertregel" }
   - { id: "O#42", type: open, status: resolved, source: "findings.md#O#42", verified: 2026-11-01, resolved_by: "D#86", title: "Serien-Schlüssel sieht die Argument-Policies nicht: M#31 und M#32 gleicher Schlüssel bei anderem System-Prompt" }
   - { id: "O#43", type: open, status: resolved, source: "findings.md#O#43", verified: 2026-11-02, resolved_by: "D#87", title: "Umsetzung von D#87 mit Messung M#39 (Eval 7, 10/10)" }
-  - { id: "O#44", type: open, status: open, source: "findings.md#O#44", verified: 2026-11-02, title: "Umsetzung von D#88: Code, Tests, Eval-Konfigurationen fertig; offen die Kontrollserie an Eval 1" }
+  - { id: "O#44", type: open, status: resolved, source: "findings.md#O#44", verified: 2026-11-02, resolved_by: "D#88", title: "Umsetzung von D#88 mit Kontrollserie M#40 (Eval 1, 10/10); bwrap im Container von Claude Code ungeprüft" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }
@@ -693,7 +693,7 @@ evals:
     verified: 2026-10-27
     title: todos
     note: Fixture kompiliert; check.sh gegen Lösung und Fehllösung geprüft
-    measurements: ["M#3", "M#4", "M#6", "M#12", "M#14", "M#37"]
+    measurements: ["M#3", "M#4", "M#6", "M#12", "M#14", "M#37", "M#40"]
   - id: eval.2
     type: eval
     status: implemented
