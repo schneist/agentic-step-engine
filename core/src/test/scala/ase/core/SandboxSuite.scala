@@ -62,7 +62,11 @@ class SandboxSuite extends munit.FunSuite:
     val lines = run(ws, x).output.getOrElse("").linesIterator.map(_.trim).toList
     // in /tmp steht nur der Weg zum eingehängten Arbeitsverzeichnis, nicht das Verzeichnis daneben
     val tmpEntry = ws.getParent.getFileName.toString
-    assertEquals(lines, List("0", "0", s"tmp=${if sys.env.contains("TMPDIR") then "/tmp" else ""}", tmpEntry))
+    // HOME ist leer bis auf die Wege zu Programmverzeichnissen aus PATH, die unter HOME liegen (etwa ~/.cargo/bin)
+    val home = sys.env.get("HOME").map(Path.of(_).normalize)
+    val viaPath = sys.env.getOrElse("PATH", "").split(":").filter(_.nonEmpty).map(Path.of(_).normalize).toList
+      .flatMap(d => home.filter(h => d.startsWith(h) && d != h).map(h => h.relativize(d).getName(0).toString)).distinct
+    assertEquals(lines, List(viaPath.size.toString, "0", s"tmp=${if sys.env.contains("TMPDIR") then "/tmp" else ""}", tmpEntry))
 
   withWs("kein Netz in der Sandbox, auch nicht zu 127.0.0.1; mit Zusatz net ein Programm schon, ein Skript nie"): (ws, _) =>
     val server = new ServerSocket(0, 5, InetAddress.getLoopbackAddress)
