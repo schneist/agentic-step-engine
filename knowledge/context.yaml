@@ -672,12 +672,13 @@ open:
   - { id: "O#30", type: open, status: resolved, source: "findings.md#O#30", verified: 2026-10-29, resolved_by: "D#65" }
   - { id: "O#31", type: open, status: resolved, source: "findings.md#O#31", verified: 2026-10-29, resolved_by: "D#66" }
   - { id: "O#36", type: open, status: resolved, source: "findings.md#O#36", verified: 2026-10-30, title: "D#77 umsetzen", resolved_by: "D#79" }
-  - { id: "O#39", type: open, status: open, source: "findings.md#O#39", verified: 2026-10-31, title: "M# für D#80: Abnahme an Eval 6 nie gescheitert (M#22), an Eval 7 greift sie in 10/10 Läufen und holt 3 zurück (M#27); Prompt von D#80 verschiebt die Reparatur an Eval 6 (M#23, M#24), Planner-Basis Eval 1 bis 6 offen" }
+  - { id: "O#39", type: open, status: open, source: "findings.md#O#39", verified: 2026-11-03, title: "M# für D#80: Abnahme an Eval 6 nie gescheitert (M#22), an Eval 7 greift sie in 10/10 Läufen und holt 3 zurück (M#27); Prompt von D#80 verschiebt die Reparatur an Eval 6 (M#23, M#24), Planner-Basis Eval 1 bis 6 offen" }
   - { id: "O#40", type: open, status: open, source: "findings.md#O#40", verified: 2026-10-31, title: "Spot-Maschinen in AWS als Flow; Härtung in Stufen an Eval 7: offen 0/10 (M#25), Gerüst 0/10 (M#26), mit Abnahme 3/10 (M#27), mit RepeatUntil 5/10 und 9/10 (M#28, M#29), Runden des Bucket-Schritts behoben 9/10 (M#30), eingefroren 8/10 (M#31); Start-Flow seit 01.11. in ducktest ohne Agentenschritt; Eval 8 Vorprüfung: offener Plan 0/10, Tor im Gerüst 10/10 (M#33, M#34); START.md-Schritt mit scopePrefix 8/10 (M#38); offen: vorübergehende Fehler beim Start, echter Lauf (Regel für feste Done-Texte ist D#85, M#35 7/10)" }
   - { id: "O#41", type: open, status: resolved, source: "findings.md#O#41", verified: 2026-11-01, resolved_by: "D#83", title: "Werte von valuedFlags werden nicht als Pfad geprüft (aws --body, --user-data file://); seit D#83 mit Wertregel" }
   - { id: "O#42", type: open, status: resolved, source: "findings.md#O#42", verified: 2026-11-01, resolved_by: "D#86", title: "Serien-Schlüssel sieht die Argument-Policies nicht: M#31 und M#32 gleicher Schlüssel bei anderem System-Prompt" }
   - { id: "O#43", type: open, status: resolved, source: "findings.md#O#43", verified: 2026-11-02, resolved_by: "D#87", title: "Umsetzung von D#87 mit Messung M#39 (Eval 7, 10/10)" }
   - { id: "O#44", type: open, status: resolved, source: "findings.md#O#44", verified: 2026-11-02, resolved_by: "D#88", title: "Umsetzung von D#88 mit Kontrollserie M#40 (Eval 1, 10/10); bwrap im Container von Claude Code ungeprüft" }
+  - { id: "O#45", type: open, status: open, source: "findings.md#O#45", verified: 2026-11-03, title: "Plan hängt festes Done an eine Prüfung, die nie besteht (M#41, Eval 2: grep zählt CHANGELOG.md mit)" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }
@@ -702,7 +703,7 @@ evals:
     title: rename
     note: Datei-Umbenennung mit MoveFile (D#18); check.sh gegen Lösung und drei Fehllösungen geprüft
     decided_by: ["D#18"]
-    measurements: ["M#7"]
+    measurements: ["M#7", "M#41"]
   - id: eval.3
     type: eval
     status: implemented
@@ -710,7 +711,7 @@ evals:
     verified: 2026-10-27
     title: red-test-sbt
     note: sbt test rot genau in „Zinseszins über zwei Jahre“
-    measurements: ["M#8"]
+    measurements: ["M#8", "M#42"]
   - id: eval.4
     type: eval
     status: implemented
@@ -718,14 +719,14 @@ evals:
     verified: 2026-10-27
     title: readme
     note: Fixture kompiliert
-    measurements: ["M#9"]
+    measurements: ["M#9", "M#43"]
   - id: eval.5
     type: eval
     status: implemented
     source: evals/5-out-of-envelope/
     verified: 2026-10-27
     title: out-of-envelope
-    measurements: ["M#10"]
+    measurements: ["M#10", "M#44"]
   - id: eval.6
     type: eval
     status: implemented
@@ -734,7 +735,7 @@ evals:
     title: red-test (Integration, deterministisch und live)
     relates_to: [flows.red-test]
     note: Fixture und check.sh fertig; Skript-Modell in Eval6Suite
-    measurements: ["M#5", "M#11", "M#13", "M#15", "M#20", "M#21", "M#22", "M#23", "M#24", "M#36"]
+    measurements: ["M#5", "M#11", "M#13", "M#15", "M#20", "M#21", "M#22", "M#23", "M#24", "M#36", "M#45"]
   - id: eval.7
     type: eval
     status: implemented
