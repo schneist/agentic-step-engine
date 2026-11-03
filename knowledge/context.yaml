@@ -616,7 +616,7 @@ decisions:
   - { id: "D#65", type: decision, status: decided, source: "findings.md#D#65", verified: 2026-10-29, title: "BestOfN stimmt über die Form ab", measured_by: [eval.1, eval.6], tested_by: [ase.core.BestOfNSuite, ase.runner.RunnerSuite] }
   - { id: "D#66", type: decision, status: decided, source: "findings.md#D#66", verified: 2026-10-29, title: "Teilungsregel nur bei ausgeführtem Code", measured_by: [eval.1, eval.6] }
   - { id: "D#67", type: decision, status: decided, source: "findings.md#D#67", verified: 2026-10-29, title: "Messbasis über Claude Code (M#6 bis M#11)" }
-  - { id: "D#80", type: decision, status: decided, source: "findings.md#D#80", verified: 2026-10-31, title: "Abnahme eines Agentenschritts: Hole mit verify (Programm, Bedingung, max Durchläufe); Tor 1 prüft, dass der Agentenschritt den Code der Abnahme nicht ändern darf", tested_by: [core.VerifySuite] }
+  - { id: "D#80", type: decision, status: decided, source: "findings.md#D#80", verified: 2026-10-31, title: "Abnahme eines Agentenschritts: Hole mit verify (Programm, Bedingung, max Durchläufe); Tor 1 prüft, dass der Agentenschritt den Code der Abnahme nicht ändern darf", tested_by: [core.VerifySuite, core.Eval9Suite] }
   - { id: "D#81", type: decision, status: decided, source: "findings.md#D#81", verified: 2026-10-31, title: "Eval 7 cloud-start gegen ein Double der AWS CLI (bin/aws), Zustand neben dem Arbeitsverzeichnis, eigene Runner-Konfiguration, series.sh mit <eval>/bin im PATH", tested_by: [evals/7-cloud-start/check.sh] }
   - { id: "D#82", type: decision, status: decided, source: "findings.md#D#82", verified: 2026-10-31, title: "ase tighten engt Programme auf die aufgerufenen Unterbefehle ein (prefixArgs der Argument-Policy)", tested_by: [ase.core.TightenSuite, ase.core.UsageSuite] }
   - { id: "D#83", type: decision, status: decided, source: "findings.md#D#83", verified: 2026-11-01, title: "Wertregeln für Flags mit Wert: Path (Präfix, dann Pfad im Arbeitsverzeichnis, zählt zu den Pfaden des Aufrufs) oder Pattern; Konfiguration programs[].values", tested_by: [ase.core.ArgPolicySuite, ase.runner.RunnerSuite] }
@@ -756,6 +756,16 @@ evals:
     relates_to: ["O#40", "eval.7"]
     note: "Fixture wie Eval 7 mit zwei Regelverstößen im Paket; infra/vorpruefung.sh als Skript in Hülle und Konfiguration; bin/aws ruft das Double von Eval 7; check.sh verlangt ask ohne schreibenden aws-Aufruf; von Hand geprüft; nicht im Harness. Offener Plan 0/10 (M#33: Vorprüfung läuft, wird aber kein Tor, fester Done-Text meldet Erfolg), Gerüst mit Tor 10/10 ohne Modellaufruf (M#34), offener Plan mit D#85 7/10 (M#35)"
     measurements: ["M#33", "M#34", "M#35"]
+  - id: eval.9
+    type: eval
+    status: implemented
+    source: evals/9-zwei-fehler/
+    verified: 2026-11-03
+    title: zwei-fehler (Kompilierfehler verdeckt einen zweiten Fehler; misst die Abnahme)
+    decided_by: ["D#80"]
+    relates_to: ["O#39", "eval.6"]
+    note: "Flows ohne-abnahme.json und mit-abnahme.json, gleich bis auf verify an der Reparatur; Eval9Suite mit Skript-Modell für beide; check.sh gegen Lösung und fünf Fehllösungen geprüft; nicht im Harness"
+    measurements: []
   - id: eval.lib
     type: eval
     status: implemented

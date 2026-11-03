@@ -145,7 +145,7 @@ Aufgabe → Plan (mit bestOfN n Kandidaten je Runde, D#63) → DryRun (CheckedTe
 =====================================================================
 EVALS
 =====================================================================
-Acht Aufgaben, Details zu Eval 6 (Integrations-Use-Case, deterministisch und live), Eval 7 (Spot-Rechnung gegen ein Double der AWS CLI, O#40, D#81) und Eval 8 (Vorprüfung vor dem teuren Schritt gegen dasselbe Double, D#84) in evals/README.md. Erfolgsquote über n Läufe; Ergebnis als Datensatz measurements/M<n>.json und M#-Eintrag nach playbook/evals.md (D#77). evals/series.sh misst eine Eval (ase series begin und end), evals/harness.sh alle sechs mit derselben Konfiguration (D#64); ase compare vergleicht zwei Serien nur bei gleichem Schlüssel. Prüfvertrag: check.sh WORKDIR OUTCOME (D#17).
+Neun Aufgaben, Details zu Eval 6 (Integrations-Use-Case, deterministisch und live), Eval 7 (Spot-Rechnung gegen ein Double der AWS CLI, O#40, D#81) Eval 8 (Vorprüfung vor dem teuren Schritt gegen dasselbe Double, D#84) und Eval 9 (zwei Fehler, einer verdeckt; misst die Abnahme, O#39 b) in evals/README.md. Erfolgsquote über n Läufe; Ergebnis als Datensatz measurements/M<n>.json und M#-Eintrag nach playbook/evals.md (D#77). evals/series.sh misst eine Eval (ase series begin und end), evals/harness.sh alle sechs mit derselben Konfiguration (D#64); ase compare vergleicht zwei Serien nur bei gleichem Schlüssel. Prüfvertrag: check.sh WORKDIR OUTCOME (D#17).
 
 =====================================================================
 TESTS

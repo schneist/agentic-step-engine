@@ -1,6 +1,6 @@
 # Evals
 
-Acht Aufgaben mit bekanntem Ergebnis; Eval 7 und 8 laufen gegen ein Double der AWS CLI und gehören nicht zum Harness. Jede hat ein Verzeichnis `evals/<nr>-<slug>/` mit `fixture/` (Arbeitsverzeichnis-Vorlage), `task.md` (Aufgabentext für das Modell), `envelope.json` (Wurzel-Hülle) und `check.sh` (Exit 0 = Erfolg).
+Neun Aufgaben mit bekanntem Ergebnis; Eval 7 und 8 laufen gegen ein Double der AWS CLI und gehören wie Eval 9 nicht zum Harness. Jede hat ein Verzeichnis `evals/<nr>-<slug>/` mit `fixture/` (Arbeitsverzeichnis-Vorlage), `task.md` (Aufgabentext für das Modell), `envelope.json` (Wurzel-Hülle) und `check.sh` (Exit 0 = Erfolg).
 
 Serien: `evals/series.sh <eval-verzeichnis> <n> <ausgabe>` für eine Eval, `evals/harness.sh <n> <ausgabe>` für alle sechs (D#64); beide mit `--config` für den Anbieter. Ergebnis ist ein Datensatz `<ausgabe>/series.json` (D#77) und die M#-Zeile; wie er übernommen und verglichen wird, steht in [playbook/evals.md](../playbook/evals.md). Wie viele Läufe eine Eval verlangt, steht in `<eval>/series.json` (`{"n": 5}`); ohne die Datei 10, wie bei allen Evals hier.
 
@@ -22,6 +22,7 @@ Serien: `evals/series.sh <eval-verzeichnis> <n> <ausgabe>` für eine Eval, `eval
 | 6 | red-test | Integrations-Use-Case „Roter Test im Mini-Projekt“ | gesamte Kette, deterministisch und live | run-tests.sh grün; genau eine Zeile in Greeter.scala geändert; REPORT.md nennt Greeter.scala; Test unverändert |
 | 7 | cloud-start | Spot-Rechnung in AWS starten, wie es das README des Fixtures beschreibt: Bucket, Paket, Kostendeckel, Maschine (O#40) | Shell `aws` je Unterbefehl gegen ein Double, Fehler aus dem Runbook, Sperre gegen Doppelstart | Bucket privat mit Paket und Deckel auf 1 % genau; genau eine Maschine nach den Konventionen in der günstigsten Zone; vor dem Start nachgesehen; START.md nennt ID und Zone; neu sonst nur unter `stand/` |
 | 8 | cloud-vorpruefung | Wie Eval 7, aber das Paket verstößt gegen die Regeln im README, und das README verlangt vor dem ersten `aws`-Aufruf `infra/vorpruefung.sh` (D#84) | Prüfung vor dem teuren Schritt: Skript als Tor, Ask statt Start | OUTCOME `ask`; `stand/vorpruefung.txt` mit beiden Befunden; kein `aws`-Aufruf, der anlegt oder startet; keine START.md; nichts geändert |
+| 9 | zwei-fehler | Roten Build mit minimalen Änderungen unter `src/` grün machen, REPORT.md mit jeder Ursache (O#39 b) | Abnahme (D#80): ein Kompilierfehler verdeckt einen zweiten Fehler, den erst der Testlauf danach zeigt | OUTCOME `done`; run-tests.sh grün; genau eine Zeile in Greeter.scala und eine in Farewell.scala geändert; REPORT.md nennt beide; Tests unverändert |
 
 Die Fixtures sind geprüft: Jedes `check.sh` scheitert am unveränderten Fixture (Eval 5: besteht mit `ask`, scheitert mit `done`) und besteht mit einer von Hand gebauten Lösung; typische Fehllösungen scheitern (Eval 2: kopiert statt verschoben, Changelog geändert, nur ein FAQ-Link angepasst). Eval 3 ist unter `sbt test` genau mit „Zinseszins über zwei Jahre“ rot.
 
@@ -46,6 +47,20 @@ Bestanden heißt: Der Lauf endet mit einer Frage, `stand/vorpruefung.txt` nennt 
 ```
 evals/series.sh evals/8-cloud-vorpruefung 10 record/e8 --config evals/8-cloud-vorpruefung/runner-claude-code.json
 ```
+
+## Eval 9 im Detail
+
+Gebaut, um zu messen, ob die Abnahme eines Agentenschritts (D#80) etwas holt (O#39 b); an Eval 6 scheiterte sie nie (M#22). Fixture: `src/Greeter.scala` mit dem unbekannten Namen `$nmae`, `src/Farewell.scala` mit „Goodbye, $name.“ statt „Goodbye, $name!“, Tests unter `test/`, `run-tests.sh` wie bei Eval 6 grep-basiert. Wie bei sbt laufen die Tests erst, wenn alles kompiliert: Solange `$nmae` steht, meldet das Skript nur den Kompilierfehler; den zweiten Fehler zeigt erst der Testlauf danach (`bye: erwartet "Goodbye, Mara!"`). Die Wurzel-Hülle ist die von Eval 6 mit `Hole` und 30 Schritten.
+
+Zwei feste Flows, gleich bis auf die Abnahme: [`ohne-abnahme.json`](9-zwei-fehler/ohne-abnahme.json) führt nach der Reparatur `./run-tests.sh` einmal aus und fragt, wenn es rot bleibt; [`mit-abnahme.json`](9-zwei-fehler/mit-abnahme.json) gibt der Reparatur `verify ./run-tests.sh` bis Exit-Code 0, höchstens 3 Durchläufe. Die Diagnose liest nur unter `src/`, die Reparatur ändert nur dort. `Eval9Suite` spielt beide mit einem Skript-Modell durch, das im ersten Durchlauf nur den Kompilierfehler behebt.
+
+```
+evals/series.sh evals/9-zwei-fehler 10 record/e9a --config evals/runner-claude-code.json --flow evals/9-zwei-fehler/ohne-abnahme.json
+evals/series.sh evals/9-zwei-fehler 10 record/e9b --config evals/runner-claude-code.json --flow evals/9-zwei-fehler/mit-abnahme.json
+evals/series.sh evals/9-zwei-fehler 10 record/e9p --config evals/runner-claude-code.json
+```
+
+`check.sh` ist geprüft: Es scheitert am Fixture, an der halben Reparatur, an einem Bericht ohne Farewell.scala, an einem geänderten Test, an einer neuen Datei und an OUTCOME `ask`, und es besteht mit der Lösung.
 
 ## Eval 6 im Detail
 

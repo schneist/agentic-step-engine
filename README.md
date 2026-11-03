@@ -156,7 +156,7 @@ Ein Coding-Agent wie Claude Code lässt sich gut einzäunen. Der Plan-Modus zeig
 
 ## Wie zuverlässig es ist
 
-Acht Testaufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Die ersten sechs liefen je 10-mal mit claude-opus-5-5 (effort high, über Claude Code), jedes Mal in einer frischen Kopie, geprüft von einem Skript, mit Sandbox (D#88). Gemessen am 02.11.2026 (Eval 1, M#40) und am 03.11.2026 (Eval 2 bis 6, M#41 bis M#45) auf main.
+Neun Testaufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Die ersten sechs liefen je 10-mal mit claude-opus-5-5 (effort high, über Claude Code), jedes Mal in einer frischen Kopie, geprüft von einem Skript, mit Sandbox (D#88). Gemessen am 02.11.2026 (Eval 1, M#40) und am 03.11.2026 (Eval 2 bis 6, M#41 bis M#45) auf main.
 
 | Eval | Aufgabe | Erfolg | Tokens ø je Lauf |
 |---|---|---|---|

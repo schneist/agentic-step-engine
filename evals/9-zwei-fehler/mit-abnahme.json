@@ -1,0 +1,115 @@
+{
+  "description": "Eval 9, Serie B (O#39 b): wie ohne-abnahme.json, aber die Reparatur hat eine Abnahme (D#80): ./run-tests.sh bis Exit-Code 0, höchstens 3 Durchläufe. Hülle gleich envelope.json.",
+  "params": {},
+  "envelope": {
+    "allowedOps": [
+      "ReadFile",
+      "ListDir",
+      "WriteFile",
+      "EditFile",
+      "Shell",
+      "Ask",
+      "Hole"
+    ],
+    "pathPrefix": ".",
+    "maxSteps": 30,
+    "maxDepth": 1,
+    "shellAllowlist": [
+      {
+        "binary": "./run-tests.sh",
+        "requiredPrefixArgs": []
+      },
+      {
+        "binary": "grep",
+        "requiredPrefixArgs": []
+      }
+    ]
+  },
+  "term": {
+    "type": "Seq",
+    "steps": [
+      {
+        "type": "Shell",
+        "cmd": "./run-tests.sh",
+        "args": [],
+        "origin": "Human"
+      },
+      {
+        "type": "ListDir",
+        "path": "src",
+        "origin": "Human"
+      },
+      {
+        "type": "Hole",
+        "goal": "Finde die Ursache des roten Builds. Ändere nichts; beende mit Done und nenne Datei, Zeile und Ursache.",
+        "envelope": {
+          "allowedOps": [
+            "ReadFile"
+          ],
+          "pathPrefix": "src/",
+          "maxSteps": 3,
+          "maxDepth": 0,
+          "shellAllowlist": []
+        },
+        "origin": "Human"
+      },
+      {
+        "type": "Hole",
+        "goal": "Behebe die Ursache des roten Builds mit minimalen Änderungen unter src/. Tests nicht ändern.",
+        "envelope": {
+          "allowedOps": [
+            "ReadFile",
+            "EditFile"
+          ],
+          "pathPrefix": "src/",
+          "maxSteps": 3,
+          "maxDepth": 0,
+          "shellAllowlist": []
+        },
+        "origin": "Human",
+        "verify": {
+          "cmd": "./run-tests.sh",
+          "args": [],
+          "until": {
+            "type": "LastExitCode",
+            "code": 0
+          },
+          "max": 3
+        }
+      },
+      {
+        "type": "If",
+        "pred": {
+          "type": "LastExitCode",
+          "code": 0
+        },
+        "thenT": {
+          "type": "Hole",
+          "goal": "Schreibe REPORT.md: jede Ursache mit betroffener Datei und Änderung. Grundlage sind die Ergebnisse der Agentenschritte davor.",
+          "envelope": {
+            "allowedOps": [
+              "WriteFile"
+            ],
+            "pathPrefix": "REPORT.md",
+            "maxSteps": 2,
+            "maxDepth": 0,
+            "shellAllowlist": []
+          },
+          "origin": "Human"
+        },
+        "elseT": {
+          "type": "Ask",
+          "question": "Build oder Tests weiterhin rot; wie weiter?",
+          "origin": "Human"
+        },
+        "origin": "Human"
+      },
+      {
+        "type": "Done",
+        "summary": "Build grün; Bericht in REPORT.md",
+        "origin": "Human"
+      }
+    ],
+    "origin": "Human"
+  }
+}
