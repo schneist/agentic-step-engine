@@ -672,7 +672,7 @@ open:
   - { id: "O#30", type: open, status: resolved, source: "findings.md#O#30", verified: 2026-10-29, resolved_by: "D#65" }
   - { id: "O#31", type: open, status: resolved, source: "findings.md#O#31", verified: 2026-10-29, resolved_by: "D#66" }
   - { id: "O#36", type: open, status: resolved, source: "findings.md#O#36", verified: 2026-10-30, title: "D#77 umsetzen", resolved_by: "D#79" }
-  - { id: "O#39", type: open, status: open, source: "findings.md#O#39", verified: 2026-11-03, title: "M# für D#80: Abnahme an Eval 6 nie gescheitert (M#22), an Eval 7 greift sie in 10/10 Läufen und holt 3 zurück (M#27); Prompt von D#80 verschiebt die Reparatur an Eval 6 (M#23, M#24), Planner-Basis Eval 1 bis 6 offen" }
+  - { id: "O#39", type: open, status: open, source: "findings.md#O#39", verified: 2026-11-03, title: "M# für D#80: (a) Basis der Evals 1 bis 6 neu (M#40 bis M#45); (b) Abnahme holt an Eval 9 10/10 gegen 0/10 (M#46, M#47); offen: Nebenpunkte" }
   - { id: "O#40", type: open, status: open, source: "findings.md#O#40", verified: 2026-10-31, title: "Spot-Maschinen in AWS als Flow; Härtung in Stufen an Eval 7: offen 0/10 (M#25), Gerüst 0/10 (M#26), mit Abnahme 3/10 (M#27), mit RepeatUntil 5/10 und 9/10 (M#28, M#29), Runden des Bucket-Schritts behoben 9/10 (M#30), eingefroren 8/10 (M#31); Start-Flow seit 01.11. in ducktest ohne Agentenschritt; Eval 8 Vorprüfung: offener Plan 0/10, Tor im Gerüst 10/10 (M#33, M#34); START.md-Schritt mit scopePrefix 8/10 (M#38); offen: vorübergehende Fehler beim Start, echter Lauf (Regel für feste Done-Texte ist D#85, M#35 7/10)" }
   - { id: "O#41", type: open, status: resolved, source: "findings.md#O#41", verified: 2026-11-01, resolved_by: "D#83", title: "Werte von valuedFlags werden nicht als Pfad geprüft (aws --body, --user-data file://); seit D#83 mit Wertregel" }
   - { id: "O#42", type: open, status: resolved, source: "findings.md#O#42", verified: 2026-11-01, resolved_by: "D#86", title: "Serien-Schlüssel sieht die Argument-Policies nicht: M#31 und M#32 gleicher Schlüssel bei anderem System-Prompt" }
@@ -764,8 +764,8 @@ evals:
     title: zwei-fehler (Kompilierfehler verdeckt einen zweiten Fehler; misst die Abnahme)
     decided_by: ["D#80"]
     relates_to: ["O#39", "eval.6"]
-    note: "Flows ohne-abnahme.json und mit-abnahme.json, gleich bis auf verify an der Reparatur; Eval9Suite mit Skript-Modell für beide; check.sh gegen Lösung und fünf Fehllösungen geprüft; nicht im Harness"
-    measurements: []
+    note: "Flows ohne-abnahme.json und mit-abnahme.json, gleich bis auf verify an der Reparatur; Eval9Suite mit Skript-Modell für beide; check.sh gegen Lösung und fünf Fehllösungen geprüft; nicht im Harness. Ohne Abnahme 0/10 (M#46), mit 10/10 (M#47), offener Plan 10/10 mit Abnahme in jedem Plan (M#48)"
+    measurements: ["M#46", "M#47", "M#48"]
   - id: eval.lib
     type: eval
     status: implemented
