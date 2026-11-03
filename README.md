@@ -80,6 +80,7 @@ params    previous=2.3.0 version=2.4.0
 
 shell     ./run-tests.sh, git log, git status, grep
 nicht erlaubt, u. a.: git push, git commit, git tag, rm, curl
+sandbox   jeder Aufruf sieht nur das Arbeitsverzeichnis und Systemverzeichnisse (lesbar), ohne Netz
 
 Freigeben? [y/N] y
 approved  06cd1a…8f61  → ../ase-records/release-2.4.0.log
@@ -155,7 +156,7 @@ Ein Coding-Agent wie Claude Code lässt sich gut einzäunen. Der Plan-Modus zeig
 
 ## Wie zuverlässig es ist
 
-Acht Testaufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Die ersten sechs liefen je 10-mal mit claude-opus-5-5 (effort high, über Claude Code), jedes Mal in einer frischen Kopie, geprüft von einem Skript. Gemessen am 29.10.2026 (M#7 bis M#10, M#12, M#13), vor der Abnahme (D#80): Seitdem ist der System-Prompt länger, und an Eval 6 änderte das, wie oft ein Agentenschritt eine Datei vor dem Ändern noch einmal liest (M#24). Eine neue Messung der sechs steht aus.
+Acht Testaufgaben mit bekanntem Ergebnis liegen in [evals/](evals/README.md). Die ersten sechs liefen je 10-mal mit claude-opus-5-5 (effort high, über Claude Code), jedes Mal in einer frischen Kopie, geprüft von einem Skript. Gemessen am 29.10.2026 (M#7 bis M#10, M#12, M#13), vor der Abnahme (D#80): Seitdem ist der System-Prompt länger, und an Eval 6 änderte das, wie oft ein Agentenschritt eine Datei vor dem Ändern noch einmal liest (M#24). Eine neue Messung der sechs steht aus. Eval 1 lief mit der Sandbox (D#88) wieder 10 von 10, im Median 17 s gegen 19 s ohne sie (M#40).
 
 | Eval | Aufgabe | Erfolg | Tokens ø je Lauf |
 |---|---|---|---|
@@ -246,7 +247,7 @@ Die Konfiguration (`--config`) ist JSON; jedes Feld ist optional, unbekannte Fel
 | `agy` | Antigravity-CLI | angemeldete CLI | gemini-3.8-flash-medium | `evals/runner-agy.json`, `evals/runner-agy-argon.json` |
 | `ollama` | lokal, Port 11434 | keine | qwen3:4b-instruct | `evals/runner-ollama.json` |
 
-Dazu kommen `limits`, `scripts`, `programs`, `sandbox`, `explainDenials`, `nestingLimit`, `planRounds` und `bestOfN`. Mit `scripts` erlaubt man Skripte aus dem Repository, etwa `"./run-tests.sh"` oder `"./ase/cfd/deckel_setzen.sh"`; sie laufen ohne Argumente und gelten als Workspace-Code. Mit `programs` erlaubt man weitere Programme, etwa `{ "binary": "python3", "runsCode": ["."] }`: Flags nur aus der eigenen Liste, alle übrigen Argumente werden als Pfade geprüft, und `runsCode` sagt, welcher Code damit läuft. Mit `sandbox` bekommt ein Programm mehr als den Standard der Sandbox (D#88), etwa `{ "programs": { "aws": { "net": true, "mounts": [{ "path": "~/.aws" }] }, "sbt": { "mounts": [{ "path": "~/.sbt", "write": true }] } } }`; ein Programm außerhalb von /usr braucht seine Installation als Einhängung (`/opt/sbt`), ein Programm, das Workspace-Code ausführt, bekommt nie Netz, ein Skript nie etwas. `"sandbox": false` schaltet sie ab; Explain und Lauf-Log sagen das dann in der ersten Zeile. Mit `bestOfN` größer 1 erzeugt jede Plan-Runde so viele Pläne, und einer gilt nur, wenn die Mehrheit dieselbe Form hat: denselben Ablauf, dieselben Operationen, dieselben Rechte der Agentenschritte. Sonst entscheidet der Mensch. Das lohnt sich bei Aufgaben mit einem naheliegenden Lösungsweg; gibt es mehrere gute Wege, landet die Entscheidung meist beim Menschen. Standard ist 1. Einzelheiten in [RunnerConfig.scala](runner/src/main/scala/ase/runner/RunnerConfig.scala).
+Dazu kommen `limits`, `scripts`, `programs`, `sandbox`, `explainDenials`, `nestingLimit`, `planRounds` und `bestOfN`. Mit `scripts` erlaubt man Skripte aus dem Repository, etwa `"./run-tests.sh"` oder `"./ase/cfd/start_vorbereiten.sh"`; sie laufen ohne Argumente und gelten als Workspace-Code. Mit `programs` erlaubt man weitere Programme, etwa `{ "binary": "python3", "runsCode": ["."] }`: Flags nur aus der eigenen Liste, alle übrigen Argumente werden als Pfade geprüft, und `runsCode` sagt, welcher Code damit läuft. Mit `sandbox` bekommt ein Programm mehr als den Standard der Sandbox (D#88), etwa `{ "programs": { "aws": { "net": true, "mounts": [{ "path": "~/.aws" }] }, "sbt": { "mounts": [{ "path": "~/.sbt", "write": true }] } } }`; ein Programm außerhalb von /usr braucht seine Installation als Einhängung (`/opt/sbt`), ein Programm, das Workspace-Code ausführt, bekommt nie Netz, ein Skript nie etwas. `"sandbox": false` schaltet sie ab; Explain und Lauf-Log sagen das dann in der ersten Zeile. Mit `bestOfN` größer 1 erzeugt jede Plan-Runde so viele Pläne, und einer gilt nur, wenn die Mehrheit dieselbe Form hat: denselben Ablauf, dieselben Operationen, dieselben Rechte der Agentenschritte. Sonst entscheidet der Mensch. Das lohnt sich bei Aufgaben mit einem naheliegenden Lösungsweg; gibt es mehrere gute Wege, landet die Entscheidung meist beim Menschen. Standard ist 1. Einzelheiten in [RunnerConfig.scala](runner/src/main/scala/ase/runner/RunnerConfig.scala).
 
 ## Referenz
 
