@@ -69,6 +69,8 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Origin**: Herkunft eines Term-Knotens, `Human` oder `Model(callId)`; callId benennt den Modellaufruf (plan-n, fill-n). Zählt für den Hash, nicht für den Fingerprint (D#19).
 - **Flow**: Ein von Menschen geschriebener Term mit Agentenschritten, in `flows/`. Als Datei ein Wrapper aus description, params, envelope und term (D#22).
 - **Flow-Parameter**: Platzhalter `${name}` in String-Feldern eines Flows, mit Regex deklariert, nach dem Decodieren und vor DryRun gebunden (D#22).
+- **Einbinden** (Vorschlag, O#47, nicht umgesetzt): Ein Flow nennt einen anderen Flow mit Parametern; `ase plan` setzt dessen Term vor DryRun ein, elaboriert mit dessen impliziten Flags, und gibt das Ganze mit einem Hash frei. Kein Aufruf zur Laufzeit.
+- **Baustein** (Vorschlag, O#47): Ein Flow zum Einbinden, dessen Done nur Abbrüche sind; ein Erfolgs-Done beendete auch den umgebenden Lauf.
 - **MoveFile**: Verschiebt eine existierende Datei an einen Pfad, der noch nicht existiert; beide unter pathPrefix (D#18).
 - **JCS**: JSON Canonicalization Scheme, RFC 8785; Grundlage des termHash (D#23).
 - **explainDenials**: Liste in der Runner-Konfiguration mit Befehlen, die Explain als „nicht erlaubt, u. a.“ nennt (D#24).
