@@ -7,14 +7,17 @@ import cats.data.NonEmptyList
   * mit "./" beginnen, führen sich selbst aus. pathless (D#39): Befehle, deren Ausgabe ohne Pfadargument keine
   * Dateiinhalte trägt. Beide bestimmen mit, was ein Loch sieht (Scope.shellPaths). required (D#87): je Programm die
   * Flags mit Wert, die jeder Aufruf genau einmal trägt, auch eine Abnahme; eine Eigenschaft des Programms, nicht der
-  * einzelnen Policy, sonst ließe eine Policy ohne Pflicht jeden Aufruf durch.
+  * einzelnen Policy, sonst ließe eine Policy ohne Pflicht jeden Aufruf durch. configSha (D#92): Fingerabdruck der
+  * ganzen Runner-Konfiguration, aus der diese Prüfung stammt (auch Sandbox, Skripte, Modell); geht in den termHash,
+  * damit eine Freigabe nur unter derselben Konfiguration gilt. None, wo keine Konfigurationsdatei im Spiel ist (Tests).
   */
 final case class CheckConfig(
     nestingLimit: Int,
     argPolicies: List[ArgPolicy],
     workspaceCode: Map[String, List[String]],
     pathless: List[AllowedCommand],
-    required: Map[String, Set[String]] = Map.empty
+    required: Map[String, Set[String]] = Map.empty,
+    configSha: Option[String] = None
 ):
   def runsWorkspaceCode(cmd: String): Option[List[String]] =
     if cmd.startsWith("./") then Some(List(cmd.drop(2))) else workspaceCode.get(cmd)
@@ -63,7 +66,7 @@ object DryRun:
       params: Map[String, String] = Map.empty,
       implicits: Implicits = Implicits.empty
   ): Either[NonEmptyList[Violation], CheckedTerm] =
-    analyse(term, root, config).map(a => CheckedTerm(term, root, TermHash.of(term, root, implicits), a.worstCase, a.holeDepth, config, params, implicits))
+    analyse(term, root, config).map(a => CheckedTerm(term, root, TermHash.of(term, root, implicits, config.configSha), a.worstCase, a.holeDepth, config, params, implicits))
 
   /** Ein Fill ohne einen einzigen Schritt (auch ohne Done) würde das Loch stumm beenden; er ist ein Fehlversuch (D#56). */
   def fill(term: Term, hole: Envelope, config: CheckConfig): Either[NonEmptyList[Violation], CheckedFill] =

@@ -192,8 +192,14 @@ object Main extends IOApp:
 
   private def orFail[A](e: Either[String, A]): IO[A] = IO.fromEither(e.leftMap(Failure(_)))
 
+  /** Die Konfiguration samt ihrem Fingerabdruck; der steht auch in der Prüfkonfiguration und geht so in jeden termHash
+    * dieses Aufrufs (D#92).
+    */
   private def loadConfig(path: Option[Path]): IO[(RunnerConfig, String)] =
-    path.traverse(read).flatMap(text => orFail(text.fold(Right(RunnerConfig.default))(RunnerConfig.parse)).map(_ -> PlanFile.configSha(text)))
+    path.traverse(read).flatMap { text =>
+      val sha = PlanFile.configSha(text)
+      orFail(text.fold(Right(RunnerConfig.default))(RunnerConfig.parse)).map(c => c.copy(check = c.check.copy(configSha = Some(sha))) -> sha)
+    }
 
   private def loadEnvelope(path: Path): IO[Envelope] =
     read(path).flatMap(t => orFail(parser.parse(t).leftMap(_.message).flatMap(Codec.decodeEnvelope(_, Location.root).leftMap(_.message))))

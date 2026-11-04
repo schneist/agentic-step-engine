@@ -17,17 +17,18 @@ object Canonical:
     MessageDigest.getInstance("SHA-256").digest(s.getBytes(UTF_8)).map(b => f"${b & 0xff}%02x").mkString
 
 /** SHA-256 über das kanonische JSON von Wurzel-Hülle und Term, origin eingeschlossen (D#23), und über die Tabelle der
-  * impliziten Flags, die Tor 2 in jeden Fill einsetzt (D#90). Eine leere Tabelle geht nicht ein: Terme ohne implizite
-  * Flags behalten ihren Hash.
+  * impliziten Flags, die Tor 2 in jeden Fill einsetzt (D#90), und über den Fingerabdruck der Runner-Konfiguration
+  * (D#92). Eine leere Tabelle und eine fehlende Konfiguration gehen nicht ein: Ohne beides ist der Hash der von D#23.
   */
 opaque type TermHash = String
 
 object TermHash:
   private val Hex = "[0-9a-f]{64}".r
 
-  def of(term: Term, root: Envelope, implicits: Implicits = Implicits.empty): TermHash =
+  def of(term: Term, root: Envelope, implicits: Implicits = Implicits.empty, configSha: Option[String] = None): TermHash =
     val fields = List("envelope" -> Codec.envelope(root), "term" -> Codec.term(term)) ++
-      Option.when(implicits.nonEmpty)("implicits" -> Implicits.encode(implicits))
+      Option.when(implicits.nonEmpty)("implicits" -> Implicits.encode(implicits)) ++
+      configSha.map(s => "config" -> Json.fromString(s))
     Canonical.sha256Hex(Canonical.print(Json.obj(fields*)))
 
   def fromHex(s: String): Option[TermHash] = Option.when(Hex.matches(s))(s)
@@ -56,4 +57,5 @@ object Fingerprint:
 
 def structuralFingerprint(t: Term): Fingerprint = Fingerprint.of(t)
 
-def termHash(t: Term, rootEnvelope: Envelope, implicits: Implicits = Implicits.empty): TermHash = TermHash.of(t, rootEnvelope, implicits)
+def termHash(t: Term, rootEnvelope: Envelope, implicits: Implicits = Implicits.empty, configSha: Option[String] = None): TermHash =
+  TermHash.of(t, rootEnvelope, implicits, configSha)

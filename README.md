@@ -20,7 +20,7 @@ Das Modell schreibt einen **Term**: ein Programm als JSON in einer kleinen, fest
 
 1. **Plan.** Das Modell liefert den Term zu einer Aufgabe. Alternativ hat ihn ein Mensch als **Flow** geschrieben (eine Datei in `flows/`).
 2. **Tor 1.** Ein **DryRun** prüft den Term, ohne etwas auszuführen: Pfade, Shell-Befehle und Flags, die Schrittzahl im schlechtesten Fall und die **Attenuation**. Die Hülle jedes Agentenschritts darf höchstens so weit sein wie die umgebende; Rechte werden nur enger.
-3. **Freigabe.** **Explain** zeigt den Term im Klartext, mit der Hülle jedes Agentenschritts. Der Mensch bestätigt einen SHA-256-Hash über diesen Term, seine äußere Hülle und die impliziten Flags des Flows. Nur genau das läuft.
+3. **Freigabe.** **Explain** zeigt den Term im Klartext, mit der Hülle jedes Agentenschritts. Der Mensch bestätigt einen SHA-256-Hash über diesen Term, seine äußere Hülle, die impliziten Flags des Flows und die Konfiguration, unter der er läuft. Nur genau das läuft.
 4. **Ausführen.** Die festen Schritte laufen. Bei einem Agentenschritt fragt `ase` das Modell nach einem Teilterm, einem **Fill**. **Tor 2** prüft ihn gegen die Hülle des Agentenschritts, bevor er läuft.
 
 ```mermaid

@@ -254,7 +254,7 @@ policies:
     status: implemented
     source: core/src/main/scala/ase/core/Canonical.scala#TermHash
     verified: 2026-11-04
-    decided_by: ["D#23", "D#90"]
+    decided_by: ["D#23", "D#90", "D#92"]
   - id: policy.explainDenials
     type: policy
     status: implemented
@@ -628,6 +628,7 @@ decisions:
   - { id: "D#89", type: decision, status: decided, source: "findings.md#D#89", verified: 2026-11-04, title: "Explain kennzeichnet Agentenschritte ohne Abnahme, die ändern oder Shell dürfen; M#-Zeile und compare nennen nicht bestandene Abnahmen", tested_by: [ase.core.ExplainSuite, ase.core.VerifySuite, ase.runner.SeriesSuite] }
   - { id: "D#90", type: decision, status: decided, source: "findings.md#D#90", verified: 2026-11-04, title: "termHash geht auch über die Tabelle der impliziten Flags; leere Tabelle geht nicht ein", tested_by: [ase.core.ImplicitsSuite] }
   - { id: "D#91", type: decision, status: decided, source: "findings.md#D#91", verified: 2026-11-04, title: ".git im Arbeitsverzeichnis ist in der Sandbox nur lesbar (Verzeichnis und Worktree-Datei)", tested_by: [ase.core.SandboxSuite] }
+  - { id: "D#92", type: decision, status: decided, source: "findings.md#D#92", verified: 2026-11-04, title: "termHash geht auch über den Fingerabdruck der Runner-Konfiguration (CheckConfig.configSha)", tested_by: [ase.core.ApprovalSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -685,7 +686,7 @@ open:
   - { id: "O#46", type: open, status: open, source: "findings.md#O#46", verified: 2026-11-04, title: "Skript ohne Ausführungsbit fällt erst im Lauf auf, nicht beim Plan" }
   - { id: "O#47", type: open, status: open, source: "findings.md#O#47", verified: 2026-11-04, title: "Flows zusammensetzen: Einbinden verworfen, Stufenfolge vorgeschlagen, Abbruch im Term als Voraussetzung (architecture.md)" }
   - { id: "O#48", type: open, status: resolved, source: "findings.md#O#48", verified: 2026-11-04, resolved_by: "D#90", title: "termHash umfasste die Tabelle der impliziten Flags nicht" }
-  - { id: "O#49", type: open, status: open, source: "findings.md#O#49", verified: 2026-11-04, title: "Hash bindet die Runner-Konfiguration nicht (configSha nur in der ungeschützten Plan-Datei)" }
+  - { id: "O#49", type: open, status: resolved, source: "findings.md#O#49", verified: 2026-11-04, resolved_by: "D#92", title: "Hash bindet die Runner-Konfiguration nicht (configSha nur in der ungeschützten Plan-Datei)" }
   - { id: "O#50", type: open, status: open, source: "findings.md#O#50", verified: 2026-11-04, title: "Vertrauensgrenze der Runner-Konfiguration: model.endpoint, http, Umgebung und Werkzeuge der CLI-Modelle" }
   - { id: "O#51", type: open, status: open, source: "findings.md#O#51", verified: 2026-11-04, title: "Kleinere Befunde aus dem Review von Gemini (Freigabe ohne Terminal, git im Worktree, FileExists, Eval 8 in der Sandbox, persönliche Pfade, context.yaml, CI)" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
