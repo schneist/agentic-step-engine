@@ -160,7 +160,9 @@ object Series:
       tokens: Option[Spread],
       seconds: Option[Spread],
       codeHint: Int,
-      referenceMatches: Option[Int]
+      referenceMatches: Option[Int],
+      verifyFailures: Int,
+      verifyFailedRuns: Int
   )
 
   /** Erfolg heißt: check.sh bestanden. Ask zählt Läufe, die gefragt haben oder mit ask endeten (wie bisher series.sh). */
@@ -178,7 +180,9 @@ object Series:
       spread(r.runs.map(_.tokens.toDouble)),
       spread(r.runs.flatMap(_.seconds)),
       r.runs.count(_.codeHints > 0),
-      r.conditions.reference.map(ref => r.runs.count(_.planFingerprint.contains(ref)))
+      r.conditions.reference.map(ref => r.runs.count(_.planFingerprint.contains(ref))),
+      r.runs.map(_.verifyFailures).sum,
+      r.runs.count(_.verifyFailures > 0)
     )
 
   // ---- Vergleich
@@ -261,6 +265,10 @@ object Series:
 
   private def successText(f: Figures): String = s"${f.success}/${f.n} (95 %: ${pct(f.interval.low)} bis ${pct(f.interval.high)} %)"
 
+  /** Wie oft eine Abnahme scheiterte und in wie vielen Läufen; Datensätze vor D#80 zählen 0 (O#39). */
+  private def verifyText(f: Figures): String =
+    if f.verifyFailures == 0 then "0" else s"${f.verifyFailures} (in ${f.verifyFailedRuns}/${f.n} Läufen)"
+
   private def standingText(s: Standing): String = s match
     case Standing.Counts               => "zählt"
     case Standing.DoesNotCount(reasons) => s"zählt nicht: ${reasons.toList.map(_.render).mkString("; ")}"
@@ -280,6 +288,7 @@ object Series:
       s"Tor1 ${f.gate1}",
       s"Tor2 ${f.gate2}",
       s"Ask ${f.asked}",
+      s"Abnahme nicht bestanden ${verifyText(f)}",
       s"Tokens ø ${tokens(f.tokensMean)}" + f.tokens.filter(s => tokens(s.min) != tokens(s.max)).fold("")(s => s" (${spreadText(s, tokens)})"),
       s"Dauer ${f.seconds.fold("–")(spreadText(_, secs))}",
       s"Referenz-Fingerprint ${f.referenceMatches.fold("–")(k => s"$k/${f.n}")}",
@@ -301,7 +310,8 @@ object Series:
       row("Tokens", s"${opt(b.tokens, tokens)} → ${opt(c.tokens, tokens)} · ${cmp.tokens.render}"),
       row("Dauer", s"${opt(b.seconds, secs)} → ${opt(c.seconds, secs)} · ${cmp.seconds.render}"),
       row("Tor1 Tor2", s"${b.gate1} ${b.gate2} → ${c.gate1} ${c.gate2}"),
-      row("Ask", s"${b.asked} → ${c.asked}")
+      row("Ask", s"${b.asked} → ${c.asked}"),
+      row("Abnahme", s"nicht bestanden ${verifyText(b)} → ${verifyText(c)}")
     ).mkString("\n")
 
   /** M#18 aus measurements/M18.json; andere Dateinamen tragen keine Nummer. */

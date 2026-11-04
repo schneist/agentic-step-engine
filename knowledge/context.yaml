@@ -308,8 +308,8 @@ interpreters:
     status: implemented
     source: core/src/main/scala/ase/core/Explain.scala#Explain.render
     verified: 2026-10-29
-    decided_by: ["D#62"]
-    note: Ausgabeformat golden in ExplainSuite; Code-Hinweis nennt den ausgeführten Code unter dem pathPrefix
+    decided_by: ["D#62", "D#89"]
+    note: Ausgabeformat golden in ExplainSuite; Code-Hinweis nennt den ausgeführten Code unter dem pathPrefix; Löcher ohne Abnahme, die ändern oder Shell dürfen, tragen Explain.WithoutVerify (D#89)
   - id: int.product
     type: interpreter
     status: implemented
@@ -444,9 +444,9 @@ interpreters:
     status: implemented
     source: runner/src/main/scala/ase/runner/Series.scala#Series
     verified: 2026-11-01
-    decided_by: ["D#77", "D#79", "D#86"]
+    decided_by: ["D#77", "D#79", "D#86", "D#89"]
     tested_by: [ase.runner.SeriesSuite]
-    note: "Messserie als Datensatz: Key (Fassung, Hülle, Fixture als Tree-Hash, check.sh, Anbieter, Modell, Effort), Conditions, Standing mit Gründen (DirtyTree, TooFewRuns, RunsNotAsPlanned, FixtureChanged, StartNotFixture, MixedKeys), Run je Lauf; Comparison nur aus Comparison.of (gleicher Schlüssel, gleiche Version, beide zählen), Wilson-Intervall, Urteil Noise/Better/Worse; line rendert die M#-Zeile. Befehle in Main, Ablauf in evals/series.sh"
+    note: "Messserie als Datensatz: Key (Fassung, Hülle, Fixture als Tree-Hash, check.sh, Anbieter, Modell, Effort), Conditions, Standing mit Gründen (DirtyTree, TooFewRuns, RunsNotAsPlanned, FixtureChanged, StartNotFixture, MixedKeys), Run je Lauf; Comparison nur aus Comparison.of (gleicher Schlüssel, gleiche Version, beide zählen), Wilson-Intervall, Urteil Noise/Better/Worse; line rendert die M#-Zeile (mit nicht bestandenen Abnahmen, D#89). Befehle in Main, Ablauf in evals/series.sh"
   - id: runner.treehash
     type: runner
     status: implemented
@@ -625,6 +625,7 @@ decisions:
   - { id: "D#86", type: decision, status: decided, source: "findings.md#D#86", verified: 2026-11-01, title: "Serien-Schlüssel mit promptSha (SHA-256 des System-Prompts aus der Prüfkonfiguration), optional für alte Datensätze", tested_by: [ase.runner.SeriesSuite] }
   - { id: "D#87", type: decision, status: decided, source: "findings.md#D#87", verified: 2026-11-02, title: "Pflicht-Flags je Programm (programs[].required), implizite Flags im Flow, Elaboration vor jedem DryRun; Hash über den elaborierten Term, Explain zeigt die Bindung einmal", tested_by: [ase.core.ImplicitsSuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite] }
   - { id: "D#88", type: decision, status: decided, source: "findings.md#D#88", verified: 2026-11-02, title: "Sandbox je Programmaufruf mit bwrap, Zusätze je Programm unter sandbox.programs, nie für Skripte, Workspace-Code ohne Netz; umgesetzt mit O#44", tested_by: [ase.core.SandboxSuite, ase.runner.RunnerSuite] }
+  - { id: "D#89", type: decision, status: decided, source: "findings.md#D#89", verified: 2026-11-04, title: "Explain kennzeichnet Agentenschritte ohne Abnahme, die ändern oder Shell dürfen; M#-Zeile und compare nennen nicht bestandene Abnahmen", tested_by: [ase.core.ExplainSuite, ase.core.VerifySuite, ase.runner.SeriesSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -672,7 +673,7 @@ open:
   - { id: "O#30", type: open, status: resolved, source: "findings.md#O#30", verified: 2026-10-29, resolved_by: "D#65" }
   - { id: "O#31", type: open, status: resolved, source: "findings.md#O#31", verified: 2026-10-29, resolved_by: "D#66" }
   - { id: "O#36", type: open, status: resolved, source: "findings.md#O#36", verified: 2026-10-30, title: "D#77 umsetzen", resolved_by: "D#79" }
-  - { id: "O#39", type: open, status: open, source: "findings.md#O#39", verified: 2026-11-03, title: "M# für D#80: (a) Basis der Evals 1 bis 6 neu (M#40 bis M#45); (b) Abnahme holt an Eval 9 10/10 gegen 0/10 (M#46, M#47); offen: Nebenpunkte" }
+  - { id: "O#39", type: open, status: open, source: "findings.md#O#39", verified: 2026-11-04, title: "M# für D#80: (a) Basis der Evals 1 bis 6 neu (M#40 bis M#45); (b) Abnahme holt an Eval 9 10/10 gegen 0/10 (M#46, M#47); Kennzeichnung und M#-Zeile D#89; offen: Code, der prüft" }
   - { id: "O#40", type: open, status: open, source: "findings.md#O#40", verified: 2026-10-31, title: "Spot-Maschinen in AWS als Flow; Härtung in Stufen an Eval 7: offen 0/10 (M#25), Gerüst 0/10 (M#26), mit Abnahme 3/10 (M#27), mit RepeatUntil 5/10 und 9/10 (M#28, M#29), Runden des Bucket-Schritts behoben 9/10 (M#30), eingefroren 8/10 (M#31); Start-Flow seit 01.11. in ducktest ohne Agentenschritt; Eval 8 Vorprüfung: offener Plan 0/10, Tor im Gerüst 10/10 (M#33, M#34); START.md-Schritt mit scopePrefix 8/10 (M#38); offen: vorübergehende Fehler beim Start, echter Lauf (Regel für feste Done-Texte ist D#85, M#35 7/10)" }
   - { id: "O#41", type: open, status: resolved, source: "findings.md#O#41", verified: 2026-11-01, resolved_by: "D#83", title: "Werte von valuedFlags werden nicht als Pfad geprüft (aws --body, --user-data file://); seit D#83 mit Wertregel" }
   - { id: "O#42", type: open, status: resolved, source: "findings.md#O#42", verified: 2026-11-01, resolved_by: "D#86", title: "Serien-Schlüssel sieht die Argument-Policies nicht: M#31 und M#32 gleicher Schlüssel bei anderem System-Prompt" }

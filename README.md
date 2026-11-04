@@ -69,12 +69,14 @@ params    previous=2.3.0 version=2.4.0
      │   Ergänze CHANGELOG.md oben, ändere nichts Bestehendes.
      darf ReadFile, EditFile · unter CHANGELOG.md · max 3 Schritte · Tiefe 0
      kann Ergebnisse von Schritt 3, 4, 5 sehen
+     ohne Abnahme: kein Programm prüft das Ergebnis im Schritt selbst, kein zweiter Durchlauf
 7    Hier entscheidet der Agent:
      Ziel (189 Zeichen):
      │ Finde Doku-Stellen unter docs/, die von geänderten öffentlichen Schnittstellen betroffen sind, und
      │   passe sie an. Betroffene Stellen außerhalb docs/ nicht ändern, sondern im Ergebnis nennen.
      darf ReadFile, EditFile, Shell · unter docs/ · max 12 Schritte · Tiefe 1 · shell: grep
      kann Ergebnisse von Schritt 3, 4, 5, 6 sehen
+     ohne Abnahme: kein Programm prüft das Ergebnis im Schritt selbst, kein zweiter Durchlauf
 8    ersetzt in build.sbt  „version := "2.3.0"“  durch  „version := "2.4.0"“
 9    fertig: Release 2.4.0 vorbereitet; Tag und Push macht der Mensch
 

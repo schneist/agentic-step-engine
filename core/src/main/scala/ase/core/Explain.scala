@@ -96,6 +96,12 @@ object Explain:
 
   private val writes = Set(OpKind.WriteFile, OpKind.EditFile, OpKind.MoveFile)
 
+  /** Ein Loch mit diesen Rechten hinterlässt Wirkung, die ein Programm prüfen könnte (D#80). */
+  private val acts = writes + OpKind.Shell
+
+  /** Unter einem Loch ohne Abnahme, das ändern oder Programme aufrufen darf (O#39). */
+  val WithoutVerify = "ohne Abnahme: kein Programm prüft das Ergebnis im Schritt selbst, kein zweiter Durchlauf"
+
   /** Eine Hülle in einer Zeile, wie unter einem Agentenschritt; auch für den Vergleich in `ase tighten` (D#75). */
   def envelopeText(e: Envelope): String =
     val ops = e.allowedOps.toList.sortBy(_.ordinal).mkString(", ")
@@ -171,7 +177,9 @@ object Explain:
         note(sees, s.indent)
       ) ++ Option.when(changesCode.nonEmpty)(note(s"Hinweis: darf Code ändern, der im Lauf ausgeführt wird (${changesCode.mkString(", ")})", s.indent)) ++
         Option.when(runsCode.nonEmpty)(note(s"Hinweis: darf Workspace-Code ausführen (${runsCode.mkString(", ")})", s.indent)) ++
-        Option.when(implicitHere.nonEmpty)(note(s"implizit in jedem Aufruf: ${implicitHere.mkString(" · ")}", s.indent))
+        Option.when(implicitHere.nonEmpty)(note(s"implizit in jedem Aufruf: ${implicitHere.mkString(" · ")}", s.indent)) ++
+        // nur wo etwas zu prüfen ist: ein Loch, das ändern oder Programme aufrufen darf (O#39)
+        Option.when(verify.isEmpty && envelope.allowedOps.exists(acts))(note(WithoutVerify, s.indent))
       val verifyLines = verify.toVector.flatMap { v =>
         val marker = if check.runsWorkspaceCode(v.cmd).isDefined then " (führt Workspace-Code aus)" else ""
         val passes = if v.max == 1 then "1 Durchlauf" else s"${v.max} Durchläufe"

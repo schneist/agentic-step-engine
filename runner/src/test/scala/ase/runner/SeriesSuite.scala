@@ -129,9 +129,15 @@ class SeriesSuite extends munit.ScalaCheckSuite:
     assertEquals(
       Series.line("M#19", record),
       "- M#19 2026-10-30 Eval 1-todos, Aufgabe task.md · Modell claude-opus-5-5, effort high, über ClaudeCode · Commit 37eba77 · n=3" +
-        " · Erfolg 2/3 (95 %: 21 bis 94 %) · Tor1 0 · Tor2 0 · Ask 1 · Tokens ø 30.2k (Median 30.0k, 29.5k bis 31.0k)" +
+        " · Erfolg 2/3 (95 %: 21 bis 94 %) · Tor1 0 · Tor2 0 · Ask 1 · Abnahme nicht bestanden 0" +
+        " · Tokens ø 30.2k (Median 30.0k, 29.5k bis 31.0k)" +
         s" · Dauer Median 12 s, 10 s bis 15 s · Referenz-Fingerprint – · Code-Hinweis 0/3 · Schlüssel ${key.hash.take(8)} · zählt"
     )
+    // gescheiterte Abnahmen: Summe und Läufe; derselbe Text im Vergleich (O#39)
+    val verified = record.copy(runs = record.runs.zip(List(2, 0, 1)).map((r, v) => r.copy(verifyFailures = v)))
+    assert(Series.line("M#21", verified).contains(" · Ask 1 · Abnahme nicht bestanden 3 (in 2/3 Läufen) · "), Series.line("M#21", verified))
+    val cmp = Comparison.of(record, verified).fold(e => fail(e.render), identity)
+    assert(Series.renderComparison("M#19", "M#21", cmp).contains("Abnahme     nicht bestanden 0 → 3 (in 2/3 Läufen)"))
     val flow = record.copy(key = key.copy(kind = SourceKind.Flow, source = "pruefkette.json"), conditions = clean.copy(parallel = true, reference = Some("f" * 64)))
     val l = Series.line("M#20", flow)
     assert(l.contains("Flow pruefkette.json") && l.contains("n=3, parallel") && l.contains("Referenz-Fingerprint 3/3"), l)

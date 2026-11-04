@@ -213,3 +213,12 @@ class VerifySuite extends munit.FunSuite:
     assert(text.linesIterator.exists(_.startsWith("3  liest src/a.txt")), text)
     // Tighten nummeriert wie Explain und Engine: die Abnahme belegt eine Nummer
     assertEquals(Tighten.holes(Term.Seq(List(Term.Hole("behebe", fix, h, Some(green)), Term.Hole("noch", fix, h)), h)).map(_._1), Vector(1, 3))
+
+  test("Explain: ein Loch ohne Abnahme ist gekennzeichnet, wenn es ändern oder Programme aufrufen darf (O#39)"):
+    def shown(t: Term) = Explain.render(DryRun.plan(t, root, check).fold(v => fail(v.toList.map(_.render).mkString), identity))
+    val readOnly = fix.copy(allowedOps = Set(OpKind.ReadFile))
+    val text = shown(Term.Seq(List(Term.Hole("behebe", fix, h, Some(green)), Term.Hole("noch", fix, h), Term.Hole("lies", readOnly, h)), h))
+    // nur unter „noch“: „behebe“ hat eine Abnahme, „lies“ darf nichts ändern und nichts aufrufen
+    assertEquals(text.linesIterator.count(_.contains(Explain.WithoutVerify)), 1, text)
+    val below = text.linesIterator.dropWhile(!_.startsWith("3  Hier entscheidet der Agent")).takeWhile(!_.startsWith("4  ")).toList
+    assert(below.exists(_.contains(Explain.WithoutVerify)), text)

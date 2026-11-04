@@ -29,11 +29,13 @@ class ExplainSuite extends munit.FunSuite:
          |   │   Ursache.
          |   darf ReadFile, Shell · unter src/ · max 6 Schritte · Tiefe 0 · shell: grep
          |   kann Ergebnisse von Schritt 1, 2 sehen
+         |   ohne Abnahme: kein Programm prüft das Ergebnis im Schritt selbst, kein zweiter Durchlauf
          |4  Hier entscheidet der Agent:
          |   Ziel (74 Zeichen):
          |   │ Behebe die gefundene Ursache mit genau einem EditFile. Tests nicht ändern.
          |   darf ReadFile, EditFile · unter src/ · max 3 Schritte · Tiefe 0
          |   kann Ergebnisse von Schritt 1, 2, 3 sehen
+         |   ohne Abnahme: kein Programm prüft das Ergebnis im Schritt selbst, kein zweiter Durchlauf
          |   wiederhole höchstens 2-mal, bis Exit-Code 0:
          |5    führt aus: ./run-tests.sh (führt Workspace-Code aus)
          |   wenn Exit-Code 0:
@@ -43,6 +45,7 @@ class ExplainSuite extends munit.FunSuite:
          |     │   Löcher davor.
          |     darf WriteFile · unter REPORT.md · max 2 Schritte · Tiefe 0
          |     kann Ergebnisse von Schritt 1, 3, 4, 5 sehen
+         |     ohne Abnahme: kein Programm prüft das Ergebnis im Schritt selbst, kein zweiter Durchlauf
          |   sonst:
          |7    fragt: „Tests weiterhin rot; wie weiter?“
          |8  fertig: Roter Test behoben; Bericht in REPORT.md
