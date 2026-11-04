@@ -63,7 +63,7 @@ object DryRun:
       params: Map[String, String] = Map.empty,
       implicits: Implicits = Implicits.empty
   ): Either[NonEmptyList[Violation], CheckedTerm] =
-    analyse(term, root, config).map(a => CheckedTerm(term, root, TermHash.of(term, root), a.worstCase, a.holeDepth, config, params, implicits))
+    analyse(term, root, config).map(a => CheckedTerm(term, root, TermHash.of(term, root, implicits), a.worstCase, a.holeDepth, config, params, implicits))
 
   /** Ein Fill ohne einen einzigen Schritt (auch ohne Done) würde das Loch stumm beenden; er ist ein Fehlversuch (D#56). */
   def fill(term: Term, hole: Envelope, config: CheckConfig): Either[NonEmptyList[Violation], CheckedFill] =

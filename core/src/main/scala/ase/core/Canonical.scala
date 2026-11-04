@@ -16,14 +16,19 @@ object Canonical:
   def sha256Hex(s: String): String =
     MessageDigest.getInstance("SHA-256").digest(s.getBytes(UTF_8)).map(b => f"${b & 0xff}%02x").mkString
 
-/** SHA-256 über das kanonische JSON von Wurzel-Hülle und Term, origin eingeschlossen (D#23). */
+/** SHA-256 über das kanonische JSON von Wurzel-Hülle und Term, origin eingeschlossen (D#23), und über die Tabelle der
+  * impliziten Flags, die Tor 2 in jeden Fill einsetzt (D#90). Eine leere Tabelle geht nicht ein: Terme ohne implizite
+  * Flags behalten ihren Hash.
+  */
 opaque type TermHash = String
 
 object TermHash:
   private val Hex = "[0-9a-f]{64}".r
 
-  def of(term: Term, root: Envelope): TermHash =
-    Canonical.sha256Hex(Canonical.print(Json.obj("envelope" -> Codec.envelope(root), "term" -> Codec.term(term))))
+  def of(term: Term, root: Envelope, implicits: Implicits = Implicits.empty): TermHash =
+    val fields = List("envelope" -> Codec.envelope(root), "term" -> Codec.term(term)) ++
+      Option.when(implicits.nonEmpty)("implicits" -> Implicits.encode(implicits))
+    Canonical.sha256Hex(Canonical.print(Json.obj(fields*)))
 
   def fromHex(s: String): Option[TermHash] = Option.when(Hex.matches(s))(s)
 

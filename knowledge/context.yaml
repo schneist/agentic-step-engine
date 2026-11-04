@@ -253,8 +253,8 @@ policies:
     type: policy
     status: implemented
     source: core/src/main/scala/ase/core/Canonical.scala#TermHash
-    verified: 2026-10-27
-    decided_by: ["D#23"]
+    verified: 2026-11-04
+    decided_by: ["D#23", "D#90"]
   - id: policy.explainDenials
     type: policy
     status: implemented
@@ -626,6 +626,7 @@ decisions:
   - { id: "D#87", type: decision, status: decided, source: "findings.md#D#87", verified: 2026-11-02, title: "Pflicht-Flags je Programm (programs[].required), implizite Flags im Flow, Elaboration vor jedem DryRun; Hash über den elaborierten Term, Explain zeigt die Bindung einmal", tested_by: [ase.core.ImplicitsSuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite] }
   - { id: "D#88", type: decision, status: decided, source: "findings.md#D#88", verified: 2026-11-02, title: "Sandbox je Programmaufruf mit bwrap, Zusätze je Programm unter sandbox.programs, nie für Skripte, Workspace-Code ohne Netz; umgesetzt mit O#44", tested_by: [ase.core.SandboxSuite, ase.runner.RunnerSuite] }
   - { id: "D#89", type: decision, status: decided, source: "findings.md#D#89", verified: 2026-11-04, title: "Explain kennzeichnet Agentenschritte ohne Abnahme, die ändern oder Shell dürfen; M#-Zeile und compare nennen nicht bestandene Abnahmen", tested_by: [ase.core.ExplainSuite, ase.core.VerifySuite, ase.runner.SeriesSuite] }
+  - { id: "D#90", type: decision, status: decided, source: "findings.md#D#90", verified: 2026-11-04, title: "termHash geht auch über die Tabelle der impliziten Flags; leere Tabelle geht nicht ein", tested_by: [ase.core.ImplicitsSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -680,6 +681,9 @@ open:
   - { id: "O#43", type: open, status: resolved, source: "findings.md#O#43", verified: 2026-11-02, resolved_by: "D#87", title: "Umsetzung von D#87 mit Messung M#39 (Eval 7, 10/10)" }
   - { id: "O#44", type: open, status: resolved, source: "findings.md#O#44", verified: 2026-11-02, resolved_by: "D#88", title: "Umsetzung von D#88 mit Kontrollserie M#40 (Eval 1, 10/10); bwrap im Container von Claude Code ungeprüft" }
   - { id: "O#45", type: open, status: open, source: "findings.md#O#45", verified: 2026-11-03, title: "Plan hängt festes Done an eine Prüfung, die nie besteht (M#41, Eval 2: grep zählt CHANGELOG.md mit)" }
+  - { id: "O#46", type: open, status: open, source: "findings.md#O#46", verified: 2026-11-04, title: "Skript ohne Ausführungsbit fällt erst im Lauf auf, nicht beim Plan" }
+  - { id: "O#47", type: open, status: open, source: "findings.md#O#47", verified: 2026-11-04, title: "Flows zusammensetzen: Einbinden verworfen, Stufenfolge vorgeschlagen, Abbruch im Term als Voraussetzung (architecture.md)" }
+  - { id: "O#48", type: open, status: resolved, source: "findings.md#O#48", verified: 2026-11-04, resolved_by: "D#90", title: "termHash umfasste die Tabelle der impliziten Flags nicht" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }

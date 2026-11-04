@@ -140,6 +140,25 @@ class ImplicitsSuite extends munit.ScalaCheckSuite:
   private def checked(t: Term, i: Implicits = implicits) =
     DryRun.plan(t, root, check, Map.empty, i).fold(v => fail(v.toList.map(_.render).mkString("\n")), identity)
 
+  // ---------- Hash über die Tabelle (D#90, O#48)
+
+  test("Hash: die Tabelle geht ein; eine getauschte Tabelle in der Plan-Datei passt nicht zum freigegebenen Hash"):
+    val hole = Term.Hole("starte", Envelope(Set(OpKind.Shell), ".", 3, 0, Set(AllowedCommand("aws", List("ec2")))), h)
+    val t = elaborate(Term.Seq(List(shell("sts", "get-caller-identity", "--output", "text"), hole, Term.Done("ok", h)), h)).toOption.get
+    val planned = checked(t)
+    // dieselbe Plan-Datei mit anderer Tabelle: der Term ist schon elaboriert, nur Tor 2 setzte andere Paare in die Fills
+    val swapped = checked(t, Implicits(Map("aws" -> Map("--region" -> "eu-central-1", "--profile" -> "evil"))))
+    assertNotEquals(swapped.termHash, planned.termHash)
+    assertEquals(Approval.approve(swapped, planned.termHash), Left(ApprovalError.HashMismatch(swapped.termHash, planned.termHash)))
+    assertEquals(planned.termHash, TermHash.of(t, root, implicits))
+
+  test("Hash: ohne Tabelle wie vor D#90, Terme ohne implizite Flags behalten ihren Hash"):
+    val t = Term.Seq(List(Term.ReadFile("a.txt", h), Term.Done("ok", h)), h)
+    val plain = checked(t, Implicits.empty)
+    val before = Canonical.sha256Hex(Canonical.print(io.circe.Json.obj("envelope" -> Codec.envelope(root), "term" -> Codec.term(t))))
+    assertEquals(plain.termHash.hex, before)
+    assertEquals(TermHash.of(t, root, Implicits(Map("aws" -> Map.empty))), plain.termHash)
+
   test("Explain: Bindung einmal im Kopf, Schritte ohne die Paare, eine abweichende Zeile vollständig"):
     val t = elaborate(Term.Seq(List(shell("sts", "get-caller-identity", "--output", "text"), Term.Done("ok", h)), h)).toOption.get
     val text = Explain.render(checked(t))
