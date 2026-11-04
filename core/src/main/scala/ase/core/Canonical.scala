@@ -56,4 +56,4 @@ object Fingerprint:
 
 def structuralFingerprint(t: Term): Fingerprint = Fingerprint.of(t)
 
-def termHash(t: Term, rootEnvelope: Envelope): TermHash = TermHash.of(t, rootEnvelope)
+def termHash(t: Term, rootEnvelope: Envelope, implicits: Implicits = Implicits.empty): TermHash = TermHash.of(t, rootEnvelope, implicits)
