@@ -69,8 +69,8 @@ object Sandbox:
   private def covers(a: Path, b: Path): Boolean = b.startsWith(a)
 
   /** Die Argumente für bwrap vor dem Programm. Reihenfolge zählt: Spätere Einhängungen liegen über früheren, darum
-    * zuerst das System, dann leere Verzeichnisse für /tmp und HOME, dann Programme und Zusätze, zuletzt das
-    * Arbeitsverzeichnis.
+    * zuerst das System, dann leere Verzeichnisse für /tmp und HOME, dann Programme und Zusätze, dann das
+    * Arbeitsverzeichnis und zuletzt dessen .git nur lesbar darüber (D#91).
     */
   def argv(
       extra: Extra,
@@ -104,8 +104,15 @@ object Sandbox:
       d.getNameCount > 0 && !covers(d, root) && home.forall(h => !covers(d, h))
     ).flatMap(d => List("--ro-bind-try", d.toString, d.toString))
     val extras = mounts.flatMap((p, w) => if w then List("--bind", p.toString, p.toString) else List("--ro-bind-try", p.toString, p.toString))
+    // .git nur lesbar (D#91): Wer .git/config, Hooks oder Filter schreibt, bringt Code dorthin, wo der Nutzer nach dem
+    // Lauf `git` aufruft, außerhalb der Sandbox. Verzeichnis oder Datei (Worktree). Ein Symlink bleibt, wie er ist:
+    // sein Ziel liegt außerhalb des Arbeitsverzeichnisses und ist in der Sandbox gar nicht eingehängt.
+    val git = root.resolve(".git")
+    val gitDir =
+      if Files.isDirectory(git, nofollow) || Files.isRegularFile(git, nofollow) then List("--ro-bind", git.toString, git.toString)
+      else Nil
     List("--unshare-all") ++ Option.when(extra.net)("--share-net").toList ++
       List("--die-with-parent", "--new-session", "--ro-bind", "/usr", "/usr") ++ system ++
       List("--ro-bind", "/etc", "/etc") ++ secrets ++ resolv ++
       List("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp") ++ homeDir ++ programs ++ extras ++
-      List("--bind", root.toString, root.toString, "--chdir", root.toString)
+      List("--bind", root.toString, root.toString) ++ gitDir ++ List("--chdir", root.toString)

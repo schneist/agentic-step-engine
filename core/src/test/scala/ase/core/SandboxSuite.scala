@@ -57,6 +57,27 @@ class SandboxSuite extends munit.FunSuite:
     assert(open.output.exists(_.contains("geheim")), open)
     assert(Files.exists(outside.resolve("neu.txt")))
 
+  withWs(".git ist in der Sandbox nur lesbar, als Verzeichnis und als Datei (Worktree); der Rest bleibt schreibbar (D#91)"): (ws, _) =>
+    val git = Files.createDirectories(ws.resolve(".git"))
+    Files.writeString(git.resolve("config"), "[core]\n")
+    // was ein Skript tun könnte, damit `git` des Nutzers nach dem Lauf fremden Code ausführt
+    // die Fehlermeldung einer gescheiterten Umleitung schreibt bash selbst, darum die Klammer um die Umleitung
+    script(ws, """cat .git/config >/dev/null && echo gelesen; { printf '[filter "x"]\n\tclean = /tmp/p\n' >> .git/config; } 2>/dev/null || echo abgewiesen; touch .git/hooks-neu 2>/dev/null || echo abgewiesen; echo im > drinnen.txt""")
+    val r = run(ws, x)
+    assertEquals(r.output.map(_.linesIterator.toList), Some(List("gelesen", "abgewiesen", "abgewiesen")), r)
+    assertEquals(Files.readString(git.resolve("config")), "[core]\n")
+    assert(!Files.exists(git.resolve("hooks-neu")))
+    assertEquals(Files.readString(ws.resolve("drinnen.txt")), "im\n")
+    // Gegenprobe ohne Sandbox: dieselbe Zeile ändert .git/config
+    run(ws, x, Sandbox.Off)
+    assert(Files.readString(git.resolve("config")).contains("filter"))
+    // Worktree: .git ist eine Datei mit dem Verweis auf das eigentliche Verzeichnis
+    deleteTree(git)
+    Files.writeString(ws.resolve(".git"), "gitdir: /anderswo\n")
+    script(ws, """{ echo 'gitdir: /tmp/fremd' > .git; } 2>/dev/null || echo abgewiesen""")
+    assertEquals(run(ws, x).output.map(_.trim), Some("abgewiesen"))
+    assertEquals(Files.readString(ws.resolve(".git")), "gitdir: /anderswo\n")
+
   withWs("HOME ist leer, Geheimnisse in /etc überdeckt, TMPDIR ist das eigene /tmp"): (ws, _) =>
     script(ws, """ls -A "$HOME" | wc -l; cat /etc/shadow 2>/dev/null | wc -c; echo "tmp=$TMPDIR"; ls -A /tmp""")
     val lines = run(ws, x).output.getOrElse("").linesIterator.map(_.trim).toList

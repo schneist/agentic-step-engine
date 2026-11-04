@@ -8,7 +8,7 @@
 - **Rechte pro Agentenschritt.** Im selben Lauf darf ein Agentenschritt nur `CHANGELOG.md` ändern, ein anderer nur unter `docs/`.
 - **Vorhersagbar.** Die Sprache ist klein und total: Jeder Lauf endet, und wie viele Schritte er höchstens braucht, steht vor dem Start fest ([Einordnung](#einordnung)).
 - **Einmal freigeben, oft laufen lassen.** Ein Flow hat einen stabilen Hash und läuft mit `--approve <hash> --no-ask` auch in CI.
-- **Erprobt.** Mit Claude bestand jede der sechs Standard-Testaufgaben 10 von 10 Läufen; zwei weitere gegen ein Double der AWS CLI zeigen, wo es noch hakt ([Zahlen](#wie-zuverlässig-es-ist)).
+- **Erprobt.** Neun Testaufgaben mit bekanntem Ergebnis. Mit Claude bestanden fünf der sechs Standard-Testaufgaben 10 von 10 Läufen, die sechste 8 von 10 (die Arbeit war in allen zehn richtig, zwei Pläne hängten den Abschluss an eine zu strenge Prüfung). Zwei weitere gegen ein Double der AWS CLI und eine zur Abnahme von Agentenschritten zeigen, wo es noch hakt ([Zahlen](#wie-zuverlässig-es-ist)).
 
 Prototyp in Scala 3 mit Kommandozeile, Apache License 2.0. Gedacht für Abläufe, die man einmal festlegt und oft laufen lässt, nicht als Ersatz für Claude Code oder Cursor im Alltag.
 
@@ -149,7 +149,7 @@ Ein Coding-Agent wie Claude Code lässt sich gut einzäunen. Der Plan-Modus zeig
 
 ## Grenzen
 
-- **Code im Repository läuft in einer Sandbox, aber ungeprüft.** `ase` prüft, was das Modell tut, nicht den Code von `./run-tests.sh` oder `sbt test`. Seit D#88 läuft jeder Programmaufruf in bubblewrap: Er sieht das Arbeitsverzeichnis, Systemverzeichnisse nur lesbar, ein leeres HOME und kein Netz, und seine Hintergrundprozesse enden mit ihm. Ein Skript erreicht so weder Zugangsdaten noch Netz, kann aber das Arbeitsverzeichnis beliebig ändern, auch Dateien, die der Term danach liest; Explain warnt vor einem Agentenschritt, der solchen Code ändern darf. Ohne `bwrap` startet `ase run` nicht, außer mit `"sandbox": false` in der Konfiguration. Ein Container drumherum bleibt sinnvoll.
+- **Code im Repository läuft in einer Sandbox, aber ungeprüft.** `ase` prüft, was das Modell tut, nicht den Code von `./run-tests.sh` oder `sbt test`. Seit D#88 läuft jeder Programmaufruf in bubblewrap: Er sieht das Arbeitsverzeichnis, Systemverzeichnisse nur lesbar, ein leeres HOME und kein Netz, und seine Hintergrundprozesse enden mit ihm. Ein Skript erreicht so weder Zugangsdaten noch Netz, kann aber das Arbeitsverzeichnis beliebig ändern, auch Dateien, die der Term danach liest; nur `.git` ist auch für Skripte schreibgeschützt (D#91), sonst könnte es dort Code für das nächste `git` des Nutzers ablegen; Explain warnt vor einem Agentenschritt, der solchen Code ändern darf. Ohne `bwrap` startet `ase run` nicht, außer mit `"sandbox": false` in der Konfiguration. Ein Container drumherum bleibt sinnvoll.
 - **Geprüft werden Ort und Art, nicht Inhalt.** Ein Agentenschritt kann innerhalb seiner Hülle schlechte Arbeit machen. Hüllen, die ein Modell selbst plant, können weiter sein als nötig. Den Explain muss also jemand lesen.
 - **Kein Zurückrollen.** Was gelaufen ist, bleibt gelaufen.
 - **Mehr Modellaufrufe.** Ein Plan und je Agentenschritt mindestens ein Fill. Claude braucht je nach Aufgabe 11k bis 61k Tokens je Lauf, ein Flow mit vier Agentenschritten wie in Eval 7 rund 135k bis 160k. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.

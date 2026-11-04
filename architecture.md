@@ -169,7 +169,7 @@ Umkehrkosten: mittel. Konfiguration, Flow-Format, CheckedTerm, Plan-Datei Versio
 
 Alternativen: (a) Keine Sandbox; Isolation bleibt Sache eines Containers um `ase run` herum (Stand bis D#88, context.md §3). (b) Ein Container um den ganzen Lauf, von ase gestartet. (c) bubblewrap je Prozess aus LocalTools, Standard eng, Zusätze je Programm in der Konfiguration, nichts davon in der Hülle. (d) Wie c, aber die Zusätze als Feld der Hülle, abschwächbar und von tighten einengbar. (e) seccomp- oder Landlock-Regeln je Prozess statt Namespaces.
 Gewählt: c. a lässt ein Skript alles halten, was der Nutzer hält, und macht die impliziten Flags aus D#87 für Skripte wirkungslos. b isoliert den Lauf, aber nicht die Aufrufe voneinander: Im selben Container sähe ein Skript dieselben Zugangsdaten wie `aws`, denn beide brauchen den Container. d macht die Sandbox verhandelbar; was ein Plan weiter machen kann, ist keine Grenze, und „schwächer“ ist für Einhängungen nicht definiert. e kann Netz und Pfade begrenzen, aber nicht ausblenden; ein Prozess sieht, was es gibt, und Landlock braucht einen neueren Kernel als WSL2 ihn sicher hat. Namespaces blenden aus, und bwrap ist dafür klein, ohne Daemon und ohne Root.
-Umkehrkosten: niedrig bis mittel. Eine Funktion in LocalTools, ein Konfigurationsfeld, ein Satz im Explain. `sandbox: "off"` ist der Rückweg je Lauf; wer ganz zurück will, entfernt die Funktion und die Sätze in README und context.md.
+Umkehrkosten: niedrig bis mittel. Eine Funktion in LocalTools, ein Konfigurationsfeld, ein Satz im Explain. `"sandbox": false` ist der Rückweg je Lauf; wer ganz zurück will, entfernt die Funktion und die Sätze in README und context.md.
 
 ## O#47 Vorschlag: Flows zusammensetzen (offen, noch keine Entscheidung)
 
