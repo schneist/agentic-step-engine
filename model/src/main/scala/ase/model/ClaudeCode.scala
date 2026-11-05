@@ -64,7 +64,7 @@ object ClaudeCode:
 /** Startet claude einmal pro Anfrage über CliProcess: System-Prompt als Datei, Nutzerprompt über stdin, Schema als
   * Argument; ein zu großes Schema für die Kommandozeile ist Status 413.
   */
-final class ClaudeCodeTransport[F[_]: Sync](executable: String, workDir: Path, timeout: FiniteDuration) extends Transport[F]:
+final class ClaudeCodeTransport[F[_]: Sync](executable: String, workDir: Path, timeout: FiniteDuration, env: Map[String, String]) extends Transport[F]:
   def post(body: String): F[Either[String, HttpReply]] =
     Sync[F].blocking {
       parser.parse(body).toOption.flatMap(_.asObject) match
@@ -73,7 +73,7 @@ final class ClaudeCodeTransport[F[_]: Sync](executable: String, workDir: Path, t
           def str(k: String): String = o(k).flatMap(_.asString).getOrElse("")
           val schema = o("schema").getOrElse(Json.obj()).noSpaces
           val command = executable :: ClaudeCodeTransport.args(str("model"), str("effort"), schema)
-          CliProcess.run("claude", command, Map("system.txt" -> str("system")), str("prompt"), workDir, timeout)
+          CliProcess.run("claude", command, Map("system.txt" -> str("system")), str("prompt"), workDir, timeout, env)
     }
 
 object ClaudeCodeTransport:
@@ -100,5 +100,6 @@ object ClaudeCodeTransport:
     effort
   )
 
-  def apply[F[_]: Sync](config: ModelConfig): ClaudeCodeTransport[F] =
-    new ClaudeCodeTransport[F](config.endpoint, CliProcess.workDir(config, "ase-claude"), config.requestTimeout)
+  /** env: die Umgebung des Prozesses, gebaut von CliProcess.environment (D#93). */
+  def apply[F[_]: Sync](config: ModelConfig, env: Map[String, String] = CliProcess.environment(sys.env, Nil)): ClaudeCodeTransport[F] =
+    new ClaudeCodeTransport[F](config.endpoint, CliProcess.workDir(config, "ase-claude"), config.requestTimeout, env)

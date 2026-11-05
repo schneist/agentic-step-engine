@@ -109,7 +109,9 @@ object RunnerConfig:
       think <- o("think").fold(d.think.asRight[String])(_.asBoolean.map(Some(_)).toRight("think: erwartet true oder false"))
       endpoint <- str(o, "endpoint", d.endpoint)
       workDir <- str(o, "workDir", d.workDir)
-    yield d.copy(model = name, effort = effort, maxTokens = maxTokens, contextTokens = contextTokens, think = think, endpoint = endpoint, workDir = workDir)
+      config = d.copy(model = name, effort = effort, maxTokens = maxTokens, contextTokens = contextTokens, think = think, endpoint = endpoint, workDir = workDir)
+      _ <- ModelConfig.checkEndpoint(config)
+    yield config
 
   private def limits(json: Json, d: ExecConfig): Either[String, ExecConfig] =
     for

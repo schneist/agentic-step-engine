@@ -201,6 +201,18 @@ object Main extends IOApp:
       orFail(text.fold(Right(RunnerConfig.default))(RunnerConfig.parse)).map(c => c.copy(check = c.check.copy(configSha = Some(sha))) -> sha)
     }
 
+  /** Verzeichnisse, unter denen das Programm eines CLI-Modells nicht liegen darf und deren PATH-Einträge es nicht
+    * sieht (D#93): das Arbeitsverzeichnis des Laufs, das aktuelle Verzeichnis und das Repository der
+    * Konfigurationsdatei. Ausgenommen sind / und jedes Verzeichnis, das HOME enthält; sonst wäre auch ~/.local/bin gesperrt.
+    */
+  private def modelRoots(config: Option[Path], workspace: Option[Path]): IO[List[Path]] = IO.blocking {
+    val home = sys.env.get("HOME").filter(_.nonEmpty).map(h => Path.of(h).toAbsolutePath.normalize)
+    def repo(p: Path): Option[Path] =
+      Iterator.iterate(p.toAbsolutePath.normalize.getParent)(_.getParent).takeWhile(_ != null).find(d => Files.exists(d.resolve(".git")))
+    val candidates = workspace.map(_.toAbsolutePath.normalize).toList ++ List(Path.of("").toAbsolutePath.normalize) ++ config.flatMap(repo)
+    candidates.filterNot(r => r.getParent == null || home.exists(_.startsWith(r))).distinct
+  }
+
   private def loadEnvelope(path: Path): IO[Envelope] =
     read(path).flatMap(t => orFail(parser.parse(t).leftMap(_.message).flatMap(Codec.decodeEnvelope(_, Location.root).leftMap(_.message))))
 
@@ -212,7 +224,7 @@ object Main extends IOApp:
       (config, sha) <- loadConfig(cmd.config)
       root <- loadEnvelope(cmd.envelope)
       (planned, source, text) <- (cmd.task, cmd.flow) match
-        case (Some(task), _) => read(task).flatMap(t => planTask(t, root, config).map((_, task.toString, t)))
+        case (Some(task), _) => read(task).flatMap(t => modelRoots(cmd.config, None).flatMap(planTask(t, root, config, _)).map((_, task.toString, t)))
         case (_, Some(flow)) => read(flow).flatMap(t => planFlow(t, cmd.values, root, config).map((_, flow.toString, t)))
         case _               => IO.raiseError(Failure(Cli.usage))
       _ <- cmd.summary.traverse_(p => IO.blocking(Files.writeString(p, PlanSummary.of(planned).spaces2 + "\n", UTF_8)))
@@ -231,9 +243,9 @@ object Main extends IOApp:
         case None => IO.pure(ExitCode(3))
     yield code
 
-  private def planTask(text: String, root: Envelope, config: RunnerConfig): IO[Planned] =
+  private def planTask(text: String, root: Envelope, config: RunnerConfig, forbidden: List[Path]): IO[Planned] =
     for
-      transport <- JdkTransport.open[IO](config.model).flatMap(e => IO.fromEither(e.leftMap(ModelUnavailable(_))))
+      transport <- JdkTransport.open[IO](config.model, forbidden).flatMap(e => IO.fromEither(e.leftMap(ModelUnavailable(_))))
       model = ModelAdapter[IO](transport, config.model, config.check)
       planned <- Planner.run[IO](model, text, root, config.check, config.planRounds, config.bestOfN)
       _ <- IO.println(planned.log.mkString("\n"))
@@ -472,7 +484,8 @@ object Main extends IOApp:
   private def runApproved(approved: ApprovedTerm, file: PlanFile, cmd: Command.Run, config: RunnerConfig): IO[ExitCode] =
     val record = cmd.record.getOrElse(Path.of("record", LocalDateTime.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss")) + ".log"))
     for
-      transport <- JdkTransport.open[IO](config.model)
+      forbidden <- modelRoots(cmd.config, Some(cmd.workspace))
+      transport <- JdkTransport.open[IO](config.model, forbidden)
       // ohne Schlüssel läuft ein Term ohne Löcher trotzdem; ein Fill endet dann mit dem Fehler
       model = transport.fold[FillModel[IO]](e => _ => IO.raiseError(ModelUnavailable(e)), t => ModelAdapter[IO](t, config.model, config.check))
       ask = if cmd.noAsk then AskHandler.nonInteractive[IO] else interactiveAsk

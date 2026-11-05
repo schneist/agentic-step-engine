@@ -407,6 +407,14 @@ interpreters:
     decided_by: ["D#58"]
     tested_by: [ase.model.ClaudeCodeSuite]
     note: "claude --print mit eigenem System-Prompt, --json-schema, ohne Werkzeuge und Einstellungen; Prozess über CliProcess (mit agy geteilt)"
+  - id: adapter.cliProcess
+    type: adapter
+    status: implemented
+    source: model/src/main/scala/ase/model/CliProcess.scala#CliProcess
+    verified: 2026-11-05
+    decided_by: ["D#54", "D#58", "D#93"]
+    tested_by: [ase.model.CliProcessSuite]
+    note: "Ein Prozess pro Anfrage für agy und claudecode; Programm nur aus PATH oder absolut, nie unter gesperrten Verzeichnissen (locate, Main.modelRoots); Umgebung nur PassEnv plus bereinigter PATH (environment); bei Zeitüberschreitung enden auch die Nachkommen. HTTP-Endpunkte nur https, http nur zu localhost (ModelConfig.checkEndpoint)"
   - id: runner.planner
     type: runner
     status: implemented
@@ -629,6 +637,7 @@ decisions:
   - { id: "D#90", type: decision, status: decided, source: "findings.md#D#90", verified: 2026-11-04, title: "termHash geht auch über die Tabelle der impliziten Flags; leere Tabelle geht nicht ein", tested_by: [ase.core.ImplicitsSuite] }
   - { id: "D#91", type: decision, status: decided, source: "findings.md#D#91", verified: 2026-11-04, title: ".git im Arbeitsverzeichnis ist in der Sandbox nur lesbar (Verzeichnis und Worktree-Datei)", tested_by: [ase.core.SandboxSuite] }
   - { id: "D#92", type: decision, status: decided, source: "findings.md#D#92", verified: 2026-11-04, title: "termHash geht auch über den Fingerabdruck der Runner-Konfiguration (CheckConfig.configSha)", tested_by: [ase.core.ApprovalSuite] }
+  - { id: "D#93", type: decision, status: decided, source: "findings.md#D#93", verified: 2026-11-05, title: "Vertrauensgrenze der Modellaufrufe: https außer localhost, CLI-Programm nicht im Repository, gekürzte Umgebung, Kindprozesse enden", tested_by: [ase.model.CliProcessSuite, ase.runner.RunnerSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -687,8 +696,9 @@ open:
   - { id: "O#47", type: open, status: open, source: "findings.md#O#47", verified: 2026-11-04, title: "Flows zusammensetzen: Einbinden verworfen, Stufenfolge vorgeschlagen, Abbruch im Term als Voraussetzung (architecture.md)" }
   - { id: "O#48", type: open, status: resolved, source: "findings.md#O#48", verified: 2026-11-04, resolved_by: "D#90", title: "termHash umfasste die Tabelle der impliziten Flags nicht" }
   - { id: "O#49", type: open, status: resolved, source: "findings.md#O#49", verified: 2026-11-04, resolved_by: "D#92", title: "Hash bindet die Runner-Konfiguration nicht (configSha nur in der ungeschützten Plan-Datei)" }
-  - { id: "O#50", type: open, status: open, source: "findings.md#O#50", verified: 2026-11-04, title: "Vertrauensgrenze der Runner-Konfiguration: model.endpoint, http, Umgebung und Werkzeuge der CLI-Modelle" }
+  - { id: "O#50", type: open, status: resolved, source: "findings.md#O#50", verified: 2026-11-05, resolved_by: "D#93", title: "Vertrauensgrenze der Runner-Konfiguration: model.endpoint, http, Umgebung und Werkzeuge der CLI-Modelle (Rest in O#52)" }
   - { id: "O#51", type: open, status: open, source: "findings.md#O#51", verified: 2026-11-04, title: "Kleinere Befunde aus dem Review von Gemini (Freigabe ohne Terminal, git im Worktree, FileExists, Eval 8 in der Sandbox, persönliche Pfade, context.yaml, CI)" }
+  - { id: "O#52", type: open, status: open, source: "findings.md#O#52", verified: 2026-11-05, title: "CLI-Modelle ohne Sandbox; agy ohne Abschalten seiner Werkzeuge (Rest von O#50)" }
   - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }

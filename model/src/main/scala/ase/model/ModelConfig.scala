@@ -80,11 +80,31 @@ object ModelConfig:
 
   val efforts: Set[String] = Set("low", "medium", "high", "xhigh", "max")
 
+  /** Rechner, zu denen http:// genügt (D#93): der Verkehr verlässt die Maschine nicht. */
+  val Loopback: Set[String] = Set("localhost", "127.0.0.1", "[::1]", "::1")
+
+  /** HTTP-Anbieter nur über https://, http:// nur zum eigenen Rechner (D#93): Der Schlüssel und alles, was ans Modell
+    * geht, liefe sonst im Klartext. Für agy und claudecode ist endpoint ein Programm; das prüft CliProcess.locate.
+    */
+  def checkEndpoint(c: ModelConfig): Either[String, Unit] = c.provider match
+    case Provider.Anthropic | Provider.Ollama =>
+      val uri = try Option(java.net.URI.create(c.endpoint)).filter(u => u.getHost != null) catch case _: IllegalArgumentException => None
+      uri match
+        case None => Left(s"endpoint „${c.endpoint}“ ist keine URL mit Rechner")
+        case Some(u) =>
+          val scheme = Option(u.getScheme).map(_.toLowerCase)
+          if scheme.contains("https") then Right(())
+          else if scheme.contains("http") && Loopback(u.getHost.toLowerCase) then Right(())
+          else Left(s"endpoint „${c.endpoint}“: nur https://, http:// nur zu localhost, 127.0.0.1 oder [::1] (D#93)")
+    case Provider.Agy | Provider.ClaudeCode => Right(())
+
 /** Der Adapter kann das Modell nicht erreichen oder bekommt eine Antwort, die kein Modellfehler ist. Das ist kein
   * Fehlversuch des Modells: Der Lauf endet, statt Versuche zu verbrauchen.
   */
 enum ModelError:
   case MissingApiKey(env: String)
+  /** endpoint verletzt D#93: http zu einem fremden Rechner, ein Programm im Arbeitsverzeichnis oder keins. */
+  case Endpoint(reason: String)
   case Unreachable(reason: String)
   /** HTTP-Status ungleich 200 nach allen Wiederholungen oder ohne Wiederholung (4xx). */
   case Status(code: Int, errorType: String, detail: String)
@@ -92,6 +112,7 @@ enum ModelError:
 
   def message: String = this match
     case MissingApiKey(env)              => s"Umgebungsvariable $env ist nicht gesetzt."
+    case Endpoint(reason)                => s"Modell-Endpunkt: $reason"
     case Unreachable(reason)             => s"Modell-API nicht erreichbar: $reason"
     case Status(code, tpe, msg)          => s"Modell-API antwortet $code ($tpe): $msg"
     case UnreadableResponse(reason)      => s"Antwort der Modell-API nicht lesbar: $reason"

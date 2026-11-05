@@ -64,7 +64,7 @@ object Agy:
       }
 
 /** Startet agy einmal pro Anfrage über CliProcess; das Schema liegt im leeren Verzeichnis des Aufrufs. */
-final class AgyTransport[F[_]: Sync](executable: String, workDir: Path, timeout: FiniteDuration) extends Transport[F]:
+final class AgyTransport[F[_]: Sync](executable: String, workDir: Path, timeout: FiniteDuration, env: Map[String, String]) extends Transport[F]:
   def post(body: String): F[Either[String, HttpReply]] =
     Sync[F].blocking {
       parser.parse(body).toOption.flatMap(_.asObject) match
@@ -72,7 +72,7 @@ final class AgyTransport[F[_]: Sync](executable: String, workDir: Path, timeout:
         case Some(o) =>
           def str(k: String): String = o(k).flatMap(_.asString).getOrElse("")
           val files = Map("schema.json" -> o("schema").getOrElse(Json.obj()).noSpaces)
-          CliProcess.run("agy", executable :: AgyTransport.args(str("model"), str("prompt"), timeout), files, "", workDir, timeout)
+          CliProcess.run("agy", executable :: AgyTransport.args(str("model"), str("prompt"), timeout), files, "", workDir, timeout, env)
     }
 
 object AgyTransport:
@@ -94,5 +94,6 @@ object AgyTransport:
     s"${timeout.toSeconds}s"
   )
 
-  def apply[F[_]: Sync](config: ModelConfig): AgyTransport[F] =
-    new AgyTransport[F](config.endpoint, CliProcess.workDir(config, "ase-agy"), config.requestTimeout)
+  /** env: die Umgebung des Prozesses, gebaut von CliProcess.environment (D#93). */
+  def apply[F[_]: Sync](config: ModelConfig, env: Map[String, String] = CliProcess.environment(sys.env, Nil)): AgyTransport[F] =
+    new AgyTransport[F](config.endpoint, CliProcess.workDir(config, "ase-agy"), config.requestTimeout, env)

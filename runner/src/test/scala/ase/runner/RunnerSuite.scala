@@ -205,6 +205,10 @@ class RunnerSuite extends munit.FunSuite:
     val o = RunnerConfig.parse("""{"model":{"provider":"ollama","maxTokens":4000}}""").fold(fail(_), identity)
     assertEquals((o.model.provider, o.model.model, o.model.endpoint, o.model.maxTokens), (Provider.Ollama, "qwen3:4b-instruct", "http://127.0.0.1:11434/api/chat", 4000))
     assert(RunnerConfig.parse("""{"model":{"provider":"openai"}}""").isLeft)
+    // D#93: http nur zum eigenen Rechner
+    assert(RunnerConfig.parse("""{"model":{"provider":"ollama","endpoint":"http://modelle.example.com/api/chat"}}""").left.exists(_.contains("https")))
+    assert(RunnerConfig.parse("""{"model":{"endpoint":"http://api.anthropic.com/v1/messages"}}""").isLeft)
+    assert(RunnerConfig.parse("""{"model":{"provider":"ollama","endpoint":"http://localhost:11434/api/chat"}}""").isRight)
     assertEquals(RunnerConfig.parse("""{"model":{"provider":"ollama","think":true}}""").map(_.model.think), Right(Some(true)))
     assertEquals(RunnerConfig.parse("""{"model":{"provider":"ollama","think":false}}""").map(_.model.think), Right(Some(false)))
     assertEquals(RunnerConfig.parse("""{"model":{"provider":"ollama"}}""").map(_.model.think), Right(None))
