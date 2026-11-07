@@ -22,7 +22,9 @@ enum Command:
       values: Map[String, String],
       out: Path,
       config: Option[Path],
-      summary: Option[Path] = None
+      summary: Option[Path] = None,
+      /** für die Vorprüfung der Skripte (D#94); ohne sie prüft erst `ase run` */
+      workspace: Option[Path] = None
   )
   case Run(
       plan: Path,
@@ -53,7 +55,7 @@ enum Command:
 
 object Cli:
   val usage: String =
-    """ase plan --envelope E (--task T | --flow F [name=wert …]) --out P [--summary S] [--config C]
+    """ase plan --envelope E (--task T | --flow F [name=wert …]) --out P [--summary S] [--config C] [--workspace W]
       |ase run  --plan P --envelope E --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
       |ase stats PFAD …
       |ase tighten --flow F --out NEU [--min-calls N] [--config C] PFAD …
@@ -84,7 +86,7 @@ object Cli:
       case "plan" :: rest =>
         for
           (o, _, free) <- opts(rest, Map.empty, Set.empty, Nil)
-          _ <- known(o, "envelope", "task", "flow", "out", "config", "summary")
+          _ <- known(o, "envelope", "task", "flow", "out", "config", "summary", "workspace")
           envelope <- need(o, "envelope")
           out <- need(o, "out")
           _ <- Either.cond(o.contains("task") != o.contains("flow"), (), "genau eines von --task und --flow")
@@ -100,7 +102,8 @@ object Cli:
           values.toMap,
           out,
           o.get("config").map(Path.of(_)),
-          o.get("summary").map(Path.of(_))
+          o.get("summary").map(Path.of(_)),
+          o.get("workspace").map(Path.of(_))
         )
       case "run" :: rest =>
         for
@@ -216,8 +219,9 @@ object Main extends IOApp:
   private def loadEnvelope(path: Path): IO[Envelope] =
     read(path).flatMap(t => orFail(parser.parse(t).leftMap(_.message).flatMap(Codec.decodeEnvelope(_, Location.root).leftMap(_.message))))
 
-  /** Exit-Codes: 0 geprüft, 2 keine Mehrheit unter den Kandidaten (BestOfN, D#63), 3 von Tor 1 abgelehnt. Die
-    * Kennzahlen des Plans gehen mit --summary in jedem dieser Fälle in eine Datei (O#23).
+  /** Exit-Codes: 0 geprüft, 2 keine Mehrheit unter den Kandidaten (BestOfN, D#63), 3 von Tor 1 abgelehnt oder, mit
+    * --workspace und scriptCheck reject, ein Skript fehlt oder ist nicht ausführbar (D#94); dann liegt keine Plan-Datei
+    * vor. Die Kennzahlen des Plans gehen mit --summary in jedem dieser Fälle in eine Datei (O#23).
     */
   private def plan(cmd: Command.Plan): IO[ExitCode] =
     for
@@ -234,10 +238,22 @@ object Main extends IOApp:
             case Some(BestOfN.Vote.Majority(_, agreeing, of)) => (of, agreeing)
             case _                                            => (1, 1)
           val file = PlanFile(source, sha, checked.rootEnvelope, checked.params, checked.term, planned.calls, planned.rejections, planned.unusable, planned.tokens, candidates, agreeing, Some(Canonical.sha256Hex(text)), checked.implicits)
-          // fingerprint: Struktur ohne origin (D#19), für den Vergleich mit einem Referenzflow (playbook/evals.md)
-          IO.blocking(Files.writeString(cmd.out, PlanFile.encode(file).spaces2 + "\n", UTF_8)) >>
-            IO.println(Explain.render(checked, config.explain)) >>
-            IO.println(s"fingerprint ${Fingerprint.of(checked.term).hex}").as(ExitCode.Success)
+          val scripts = ScriptCheck.scripts(checked.term)
+          cmd.workspace.traverse(w => IO.blocking(ScriptCheck.problems(w, scripts))).flatMap {
+            case Some(problems) if problems.nonEmpty && config.scriptCheck == ScriptCheck.Mode.Reject =>
+              IO.println(ScriptCheck.render(config.scriptCheck, problems)).as(ExitCode(3))
+            case found =>
+              val note = found match
+                case Some(Nil) if scripts.nonEmpty => Some(s"skripte   ok (${scripts.size} im Arbeitsverzeichnis)")
+                case Some(ps) if ps.nonEmpty       => Some(ScriptCheck.render(config.scriptCheck, ps))
+                case None if scripts.nonEmpty      => Some("skripte   nicht geprüft (ohne --workspace; ase run prüft vor der Freigabe)")
+                case _                             => None
+              // fingerprint: Struktur ohne origin (D#19), für den Vergleich mit einem Referenzflow (playbook/evals.md)
+              IO.blocking(Files.writeString(cmd.out, PlanFile.encode(file).spaces2 + "\n", UTF_8)) >>
+                IO.println(Explain.render(checked, config.explain)) >>
+                note.traverse_(IO.println) >>
+                IO.println(s"fingerprint ${Fingerprint.of(checked.term).hex}").as(ExitCode.Success)
+          }
         case None if planned.split =>
           IO.println("Keine Mehrheit unter den Plänen; nichts abgelegt. Aufgabe schärfen oder erneut planen.").as(ExitCode(2))
         case None => IO.pure(ExitCode(3))
@@ -459,6 +475,11 @@ object Main extends IOApp:
       checked <- orFail(DryRun.plan(file.term, file.envelope, config.check, file.params, file.implicits).leftMap(_.toList.map(_.render).mkString("\n")))
       explain = Explain.render(checked, config.explain)
       _ <- IO.println(explain)
+      // Skripte vor der Freigabe (D#94): reject startet nichts, warn zeigt den Befund und läuft
+      problems <- IO.blocking(ScriptCheck.problems(cmd.workspace, ScriptCheck.scripts(checked.term)))
+      _ <- IO.whenA(problems.nonEmpty)(config.scriptCheck match
+        case ScriptCheck.Mode.Reject => IO.raiseError(Failure(ScriptCheck.render(config.scriptCheck, problems)))
+        case ScriptCheck.Mode.Warn   => IO.println(ScriptCheck.render(config.scriptCheck, problems)))
       approved <- approve(checked, cmd.approve)
       code <- approved match
         case None => IO.println("nicht freigegeben").as(ExitCode(4))

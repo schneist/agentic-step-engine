@@ -427,10 +427,10 @@ interpreters:
     type: runner
     status: implemented
     source: runner/src/main/scala/ase/runner/Main.scala#Main
-    verified: 2026-10-30
-    decided_by: ["D#45", "D#46", "D#63", "D#64", "D#74", "D#75", "D#76", "D#79"]
-    tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite, ase.runner.SeriesSuite]
-    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 4 mit implicits und elaboriertem Term, liest 1 bis 3), RunnerConfig.scala (bestOfN, programs D#68, programs[].required D#87), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
+    verified: 2026-11-07
+    decided_by: ["D#45", "D#46", "D#63", "D#64", "D#74", "D#75", "D#76", "D#79", "D#94"]
+    tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite, ase.runner.SeriesSuite, ase.runner.ScriptCheckSuite]
+    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 4 mit implicits und elaboriertem Term, liest 1 bis 3), RunnerConfig.scala (bestOfN, programs D#68, programs[].required D#87, scriptCheck D#94), ScriptCheck.scala (Skripte des Terms vor der Freigabe, ase plan --workspace), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
   - id: core.usage
     type: interpreter
     status: implemented
@@ -638,6 +638,7 @@ decisions:
   - { id: "D#91", type: decision, status: decided, source: "findings.md#D#91", verified: 2026-11-04, title: ".git im Arbeitsverzeichnis ist in der Sandbox nur lesbar (Verzeichnis und Worktree-Datei)", tested_by: [ase.core.SandboxSuite] }
   - { id: "D#92", type: decision, status: decided, source: "findings.md#D#92", verified: 2026-11-04, title: "termHash geht auch über den Fingerabdruck der Runner-Konfiguration (CheckConfig.configSha)", tested_by: [ase.core.ApprovalSuite] }
   - { id: "D#93", type: decision, status: decided, source: "findings.md#D#93", verified: 2026-11-05, title: "Vertrauensgrenze der Modellaufrufe: https außer localhost, CLI-Programm nicht im Repository, gekürzte Umgebung, Kindprozesse enden", tested_by: [ase.model.CliProcessSuite, ase.runner.RunnerSuite] }
+  - { id: "D#94", type: decision, status: decided, source: "findings.md#D#94", verified: 2026-11-07, title: "Vorprüfung der Skripte des Terms vor der Freigabe; scriptCheck reject (Standard) oder warn; ase plan --workspace", tested_by: [ase.runner.ScriptCheckSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -692,7 +693,7 @@ open:
   - { id: "O#43", type: open, status: resolved, source: "findings.md#O#43", verified: 2026-11-02, resolved_by: "D#87", title: "Umsetzung von D#87 mit Messung M#39 (Eval 7, 10/10)" }
   - { id: "O#44", type: open, status: resolved, source: "findings.md#O#44", verified: 2026-11-02, resolved_by: "D#88", title: "Umsetzung von D#88 mit Kontrollserie M#40 (Eval 1, 10/10); bwrap im Container von Claude Code ungeprüft" }
   - { id: "O#45", type: open, status: open, issue: 8, source: "findings.md#O#45", verified: 2026-11-03, title: "Plan hängt festes Done an eine Prüfung, die nie besteht (M#41, Eval 2: grep zählt CHANGELOG.md mit)" }
-  - { id: "O#46", type: open, status: open, issue: 9, source: "findings.md#O#46", verified: 2026-11-04, title: "Skript ohne Ausführungsbit fällt erst im Lauf auf, nicht beim Plan" }
+  - { id: "O#46", type: open, status: resolved, resolved_by: "D#94", issue: 9,source: "findings.md#O#46", verified: 2026-11-04, title: "Skript ohne Ausführungsbit fällt erst im Lauf auf, nicht beim Plan" }
   - { id: "O#47", type: open, status: open, issue: 10, source: "findings.md#O#47", verified: 2026-11-04, title: "Flows zusammensetzen: Einbinden verworfen, Stufenfolge vorgeschlagen, Abbruch im Term als Voraussetzung (architecture.md)" }
   - { id: "O#48", type: open, status: resolved, source: "findings.md#O#48", verified: 2026-11-04, resolved_by: "D#90", title: "termHash umfasste die Tabelle der impliziten Flags nicht" }
   - { id: "O#49", type: open, status: resolved, source: "findings.md#O#49", verified: 2026-11-04, resolved_by: "D#92", title: "Hash bindet die Runner-Konfiguration nicht (configSha nur in der ungeschützten Plan-Datei)" }

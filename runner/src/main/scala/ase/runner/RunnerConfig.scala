@@ -11,9 +11,19 @@ import scala.concurrent.duration.*
 /** Runner-Konfiguration (SPEC RUNNER): Modell, harte Limits, Verschachtelungsgrenze, Plan-Runden, explainDenials und
   * Skripte im Arbeitsverzeichnis (scripts, D#46). programs: weitere Programme mit Argument-Policy und den Pfaden,
   * deren Code sie ausführen (D#68). bestOfN: Pläne je Runde, über deren Form abgestimmt wird (BestOfN, D#63); 1 heißt
-  * ohne Abstimmung. Jedes Feld ist optional (sonst der Standard), unbekannte Felder sind Fehler.
+  * ohne Abstimmung. scriptCheck: was ein Skript des Terms auslöst, das im Arbeitsverzeichnis fehlt oder nicht
+  * ausführbar ist, "reject" (Standard) oder "warn" (D#94). Jedes Feld ist optional (sonst der Standard), unbekannte
+  * Felder sind Fehler.
   */
-final case class RunnerConfig(model: ModelConfig, exec: ExecConfig, check: CheckConfig, explain: ExplainConfig, planRounds: Int, bestOfN: Int = 1)
+final case class RunnerConfig(
+    model: ModelConfig,
+    exec: ExecConfig,
+    check: CheckConfig,
+    explain: ExplainConfig,
+    planRounds: Int,
+    bestOfN: Int = 1,
+    scriptCheck: ScriptCheck.Mode = ScriptCheck.Mode.Reject
+)
 
 object RunnerConfig:
   val default: RunnerConfig =
@@ -26,7 +36,10 @@ object RunnerConfig:
     val d = default
     for
       o <- obj(json, "Konfiguration")
-      _ <- only(o, "Konfiguration", "model", "limits", "nestingLimit", "planRounds", "bestOfN", "explainDenials", "scripts", "programs", "sandbox")
+      _ <- only(o, "Konfiguration", "model", "limits", "nestingLimit", "planRounds", "bestOfN", "explainDenials", "scripts", "programs", "sandbox", "scriptCheck")
+      scriptCheck <- o("scriptCheck").fold(d.scriptCheck.asRight[String])(j =>
+        j.asString.flatMap(ScriptCheck.Mode.parse).toRight("scriptCheck: erwartet \"reject\" oder \"warn\"")
+      )
       m <-o("model").fold(d.model.asRight[String])(modelConfig(_, d.model))
       e <- o("limits").fold(d.exec.asRight[String])(limits(_, d.exec))
       nesting <- int(o, "nestingLimit", d.check.nestingLimit)
@@ -54,7 +67,8 @@ object RunnerConfig:
       // dieselbe Sandbox für Explain und Execute (D#88)
       ExplainConfig(denials, Some(sandbox)),
       rounds,
-      bestOf
+      bestOf,
+      scriptCheck
     )
 
   /** Sandbox (D#88): false schaltet sie bewusst ab; sonst {"programs": {"aws": {"net": true, "mounts": [{"path":
