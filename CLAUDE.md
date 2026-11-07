@@ -34,6 +34,7 @@ Nichts wird ausgeführt, was nicht vorher geprüft wurde. Weder ein Plan noch ei
 - Jedes neue `D#` braucht einen Eintrag in `context.md` §8 Warum. Ein `D#` ohne Warum ist unvollständig.
 - `architecture.md` nur für Entscheidungen mit echten Alternativen und Umkehrkosten. Alles andere ist eine Zeile in `findings.md`.
 - Neue Begriffe noch in derselben Session ins Glossar (`context.md` §7).
+- Jeder offene Punkt (`O#`) hat ein GitHub-Issue in `schneist/agentic-step-engine`: Titel `O#<n>: <Kurztitel>`, Text aus `findings.md`. Die Nummer steht in `findings.md` (`- O#<n> · Issue [#<i>](…) · …`) und in `knowledge/context.yaml` (`issue: <i>`). Wird der Punkt erledigt, das Issue mit Verweis auf das `D#` (und den Commit) schließen.
 - Nach jedem Schritt aus `SPEC.md`: `sbt test` grün, `context.yaml` und `findings.md` nachgeführt, kurze Zusammenfassung, offene Punkte. Dann warten.
 - `record/` und API-Keys nie committen.
 

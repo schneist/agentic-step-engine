@@ -671,7 +671,7 @@ open:
   - { id: "O#16", type: open, status: resolved, source: "findings.md#O#16", verified: 2026-10-27, resolved_by: "D#39" }
   - { id: "O#17", type: open, status: resolved, source: "findings.md#O#17", verified: 2026-10-27, resolved_by: "D#41" }
   - { id: "O#18", type: open, status: resolved, source: "findings.md#O#18", verified: 2026-10-27, resolved_by: "D#40" }
-  - { id: "O#19", type: open, status: open, source: "findings.md#O#19", verified: 2026-10-27, title: "Doppelte Auswertung, doppelte JSON-Schlüssel (niedrig)" }
+  - { id: "O#19", type: open, status: open, issue: 1, source: "findings.md#O#19", verified: 2026-10-27, title: "Doppelte Auswertung, doppelte JSON-Schlüssel (niedrig)" }
   - { id: "O#20", type: open, status: resolved, source: "findings.md#O#20", verified: 2026-10-27, resolved_by: "D#42" }
   - { id: "O#21", type: open, status: resolved, source: "findings.md#O#21", verified: 2026-10-27, resolved_by: "D#43" }
   - { id: "O#22", type: open, status: resolved, source: "findings.md#O#22", verified: 2026-10-29, resolved_by: "D#68", note: "pathless bleibt Standard aus core" }
@@ -685,26 +685,26 @@ open:
   - { id: "O#30", type: open, status: resolved, source: "findings.md#O#30", verified: 2026-10-29, resolved_by: "D#65" }
   - { id: "O#31", type: open, status: resolved, source: "findings.md#O#31", verified: 2026-10-29, resolved_by: "D#66" }
   - { id: "O#36", type: open, status: resolved, source: "findings.md#O#36", verified: 2026-10-30, title: "D#77 umsetzen", resolved_by: "D#79" }
-  - { id: "O#39", type: open, status: open, source: "findings.md#O#39", verified: 2026-11-04, title: "M# für D#80: (a) Basis der Evals 1 bis 6 neu (M#40 bis M#45); (b) Abnahme holt an Eval 9 10/10 gegen 0/10 (M#46, M#47); Kennzeichnung und M#-Zeile D#89; offen: Code, der prüft" }
-  - { id: "O#40", type: open, status: open, source: "findings.md#O#40", verified: 2026-10-31, title: "Spot-Maschinen in AWS als Flow; Härtung in Stufen an Eval 7: offen 0/10 (M#25), Gerüst 0/10 (M#26), mit Abnahme 3/10 (M#27), mit RepeatUntil 5/10 und 9/10 (M#28, M#29), Runden des Bucket-Schritts behoben 9/10 (M#30), eingefroren 8/10 (M#31); Start-Flow seit 01.11. in ducktest ohne Agentenschritt; Eval 8 Vorprüfung: offener Plan 0/10, Tor im Gerüst 10/10 (M#33, M#34); START.md-Schritt mit scopePrefix 8/10 (M#38); offen: vorübergehende Fehler beim Start, echter Lauf (Regel für feste Done-Texte ist D#85, M#35 7/10)" }
+  - { id: "O#39", type: open, status: open, issue: 6, source: "findings.md#O#39", verified: 2026-11-04, title: "M# für D#80: (a) Basis der Evals 1 bis 6 neu (M#40 bis M#45); (b) Abnahme holt an Eval 9 10/10 gegen 0/10 (M#46, M#47); Kennzeichnung und M#-Zeile D#89; offen: Code, der prüft" }
+  - { id: "O#40", type: open, status: open, issue: 7, source: "findings.md#O#40", verified: 2026-10-31, title: "Spot-Maschinen in AWS als Flow; Härtung in Stufen an Eval 7: offen 0/10 (M#25), Gerüst 0/10 (M#26), mit Abnahme 3/10 (M#27), mit RepeatUntil 5/10 und 9/10 (M#28, M#29), Runden des Bucket-Schritts behoben 9/10 (M#30), eingefroren 8/10 (M#31); Start-Flow seit 01.11. in ducktest ohne Agentenschritt; Eval 8 Vorprüfung: offener Plan 0/10, Tor im Gerüst 10/10 (M#33, M#34); START.md-Schritt mit scopePrefix 8/10 (M#38); offen: vorübergehende Fehler beim Start, echter Lauf (Regel für feste Done-Texte ist D#85, M#35 7/10)" }
   - { id: "O#41", type: open, status: resolved, source: "findings.md#O#41", verified: 2026-11-01, resolved_by: "D#83", title: "Werte von valuedFlags werden nicht als Pfad geprüft (aws --body, --user-data file://); seit D#83 mit Wertregel" }
   - { id: "O#42", type: open, status: resolved, source: "findings.md#O#42", verified: 2026-11-01, resolved_by: "D#86", title: "Serien-Schlüssel sieht die Argument-Policies nicht: M#31 und M#32 gleicher Schlüssel bei anderem System-Prompt" }
   - { id: "O#43", type: open, status: resolved, source: "findings.md#O#43", verified: 2026-11-02, resolved_by: "D#87", title: "Umsetzung von D#87 mit Messung M#39 (Eval 7, 10/10)" }
   - { id: "O#44", type: open, status: resolved, source: "findings.md#O#44", verified: 2026-11-02, resolved_by: "D#88", title: "Umsetzung von D#88 mit Kontrollserie M#40 (Eval 1, 10/10); bwrap im Container von Claude Code ungeprüft" }
-  - { id: "O#45", type: open, status: open, source: "findings.md#O#45", verified: 2026-11-03, title: "Plan hängt festes Done an eine Prüfung, die nie besteht (M#41, Eval 2: grep zählt CHANGELOG.md mit)" }
-  - { id: "O#46", type: open, status: open, source: "findings.md#O#46", verified: 2026-11-04, title: "Skript ohne Ausführungsbit fällt erst im Lauf auf, nicht beim Plan" }
-  - { id: "O#47", type: open, status: open, source: "findings.md#O#47", verified: 2026-11-04, title: "Flows zusammensetzen: Einbinden verworfen, Stufenfolge vorgeschlagen, Abbruch im Term als Voraussetzung (architecture.md)" }
+  - { id: "O#45", type: open, status: open, issue: 8, source: "findings.md#O#45", verified: 2026-11-03, title: "Plan hängt festes Done an eine Prüfung, die nie besteht (M#41, Eval 2: grep zählt CHANGELOG.md mit)" }
+  - { id: "O#46", type: open, status: open, issue: 9, source: "findings.md#O#46", verified: 2026-11-04, title: "Skript ohne Ausführungsbit fällt erst im Lauf auf, nicht beim Plan" }
+  - { id: "O#47", type: open, status: open, issue: 10, source: "findings.md#O#47", verified: 2026-11-04, title: "Flows zusammensetzen: Einbinden verworfen, Stufenfolge vorgeschlagen, Abbruch im Term als Voraussetzung (architecture.md)" }
   - { id: "O#48", type: open, status: resolved, source: "findings.md#O#48", verified: 2026-11-04, resolved_by: "D#90", title: "termHash umfasste die Tabelle der impliziten Flags nicht" }
   - { id: "O#49", type: open, status: resolved, source: "findings.md#O#49", verified: 2026-11-04, resolved_by: "D#92", title: "Hash bindet die Runner-Konfiguration nicht (configSha nur in der ungeschützten Plan-Datei)" }
   - { id: "O#50", type: open, status: resolved, source: "findings.md#O#50", verified: 2026-11-05, resolved_by: "D#93", title: "Vertrauensgrenze der Runner-Konfiguration: model.endpoint, http, Umgebung und Werkzeuge der CLI-Modelle (Rest in O#52)" }
-  - { id: "O#51", type: open, status: open, source: "findings.md#O#51", verified: 2026-11-04, title: "Kleinere Befunde aus dem Review von Gemini (Freigabe ohne Terminal, git im Worktree, FileExists, Eval 8 in der Sandbox, persönliche Pfade, context.yaml, CI)" }
-  - { id: "O#52", type: open, status: open, source: "findings.md#O#52", verified: 2026-11-05, title: "CLI-Modelle ohne Sandbox; agy ohne Abschalten seiner Werkzeuge (Rest von O#50)" }
-  - { id: "O#38", type: open, status: open, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
+  - { id: "O#51", type: open, status: open, issue: 11, source: "findings.md#O#51", verified: 2026-11-04, title: "Kleinere Befunde aus dem Review von Gemini (Freigabe ohne Terminal, git im Worktree, FileExists, Eval 8 in der Sandbox, persönliche Pfade, context.yaml, CI)" }
+  - { id: "O#52", type: open, status: open, issue: 12, source: "findings.md#O#52", verified: 2026-11-05, title: "CLI-Modelle ohne Sandbox; agy ohne Abschalten seiner Werkzeuge (Rest von O#50)" }
+  - { id: "O#38", type: open, status: open, issue: 5, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
-  - { id: "O#35", type: open, status: open, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }
-  - { id: "O#34", type: open, status: open, source: "findings.md#O#34", verified: 2026-10-29, title: "runsCode als Pfadpräfix: in flachen Repos gilt jede Datei als Code" }
+  - { id: "O#35", type: open, status: open, issue: 4, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }
+  - { id: "O#34", type: open, status: open, issue: 3, source: "findings.md#O#34", verified: 2026-10-29, title: "runsCode als Pfadpräfix: in flachen Repos gilt jede Datei als Code" }
   - { id: "O#33", type: open, status: resolved, source: "findings.md#O#33", verified: 2026-10-30, title: "Ergebnisse in If-Zweigen für spätere Agentenschritte unsichtbar (Befund falsch; Ursache war der pathPrefix, D#69)", resolved_by: "D#69" }
-  - { id: "O#32", type: open, status: open, source: "findings.md#O#32", verified: 2026-10-29, title: "BestOfN fragt bei mehreren guten Wegen meist den Menschen" }
+  - { id: "O#32", type: open, status: open, issue: 2, source: "findings.md#O#32", verified: 2026-10-29, title: "BestOfN fragt bei mehreren guten Wegen meist den Menschen" }
 
 evals:
   - id: eval.1
