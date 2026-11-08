@@ -428,9 +428,9 @@ interpreters:
     status: implemented
     source: runner/src/main/scala/ase/runner/Main.scala#Main
     verified: 2026-11-07
-    decided_by: ["D#45", "D#46", "D#63", "D#64", "D#74", "D#75", "D#76", "D#79", "D#94"]
-    tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite, ase.runner.SeriesSuite, ase.runner.ScriptCheckSuite]
-    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 4 mit implicits und elaboriertem Term, liest 1 bis 3), RunnerConfig.scala (bestOfN, programs D#68, programs[].required D#87, scriptCheck D#94), ScriptCheck.scala (Skripte des Terms vor der Freigabe, ase plan --workspace), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
+    decided_by: ["D#45", "D#46", "D#63", "D#64", "D#74", "D#75", "D#76", "D#79", "D#94", "D#95"]
+    tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite, ase.runner.SeriesSuite, ase.runner.ScriptCheckSuite, ase.runner.TerminalSuite]
+    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 4 mit implicits und elaboriertem Term, liest 1 bis 3), RunnerConfig.scala (bestOfN, programs D#68, programs[].required D#87, scriptCheck D#94), Terminal.scala (Freigabe ohne --approve nur an einem Terminal, D#95), ScriptCheck.scala (Skripte des Terms vor der Freigabe, ase plan --workspace), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
   - id: core.usage
     type: interpreter
     status: implemented
@@ -639,6 +639,7 @@ decisions:
   - { id: "D#92", type: decision, status: decided, source: "findings.md#D#92", verified: 2026-11-04, title: "termHash geht auch über den Fingerabdruck der Runner-Konfiguration (CheckConfig.configSha)", tested_by: [ase.core.ApprovalSuite] }
   - { id: "D#93", type: decision, status: decided, source: "findings.md#D#93", verified: 2026-11-05, title: "Vertrauensgrenze der Modellaufrufe: https außer localhost, CLI-Programm nicht im Repository, gekürzte Umgebung, Kindprozesse enden", tested_by: [ase.model.CliProcessSuite, ase.runner.RunnerSuite] }
   - { id: "D#94", type: decision, status: decided, source: "findings.md#D#94", verified: 2026-11-07, title: "Vorprüfung der Skripte des Terms vor der Freigabe; scriptCheck reject (Standard) oder warn; ase plan --workspace", tested_by: [ase.runner.ScriptCheckSuite] }
+  - { id: "D#95", type: decision, status: decided, source: "findings.md#D#95", verified: 2026-11-07, title: "Ohne --approve fragt ase run nur an einem Terminal (Standardeingabe); sonst nicht freigegeben, Exit 4; Ende der Eingabe ist Nein (O#51 a)", tested_by: [ase.runner.TerminalSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -698,7 +699,7 @@ open:
   - { id: "O#48", type: open, status: resolved, source: "findings.md#O#48", verified: 2026-11-04, resolved_by: "D#90", title: "termHash umfasste die Tabelle der impliziten Flags nicht" }
   - { id: "O#49", type: open, status: resolved, source: "findings.md#O#49", verified: 2026-11-04, resolved_by: "D#92", title: "Hash bindet die Runner-Konfiguration nicht (configSha nur in der ungeschützten Plan-Datei)" }
   - { id: "O#50", type: open, status: resolved, source: "findings.md#O#50", verified: 2026-11-05, resolved_by: "D#93", title: "Vertrauensgrenze der Runner-Konfiguration: model.endpoint, http, Umgebung und Werkzeuge der CLI-Modelle (Rest in O#52)" }
-  - { id: "O#51", type: open, status: open, issue: 11, source: "findings.md#O#51", verified: 2026-11-04, title: "Kleinere Befunde aus dem Review von Gemini (Freigabe ohne Terminal, git im Worktree, FileExists, Eval 8 in der Sandbox, persönliche Pfade, context.yaml, CI)" }
+  - { id: "O#51", type: open, status: open, issue: 11, source: "findings.md#O#51", verified: 2026-11-07, note: "(a) erledigt durch D#95", title: "Kleinere Befunde aus dem Review von Gemini (Freigabe ohne Terminal, git im Worktree, FileExists, Eval 8 in der Sandbox, persönliche Pfade, context.yaml, CI)" }
   - { id: "O#52", type: open, status: open, issue: 12, source: "findings.md#O#52", verified: 2026-11-05, title: "CLI-Modelle ohne Sandbox; agy ohne Abschalten seiner Werkzeuge (Rest von O#50)" }
   - { id: "O#38", type: open, status: open, issue: 5, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }

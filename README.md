@@ -233,7 +233,7 @@ ase series show DATENSATZ
 ase compare BASIS KANDIDAT
 ```
 
-- `--approve` nimmt die 64 Hex-Zeichen der Zeile `hash` und gibt ohne Rückfrage frei. Ohne Terminal immer damit aufrufen.
+- `--approve` nimmt die 64 Hex-Zeichen der Zeile `hash` und gibt ohne Rückfrage frei. Ohne Terminal immer damit aufrufen: Ohne `--approve` fragt `ase run` nur, wenn die Eingabe ein Terminal ist, und gibt sonst nicht frei (Exit 4); ein durchgereichtes `y` zählt nicht (D#95).
 - `--no-ask` beantwortet `Ask`-Fragen nicht; der Lauf endet dann mit `ask`.
 - `--summary` schreibt Kennzahlen als JSON, bei `plan` auch dann, wenn kein Plan zustande kam.
 - `plan` und `run` brauchen dieselbe `--config`.

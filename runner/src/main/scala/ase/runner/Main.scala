@@ -480,14 +480,17 @@ object Main extends IOApp:
       _ <- IO.whenA(problems.nonEmpty)(config.scriptCheck match
         case ScriptCheck.Mode.Reject => IO.raiseError(Failure(ScriptCheck.render(config.scriptCheck, problems)))
         case ScriptCheck.Mode.Warn   => IO.println(ScriptCheck.render(config.scriptCheck, problems)))
-      approved <- approve(checked, cmd.approve)
+      terminal <- IO.blocking(Terminal.stdin)
+      approved <- approve(checked, cmd.approve, terminal, IO.readLine)
       code <- approved match
         case None => IO.println("nicht freigegeben").as(ExitCode(4))
         case Some(a) => runApproved(a, file, cmd, config)
     yield code
 
-  /** Freigabe (D#11, D#38): mit --approve der übergebene Hash, sonst fragt der Runner und bestätigt den gezeigten. */
-  private def approve(checked: CheckedTerm, confirmed: Option[String]): IO[Option[ApprovedTerm]] =
+  /** Freigabe (D#11, D#38): mit --approve der übergebene Hash, sonst fragt der Runner und bestätigt den gezeigten;
+    * fragen nur an einem Terminal, sonst nicht freigegeben (D#95). Ende der Eingabe gilt als Nein.
+    */
+  private[runner] def approve(checked: CheckedTerm, confirmed: Option[String], terminal: Boolean, answer: IO[String]): IO[Option[ApprovedTerm]] =
     confirmed match
       case Some(hex) =>
         orFail(TermHash.fromHex(hex).toRight(s"--approve: „$hex“ ist kein Hash aus 64 Hex-Zeichen")).flatMap { h =>
@@ -496,8 +499,9 @@ object Main extends IOApp:
             case Left(ApprovalError.HashMismatch(expected, got)) =>
               IO.println(s"Freigabe gescheitert: bestätigt ${got.short}, geprüft ist ${expected.short}").as(None)
         }
+      case None if !terminal => IO.println(Terminal.refusal).as(None)
       case None =>
-        IO.print("\nFreigeben? [y/N] ") >> IO.readLine.map(_.trim.toLowerCase).map {
+        IO.print("\nFreigeben? [y/N] ") >> answer.recover { case _: java.io.EOFException => "" }.map(_.trim.toLowerCase).map {
           case "y" | "j" => Approval.approve(checked, checked.termHash).toOption
           case _         => None
         }
