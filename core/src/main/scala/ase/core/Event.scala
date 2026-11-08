@@ -75,7 +75,9 @@ enum ToolError:
   case ShellNotAllowed(cmd: String, args: List[String])
   case ShellArgRejected(cmd: String, arg: String, reason: String)
   case ProgramNotFound(cmd: String)
-  /** git läuft nur, wenn das Arbeitsverzeichnis selbst ein Repository mit echtem .git-Verzeichnis ist. */
+  /** git läuft nur, wenn das Arbeitsverzeichnis selbst ein Repository mit echtem .git-Verzeichnis ist oder beim Start
+    * ein Worktree mit dem Git-Verzeichnis außerhalb (D#96).
+    */
   case NoGitRepository
   case Timeout(cmd: String, seconds: Long, output: String)
   case OpNotAllowed(op: OpKind)

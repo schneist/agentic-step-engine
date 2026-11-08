@@ -33,10 +33,12 @@ object LocalTools:
             val r = workspace.toRealPath()
             Either.cond(Files.isDirectory(r), r, ExecuteError.InvalidWorkspace(workspace.toString, "kein Verzeichnis"))
           catch case NonFatal(e) => Left(ExecuteError.InvalidWorkspace(workspace.toString, e.toString))
+        // ein Worktree gilt, wenn er beim Start einer ist (D#96); eine .git-Datei, die erst ein Schritt anlegt, nicht
+        worktree = GitRepo.worktree(root)
         jail <- config.sandbox match
           case Sandbox.Off        => Right(None)
-          case Sandbox.On(extras) => Jail.open(root, extras).map(Some(_))
-      yield LocalTools[F](Fs(root, config, check.argPolicies, jail))
+          case Sandbox.On(extras) => Jail.open(root, extras, worktree.fold(Nil)(_.outside)).map(Some(_))
+      yield LocalTools[F](Fs(root, config, check.argPolicies, jail, worktree.isDefined))
     }
 
   /** Was die Sandbox zur Laufzeit braucht (D#88): bwrap, HOME, Programmverzeichnisse und die aufgelösten
@@ -48,15 +50,16 @@ object LocalTools:
       pathDirs: List[String],
       javaHome: Option[String],
       extras: Map[String, Extra],
-      mounts: Map[String, List[(Path, Boolean)]]
+      mounts: Map[String, List[(Path, Boolean)]],
+      gitOutside: List[Path] = Nil
   ):
     def argv(root: Path, cmd: String): List[String] =
       val extra = Sandbox.extraFor(Sandbox.On(extras), cmd)
       val ms = if cmd.startsWith("./") then Nil else mounts.getOrElse(cmd, Nil)
-      bwrap.toString :: Sandbox.argv(extra, ms, root, home, pathDirs, javaHome)
+      bwrap.toString :: Sandbox.argv(extra, ms, root, home, pathDirs, javaHome, gitOutside)
 
   private[core] object Jail:
-    def open(root: Path, extras: Map[String, Extra]): Either[ExecuteError, Jail] =
+    def open(root: Path, extras: Map[String, Extra], gitOutside: List[Path] = Nil): Either[ExecuteError, Jail] =
       def unavailable(reason: String) = ExecuteError.SandboxUnavailable(reason)
       val home = sys.env.get("HOME").filter(_.startsWith("/")).map(Path.of(_).normalize)
       val pathDirs = safePath(sys.env.getOrElse("PATH", ""), root)
@@ -70,7 +73,7 @@ object LocalTools:
         _ <-
           try Right(mounts.flatMap(_._2).collect { case (p, true) if !Files.exists(p) => Files.createDirectories(p) })
           catch case NonFatal(e) => Left(unavailable(s"Einhängung anlegen: ${e.getMessage}"))
-        jail = Jail(bwrap, home, pathDirs, sys.env.get("JAVA_HOME"), extras, mounts.toMap)
+        jail = Jail(bwrap, home, pathDirs, sys.env.get("JAVA_HOME"), extras, mounts.toMap, gitOutside)
         _ <- probe(jail, root).leftMap(unavailable)
       yield jail
 
@@ -149,7 +152,7 @@ object LocalTools:
   /** grep liest das Git-Verzeichnis nicht mit, auch nicht bei grep -r über "." (für das Modell unsichtbar). */
   private[core] def grepArgs(args: List[String]): List[String] = "--exclude-dir=.git" :: args
 
-  private[core] final class Fs(root: Path, config: ExecConfig, policies: List[ArgPolicy], jail: Option[Jail] = None):
+  private[core] final class Fs(root: Path, config: ExecConfig, policies: List[ArgPolicy], jail: Option[Jail] = None, worktree: Boolean = false):
     private val path: List[String] = safePath(sys.env.getOrElse("PATH", ""), root)
 
     private def at(segments: Vector[String]): Path = segments.foldLeft(root)(_.resolve(_))
@@ -395,10 +398,13 @@ object LocalTools:
           .map(p => (p, Nil))
           .toRight(ToolError.ProgramNotFound(cmd))
 
-    /** git nur im Repository des Arbeitsverzeichnisses: .git ist ein echtes Verzeichnis, kein Symlink (H1). */
+    /** git nur im Repository des Arbeitsverzeichnisses: .git ist ein echtes Verzeichnis, kein Symlink (H1), oder die
+      * Datei eines Worktrees mit dem Git-Verzeichnis außerhalb (D#96).
+      */
     private def repository(cmd: String): Either[ToolError, Unit] =
+      val git = root.resolve(".git")
       if cmd != "git" then Right(())
-      else Either.cond(Files.isDirectory(root.resolve(".git"), nofollow), (), ToolError.NoGitRepository)
+      else Either.cond(Files.isDirectory(git, nofollow) || (worktree && Files.isRegularFile(git, nofollow)), (), ToolError.NoGitRepository)
 
     private def shell(cmd: String, args: List[String], env: Envelope): Reply =
       val checked =

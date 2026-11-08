@@ -231,11 +231,12 @@ policies:
     note: relativ; kein .., kein Backslash, keine Steuerzeichen, kein .git; kein Doppelpunkt, keine Gerätenamen, kein Punkt/Leerzeichen am Ende; auf allen Plattformen (D#29, D#31)
   - id: policy.platform
     type: policy
-    status: planned
-    source: SPEC.md#INTERPRETER
-    verified: 2026-10-27
+    status: implemented
+    source: core/src/main/scala/ase/core/Execute.scala#Platform
+    verified: 2026-11-08
     decided_by: ["D#29"]
-    note: Execute nur unter Linux (WSL/CI); Kindprozesse bei Zeitüberschreitung beenden
+    tested_by: [ase.core.PlatformSuite, ase.core.LocalToolsSuite]
+    note: Execute nur unter Linux (WSL/CI), Platform.check in LocalTools.open; Kindprozesse bei Zeitüberschreitung beenden (LocalTools killTree)
   - id: policy.stepCounting
     type: policy
     status: implemented
@@ -340,10 +341,10 @@ interpreters:
     type: interpreter
     status: implemented
     source: core/src/main/scala/ase/core/LocalTools.scala#LocalTools
-    verified: 2026-11-04
-    decided_by: ["D#29", "D#31", "D#61", "D#88", "D#91"]
-    tested_by: [ase.core.LocalToolsSuite, ase.core.SandboxSuite]
-    note: "Pfadprüfung über toRealPath, Shell ohne Shell, Timeout samt Kindprozessen, git gehärtet; ListDir rekursiv (walk); jeder Prozess in bwrap (Sandbox.scala, LocalTools.Jail: Probe beim Öffnen, Einhängungen je Programm aus ExecConfig.sandbox), .git darin nur lesbar (D#91); sandbox: false in der Runner-Konfiguration schaltet ab"
+    verified: 2026-11-08
+    decided_by: ["D#29", "D#31", "D#61", "D#88", "D#91", "D#96"]
+    tested_by: [ase.core.LocalToolsSuite, ase.core.SandboxSuite, ase.core.GitWorktreeSuite]
+    note: "Pfadprüfung über toRealPath, Shell ohne Shell, Timeout samt Kindprozessen, git gehärtet; ListDir rekursiv (walk); jeder Prozess in bwrap (Sandbox.scala, LocalTools.Jail: Probe beim Öffnen, Einhängungen je Programm aus ExecConfig.sandbox), .git darin nur lesbar (D#91); git auch in einem Worktree, festgestellt beim Öffnen (GitRepo.scala), dessen Git-Verzeichnisse außerhalb nur lesbar eingehängt (D#96); sandbox: false in der Runner-Konfiguration schaltet ab"
   - id: int.toolCheck
     type: interpreter
     status: implemented
@@ -361,8 +362,8 @@ interpreters:
     type: type
     status: implemented
     source: core/src/main/scala/ase/core/Event.scala#Event
-    verified: 2026-10-27
-    note: Record-Log JSON Lines, Version 2 (D#35), Codec in RecordLog.scala
+    verified: 2026-11-08
+    note: "Record-Log JSON Lines, Version 4 (RecordLog.Version; 2 mit D#35, 3 mit D#55, 4 mit Verified D#80), liest 2 und 3; Codec in RecordLog.scala"
   - id: type.ports
     type: type
     status: implemented
@@ -470,7 +471,7 @@ interpreters:
     verified: 2026-10-29
     decided_by: ["D#60"]
     note: "baut beim ersten Aufruf und nach Änderungen (Klassenpfad in target/ase-classpath.txt), startet dann java"
-  - id: runner.series
+  - id: runner.seriesScript
     type: runner
     status: implemented
     source: evals/series.sh
@@ -549,13 +550,13 @@ invariants:
     note: Tor-2-Seite und Syscall-Seite über Reply.touched im Record-Log, auch mit Symlinks nach außen
   - id: inv.scopeFiltered
     type: invariant
-    status: planned
-    source: SPEC.md#TERM-ADT
-    verified: 2026-10-27
-    statement: Kein Ergebnis mit Pfad außerhalb des pathPrefix eines Lochs erscheint in dessen Fill-Kontext.
+    status: implemented
+    source: core/src/main/scala/ase/core/Scope.scala#Scope.visible
+    verified: 2026-11-08
+    statement: Kein Ergebnis mit Pfad außerhalb des pathPrefix eines Lochs (oder seines scopePrefix, D#69) erscheint in dessen Fill-Kontext.
     guards: [int.execute]
-    tested_by: []
-    decided_by: ["D#9"]
+    tested_by: [ase.core.ScopeSuite, ase.core.EngineSuite]
+    decided_by: ["D#9", "D#69"]
 
 decisions:
   - { id: "D#1", type: decision, status: decided, source: "findings.md#D#1", verified: 2026-10-27, title: Löcher statt Per-Schritt-Schleife, measured_by: [eval.1, eval.6] }
@@ -640,6 +641,7 @@ decisions:
   - { id: "D#93", type: decision, status: decided, source: "findings.md#D#93", verified: 2026-11-05, title: "Vertrauensgrenze der Modellaufrufe: https außer localhost, CLI-Programm nicht im Repository, gekürzte Umgebung, Kindprozesse enden", tested_by: [ase.model.CliProcessSuite, ase.runner.RunnerSuite] }
   - { id: "D#94", type: decision, status: decided, source: "findings.md#D#94", verified: 2026-11-07, title: "Vorprüfung der Skripte des Terms vor der Freigabe; scriptCheck reject (Standard) oder warn; ase plan --workspace", tested_by: [ase.runner.ScriptCheckSuite] }
   - { id: "D#95", type: decision, status: decided, source: "findings.md#D#95", verified: 2026-11-07, title: "Ohne --approve fragt ase run nur an einem Terminal (Standardeingabe); sonst nicht freigegeben, Exit 4; Ende der Eingabe ist Nein (O#51 a)", tested_by: [ase.runner.TerminalSuite] }
+  - { id: "D#96", type: decision, status: decided, source: "findings.md#D#96", verified: 2026-11-08, title: "git auch in einem Worktree: .git-Datei beim Start, Git-Verzeichnis und commondir außerhalb des Arbeitsverzeichnisses, in der Sandbox nur lesbar (O#51 b)", tested_by: [ase.core.GitWorktreeSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -699,7 +701,7 @@ open:
   - { id: "O#48", type: open, status: resolved, source: "findings.md#O#48", verified: 2026-11-04, resolved_by: "D#90", title: "termHash umfasste die Tabelle der impliziten Flags nicht" }
   - { id: "O#49", type: open, status: resolved, source: "findings.md#O#49", verified: 2026-11-04, resolved_by: "D#92", title: "Hash bindet die Runner-Konfiguration nicht (configSha nur in der ungeschützten Plan-Datei)" }
   - { id: "O#50", type: open, status: resolved, source: "findings.md#O#50", verified: 2026-11-05, resolved_by: "D#93", title: "Vertrauensgrenze der Runner-Konfiguration: model.endpoint, http, Umgebung und Werkzeuge der CLI-Modelle (Rest in O#52)" }
-  - { id: "O#51", type: open, status: open, issue: 11, source: "findings.md#O#51", verified: 2026-11-07, note: "(a) erledigt durch D#95", title: "Kleinere Befunde aus dem Review von Gemini (Freigabe ohne Terminal, git im Worktree, FileExists, Eval 8 in der Sandbox, persönliche Pfade, context.yaml, CI)" }
+  - { id: "O#51", type: open, status: open, issue: 11, source: "findings.md#O#51", verified: 2026-11-08, note: "(a) erledigt durch D#95, (b) durch D#96, (f) am 08.11. nachgezogen", title: "Kleinere Befunde aus dem Review von Gemini (Freigabe ohne Terminal, git im Worktree, FileExists, Eval 8 in der Sandbox, persönliche Pfade, context.yaml, CI)" }
   - { id: "O#52", type: open, status: open, issue: 12, source: "findings.md#O#52", verified: 2026-11-05, title: "CLI-Modelle ohne Sandbox; agy ohne Abschalten seiner Werkzeuge (Rest von O#50)" }
   - { id: "O#38", type: open, status: open, issue: 5, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }

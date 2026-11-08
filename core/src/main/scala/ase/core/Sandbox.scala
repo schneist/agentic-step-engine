@@ -70,7 +70,8 @@ object Sandbox:
 
   /** Die Argumente für bwrap vor dem Programm. Reihenfolge zählt: Spätere Einhängungen liegen über früheren, darum
     * zuerst das System, dann leere Verzeichnisse für /tmp und HOME, dann Programme und Zusätze, dann das
-    * Arbeitsverzeichnis und zuletzt dessen .git nur lesbar darüber (D#91).
+    * Arbeitsverzeichnis und zuletzt dessen .git nur lesbar darüber (D#91), bei einem Worktree auch die
+    * Git-Verzeichnisse außerhalb (`gitOutside`, D#96).
     */
   def argv(
       extra: Extra,
@@ -78,7 +79,8 @@ object Sandbox:
       root: Path,
       home: Option[Path],
       pathDirs: List[String],
-      javaHome: Option[String]
+      javaHome: Option[String],
+      gitOutside: List[Path] = Nil
   ): List[String] =
     def exists(p: Path) = Files.exists(p, nofollow)
     val system = List("/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32").map(Path.of(_)).flatMap { p =>
@@ -111,8 +113,10 @@ object Sandbox:
     val gitDir =
       if Files.isDirectory(git, nofollow) || Files.isRegularFile(git, nofollow) then List("--ro-bind", git.toString, git.toString)
       else Nil
+    // Worktree (D#96): sein Git-Verzeichnis und das gemeinsame liegen außerhalb, git braucht beide, nur lesbar
+    val worktree = gitOutside.flatMap(d => List("--ro-bind", d.toString, d.toString))
     List("--unshare-all") ++ Option.when(extra.net)("--share-net").toList ++
       List("--die-with-parent", "--new-session", "--ro-bind", "/usr", "/usr") ++ system ++
       List("--ro-bind", "/etc", "/etc") ++ secrets ++ resolv ++
       List("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp") ++ homeDir ++ programs ++ extras ++
-      List("--bind", root.toString, root.toString) ++ gitDir ++ List("--chdir", root.toString)
+      List("--bind", root.toString, root.toString) ++ gitDir ++ worktree ++ List("--chdir", root.toString)
