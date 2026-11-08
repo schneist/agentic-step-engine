@@ -197,7 +197,7 @@ explain   dcd18e…93bf
 ...
 ```
 
-**Mit Modell** (TODOs sammeln, in einer Kopie der Testaufgabe). Am einfachsten über ein angemeldetes Claude Code: In `evals/runner-claude-code.json` das Feld `model.endpoint` auf den eigenen `claude` setzen (`which claude`) und `model.workDir` auf ein beschreibbares Verzeichnis setzen oder das Feld löschen.
+**Mit Modell** (TODOs sammeln, in einer Kopie der Testaufgabe). Am einfachsten über ein angemeldetes Claude Code: `evals/runner-claude-code.json` nennt `model.endpoint` als Namen (`claude.exe`, gesucht im PATH, wie unter WSL mit Claude Code für Windows); unter Linux oder macOS dort `claude` eintragen (`which claude`). Ohne `model.workDir` arbeitet die CLI in einem Verzeichnis unter dem temporären Verzeichnis.
 
 ```
 rm -rf /tmp/work && cp -a evals/1-todos/fixture /tmp/work
