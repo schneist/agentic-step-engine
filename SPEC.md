@@ -28,7 +28,7 @@ enum Term:
 
 case class Verify(cmd: String, args: List[String], until: Pred, max: Int)   -- D#80
 
-enum Pred (statisch auswertbar, ohne Modell): FileExists(path), LastExitCode(code), LastOutputContains(text), LastOutputEmpty, Not(p), And(p, q)   -- LastOutputEmpty: D#13
+enum Pred (statisch auswertbar, ohne Modell): FileExists(path), LastExitCode(code), LastOutputContains(text), LastOutputEmpty, Not(p), And(p, q)   -- LastOutputEmpty: D#13; FileExists nur in einer Hülle mit ReadFile oder ListDir: D#97
 
 enum OpKind: ReadFile, ListDir, WriteFile, EditFile, MoveFile, Shell, Ask, Hole   -- D#8, D#18; Seq/If/RepeatUntil/Done sind immer erlaubt
 

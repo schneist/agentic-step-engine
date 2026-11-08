@@ -58,5 +58,11 @@ object ToolCheck:
         case Call.EditFile(p, _, _) => path(p, env).void
         case Call.MoveFile(f, t)    => entry(f, env) >> entry(t, env).void
         case Call.Shell(cmd, args)  => shell(cmd, args, env, policies).void
-        case Call.FileExists(p)     => path(p, env).void
+        case Call.FileExists(p)     => exists(env) >> path(p, env).void
       )
+
+  /** FileExists nur mit ReadFile oder ListDir in der Hülle (D#97). Tor 1 und Tor 2 lehnen das schon ab; hier steht es
+    * für Replay und als zweite Linie. Als Fehler genügt OpNotAllowed(ListDir), ohne neue Form im Record-Log.
+    */
+  private def exists(env: Envelope): Either[ToolError, Unit] =
+    Either.cond(env.allowedOps.exists(OpKind.existence), (), ToolError.OpNotAllowed(OpKind.ListDir))

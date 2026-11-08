@@ -29,7 +29,9 @@ enum Call:
   case Shell(cmd: String, args: List[String])
   case FileExists(path: String)
 
-  /** Die Operationsart, die die Hülle erlauben muss; FileExists braucht keine. */
+  /** Die Operationsart, für die der Aufruf zählt. FileExists hat keine eigene und zählt nicht als Schritt (D#34); die
+    * Hülle muss dafür ReadFile oder ListDir erlauben (D#97, ToolCheck).
+    */
   def op: Option[OpKind] = this match
     case _: ReadFile   => Some(OpKind.ReadFile)
     case _: ListDir    => Some(OpKind.ListDir)

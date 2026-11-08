@@ -164,7 +164,10 @@ object Gens:
           Gen.choose(1, budget - 1).flatMap(childEnvelope(env, _)).map(Term.Hole("ziel", _, o))
         )
     val leaf = Gen.oneOf(leaves).flatMap(identity)
-    val pred = path.flatMap(p => Gen.oneOf(Pred.FileExists(p), Pred.Not(Pred.FileExists(p))))
+    // FileExists nur, wo die Hülle lesen oder auflisten lässt (D#97); sonst eine Bedingung, die immer wahr werden kann
+    val pred =
+      if env.allowedOps.exists(OpKind.existence) then path.flatMap(p => Gen.oneOf(Pred.FileExists(p), Pred.Not(Pred.FileExists(p))))
+      else Gen.const(Pred.Not(Pred.LastExitCode(0)))
     // ein Loch im Rumpf von RepeatUntil: jeder Durchlauf ruft es neu auf, mit eigenem Budget (D#14)
     val holeLoop: List[(Int, Gen[Term])] =
       Option.when(env.allowedOps(OpKind.Hole) && env.maxDepth >= 1 && budget >= 4)(
@@ -323,10 +326,11 @@ object AdversarialFill:
           targets.map(t => Term.MoveFile(s"${base}x.txt", t, o))
         ).flatMap(identity)
       ),
-      Some(paths.map(p => Term.If(Pred.FileExists(p), Term.Done("ja", o), Term.Done("nein", o), o))),
+      Option.when(hole.allowedOps.exists(OpKind.existence))(paths.map(p => Term.If(Pred.FileExists(p), Term.Done("ja", o), Term.Done("nein", o), o))),
       Option.when(grep)(paths.map(p => Term.Shell("grep", List("-r", "geheim", p), o)))
     ).flatten
-    List(Gen.oneOf(leaves).flatMap(identity))
+    // eine Hülle ohne Datei-Operation hat keinen solchen Angriff
+    if leaves.isEmpty then Nil else List(Gen.oneOf(leaves).flatMap(identity))
 
   /** Welcher Verstoß die Ablehnung begründen muss. */
   def expected(attack: Attack): Violation => Boolean =

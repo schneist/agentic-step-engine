@@ -269,6 +269,7 @@ Term ::= ReadFile(path) | ListDir(path)                -- ListDir samt Unterverz
        | Hole(goal, envelope) | Hole(goal, envelope, verify: (cmd, args, until: pred, max))
 
 Pred ::= FileExists(path) | LastExitCode(code) | LastOutputContains(text) | LastOutputEmpty | Not(p) | And(p, q)
+                                                     -- FileExists nur, wo die Hülle ReadFile oder ListDir erlaubt
 ```
 
 Die Sprache hat keine Fortsetzungen, Lambdas oder Variablen. Alles, was den Inhalt eines Ergebnisses verarbeiten muss, ist ein Agentenschritt. Jeder Knoten trägt `origin: Human | Model(callId)`, und Flows und Modellpläne werden gleich behandelt. Wer prüft oder erklärt, sieht beide Zweige von `If` und `RepeatUntil`; nur die Ausführung wählt. `Ask` kann auch mitten im Lauf eine Frage stellen; vor der Frage zeigt `ase run` das Ergebnis des Schritts direkt davor, damit klar ist, worauf sie sich bezieht. Ein Agentenschritt kann eine Abnahme tragen: ein Programm wie `./run-tests.sh`, das nach ihm läuft, und eine Bedingung wie Exit-Code 0. Ist sie nicht erfüllt, entscheidet der Agent erneut, höchstens `max`-mal, und weiß, dass die Abnahme gescheitert ist. Der Agentenschritt darf den Code seiner Abnahme nicht ändern.

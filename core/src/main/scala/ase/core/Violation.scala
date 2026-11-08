@@ -14,6 +14,8 @@ object Location:
 /** Verstoß gegen Hülle oder Regeln. `message` richtet sich an das Modell: was falsch ist und was erlaubt ist. */
 enum Violation:
   case OpNotAllowed(loc: Location, op: OpKind, allowed: Set[OpKind])
+  /** FileExists in einer Hülle ohne ReadFile und ohne ListDir (D#97). */
+  case ExistsNotAllowed(loc: Location, path: String, allowed: Set[OpKind])
   case InvalidPath(loc: Location, path: String, reason: String)
   case PathOutsidePrefix(loc: Location, path: String, prefix: String)
   case ShellNotAllowed(loc: Location, cmd: String, args: List[String], allowlist: Set[AllowedCommand])
@@ -48,6 +50,8 @@ enum Violation:
       s"Hole ist hier nicht erlaubt; erlaubt sind: ${Violation.ops(allowed)}. ${Violation.holeHint}"
     case OpNotAllowed(_, op, allowed) =>
       s"$op ist hier nicht erlaubt; erlaubt sind: ${Violation.ops(allowed)}."
+    case ExistsNotAllowed(_, path, allowed) =>
+      s"FileExists($path) braucht ReadFile oder ListDir in der Hülle; erlaubt sind: ${Violation.ops(allowed)}."
     case InvalidPath(_, path, reason) =>
       s"Pfad „$path“ ist ungültig: $reason."
     case PathOutsidePrefix(_, path, prefix) =>

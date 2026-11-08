@@ -243,6 +243,14 @@ policies:
     source: core/src/main/scala/ase/core/DryRun.scala#DryRun.interpreter
     verified: 2026-10-27
     decided_by: ["D#14"]
+  - id: policy.existence
+    type: policy
+    status: implemented
+    source: core/src/main/scala/ase/core/Model.scala#OpKind.existence
+    verified: 2026-11-08
+    decided_by: ["D#34", "D#97"]
+    tested_by: [ase.core.DryRunSuite]
+    note: "FileExists in einem Prädikat nur in einer Hülle mit ReadFile oder ListDir (DryRun.predicate, ToolCheck.call); kein Schritt (D#34)"
   - id: policy.lastSemantics
     type: policy
     status: implemented
@@ -350,7 +358,7 @@ interpreters:
     status: implemented
     source: core/src/main/scala/ase/core/ToolCheck.scala#ToolCheck
     verified: 2026-10-27
-    decided_by: ["D#32"]
+    decided_by: ["D#32", "D#97"]
     note: reine Prüfung eines Werkzeugaufrufs; LocalTools, Replay und Test-Werkzeuge
   - id: int.runLog
     type: interpreter
@@ -642,6 +650,7 @@ decisions:
   - { id: "D#94", type: decision, status: decided, source: "findings.md#D#94", verified: 2026-11-07, title: "Vorprüfung der Skripte des Terms vor der Freigabe; scriptCheck reject (Standard) oder warn; ase plan --workspace", tested_by: [ase.runner.ScriptCheckSuite] }
   - { id: "D#95", type: decision, status: decided, source: "findings.md#D#95", verified: 2026-11-07, title: "Ohne --approve fragt ase run nur an einem Terminal (Standardeingabe); sonst nicht freigegeben, Exit 4; Ende der Eingabe ist Nein (O#51 a)", tested_by: [ase.runner.TerminalSuite] }
   - { id: "D#96", type: decision, status: decided, source: "findings.md#D#96", verified: 2026-11-08, title: "git auch in einem Worktree: .git-Datei beim Start, Git-Verzeichnis und commondir außerhalb des Arbeitsverzeichnisses, in der Sandbox nur lesbar (O#51 b)", tested_by: [ase.core.GitWorktreeSuite] }
+  - { id: "D#97", type: decision, status: decided, source: "findings.md#D#97", verified: 2026-11-08, title: "FileExists braucht ReadFile oder ListDir in der Hülle (Tor 1, Tor 2, ToolCheck); Zählung wie D#34 (O#51 c)", tested_by: [ase.core.DryRunSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -701,7 +710,7 @@ open:
   - { id: "O#48", type: open, status: resolved, source: "findings.md#O#48", verified: 2026-11-04, resolved_by: "D#90", title: "termHash umfasste die Tabelle der impliziten Flags nicht" }
   - { id: "O#49", type: open, status: resolved, source: "findings.md#O#49", verified: 2026-11-04, resolved_by: "D#92", title: "Hash bindet die Runner-Konfiguration nicht (configSha nur in der ungeschützten Plan-Datei)" }
   - { id: "O#50", type: open, status: resolved, source: "findings.md#O#50", verified: 2026-11-05, resolved_by: "D#93", title: "Vertrauensgrenze der Runner-Konfiguration: model.endpoint, http, Umgebung und Werkzeuge der CLI-Modelle (Rest in O#52)" }
-  - { id: "O#51", type: open, status: open, issue: 11, source: "findings.md#O#51", verified: 2026-11-08, note: "(a) erledigt durch D#95, (b) durch D#96, (f) am 08.11. nachgezogen", title: "Kleinere Befunde aus dem Review von Gemini (Freigabe ohne Terminal, git im Worktree, FileExists, Eval 8 in der Sandbox, persönliche Pfade, context.yaml, CI)" }
+  - { id: "O#51", type: open, status: open, issue: 11, source: "findings.md#O#51", verified: 2026-11-08, note: "(a) erledigt durch D#95, (b) durch D#96, (c) durch D#97, (f) am 08.11. nachgezogen", title: "Kleinere Befunde aus dem Review von Gemini (Freigabe ohne Terminal, git im Worktree, FileExists, Eval 8 in der Sandbox, persönliche Pfade, context.yaml, CI)" }
   - { id: "O#52", type: open, status: open, issue: 12, source: "findings.md#O#52", verified: 2026-11-05, title: "CLI-Modelle ohne Sandbox; agy ohne Abschalten seiner Werkzeuge (Rest von O#50)" }
   - { id: "O#38", type: open, status: open, issue: 5, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }

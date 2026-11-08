@@ -42,6 +42,7 @@ object Prompt:
        |
        |# Prädikate
        |FileExists(path), LastExitCode(code), LastOutputContains(text), LastOutputEmpty, Not(p), And(p, q).
+       |FileExists braucht ReadFile oder ListDir in der Hülle, in der es steht; ein Schritt ist es nicht.
        |"Last" ist das Ergebnis des unmittelbar vorangehenden Schritts. Ergebnis von Seq, If, RepeatUntil: das ihres
        |zuletzt ausgeführten Schritts. Ergebnis eines Lochs: der Done-Text als Ausgabe, ohne Exit-Code; mit verify das Ergebnis des Programms. Nur Shell
        |liefert einen Exit-Code. Ein Prädikat, das nie wahr werden kann (LastExitCode nach ReadFile), wird abgelehnt.

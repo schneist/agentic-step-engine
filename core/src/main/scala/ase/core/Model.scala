@@ -12,6 +12,12 @@ enum OpKind:
 object OpKind:
   def parse(s: String): Option[OpKind] = values.find(_.toString == s)
 
+  /** FileExists verrät, ob es einen Pfad gibt; das verraten auch ReadFile und ListDir. Eine Hülle muss eine der beiden
+    * erlauben, damit ein Prädikat in ihr FileExists prüfen darf (D#97). Eine eigene Operationsart wäre eine Änderung
+    * der Algebra ohne Gewinn: Wer lesen oder auflisten darf, erfährt ohnehin, was existiert.
+    */
+  val existence: Set[OpKind] = Set(ReadFile, ListDir)
+
 /** Erlaubter Shell-Befehl: Programm plus Pflicht-Präfix der Argumente ("git" + List("status"), nicht nur "git"). */
 final case class AllowedCommand(binary: String, requiredPrefixArgs: List[String]):
   def allows(cmd: String, args: List[String]): Boolean =

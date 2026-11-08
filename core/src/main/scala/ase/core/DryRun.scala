@@ -164,9 +164,14 @@ object DryRun:
   private def predicate(p: Pred, last: Option[Shape], loc: Location, ctx: Ctx): Vector[Violation] =
     val nesting = Pred.nesting(p)
     val deep = Option.when(nesting > ctx.config.nestingLimit)(Violation.NestingTooDeep(loc, nesting, ctx.config.nestingLimit))
-    val paths = filePaths(p).toVector.flatMap(path(_, loc, ctx))
+    val files = filePaths(p).toVector
+    val paths = files.flatMap(path(_, loc, ctx))
+    // FileExists nur, wo die Hülle lesen oder auflisten lässt (D#97)
+    val exists =
+      if ctx.env.allowedOps.exists(OpKind.existence) then Vector.empty
+      else files.distinct.map(Violation.ExistsNotAllowed(loc, _, ctx.env.allowedOps))
     val never = Option.when(!possible(p, last.getOrElse(NoResult))._1)(Violation.PredicateNeverTrue(loc, p))
-    deep.toVector ++ paths ++ never
+    deep.toVector ++ exists ++ paths ++ never
 
   private[core] val interpreter: AgentAlg[Check] = new AgentAlg[Check]:
     def readFile(path: String, origin: Origin): Check[StepResult] =

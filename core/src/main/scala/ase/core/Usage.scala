@@ -95,7 +95,7 @@ object Usage:
     case Event.HoleRound(a, _) if a == c.at                  => c.copy(rounds = c.rounds + 1)
     case Event.Step(_, call, reply) =>
       val withPaths = c.copy(paths = c.paths ++ reply.touched)
-      // FileExists braucht keine Operation und zählt nicht als Schritt (Call.op)
+      // FileExists hat keine eigene Operation und zählt nicht als Schritt (Call.op, D#34)
       call.op.fold(withPaths)(k => shell(withPaths, call).copy(ops = withPaths.ops + k, steps = c.steps + 1))
     case Event.Asked(_, _, _)  => c.copy(ops = c.ops + OpKind.Ask, steps = c.steps + 1)
     case Event.Finished(_, _)  => c.copy(steps = c.steps + 1)

@@ -103,3 +103,28 @@ class DryRunSuite extends munit.FunSuite:
       case Violation.InvalidPath(loc, "../x", _) => loc == Location.root / "envelope" / "scopePrefix"
       case _                                     => false
     })
+
+  test("FileExists nur mit ReadFile oder ListDir in der Hülle, an Tor 1, an Tor 2 und in ToolCheck (D#97)"):
+    val branch = Term.If(Pred.Not(Pred.And(Pred.FileExists("a"), Pred.FileExists("b"))), Term.WriteFile("c", "x", h), Term.Done("d", h), h)
+    val write = Envelope(Set(OpKind.WriteFile, OpKind.Ask), ".", 5, 0, Set.empty)
+    // Tor 1: je Pfad ein Verstoß an der Bedingung
+    assertEquals(
+      violations(branch, write),
+      List("a", "b").map(Violation.ExistsNotAllowed(Location.root / "pred", _, write.allowedOps))
+    )
+    // eine der beiden genügt
+    for op <- OpKind.existence do assertEquals(violations(branch, write.copy(allowedOps = write.allowedOps + op)), Nil, op)
+    // Tor 2: derselbe Teilterm als Fill eines Lochs, das nur schreiben darf
+    val fill = DryRun.fill(branch, write, CheckConfig.default).left.toOption.map(_.toList).getOrElse(Nil)
+    assert(fill.exists { case Violation.ExistsNotAllowed(_, "a", _) => true; case _ => false }, fill)
+    // RepeatUntil zählt wie If
+    val loop = Term.RepeatUntil(Term.WriteFile("c", "x", h), Pred.FileExists("c"), 2, h)
+    assertEquals(violations(loop, write), List(Violation.ExistsNotAllowed(Location.root / "until", "c", write.allowedOps)))
+    // zur Laufzeit (Replay, zweite Linie)
+    assertEquals(ToolCheck.call(Call.FileExists("a"), write, ArgPolicy.defaults), Left(ToolError.OpNotAllowed(OpKind.ListDir)))
+    assertEquals(ToolCheck.call(Call.FileExists("a"), write.copy(allowedOps = Set(OpKind.ReadFile)), ArgPolicy.defaults), Right(()))
+    // die Meldung ans Modell nennt, was fehlt und was erlaubt ist
+    assertEquals(
+      Violation.ExistsNotAllowed(Location.root, "a", write.allowedOps).message,
+      "FileExists(a) braucht ReadFile oder ListDir in der Hülle; erlaubt sind: WriteFile, Ask."
+    )
