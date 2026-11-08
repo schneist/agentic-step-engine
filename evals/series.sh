@@ -51,7 +51,18 @@ printf '%s' "$status" > "$out/git-status.txt"
 commit=$(git -C "$repo" rev-parse --short HEAD)
 source=(--task "$eval_dir/task.md")
 [ -z "$flow" ] || source=(--flow "$flow")
-# Programme der Eval vor dem PATH, etwa das aws-Double von Eval 7 (O#40); es liegt außerhalb des Arbeitsverzeichnisses
+# Programme der Eval vor dem PATH, etwa das aws-Double von Eval 7 (O#40); es liegt außerhalb des Arbeitsverzeichnisses.
+# Die Sandbox hängt jeden Eintrag im PATH nur lesbar ein (D#88), sonst nichts von hier. Braucht ein Programm in bin/
+# ein Verzeichnis einer anderen Eval, nennt es die Datei <eval>/path, je Zeile relativ zur Eval (Eval 8 ruft das
+# Double von Eval 7); diese Einträge stehen hinter bin/.
+if [ -f "$eval_dir/path" ]; then
+  while IFS= read -r d || [ -n "$d" ]; do
+    [ -n "$d" ] || continue
+    dir=$(cd "$eval_dir/$d" && pwd) || { echo "$eval_dir/path: $d gibt es nicht" >&2; exit 1; }
+    PATH="$dir:$PATH"
+  done < "$eval_dir/path"
+  export PATH
+fi
 if [ -d "$eval_dir/bin" ]; then export PATH="$eval_dir/bin:$PATH"; fi
 
 cp=$(cd "$repo" && sbt -batch -error "export runner/Runtime/fullClasspath" | tail -1)

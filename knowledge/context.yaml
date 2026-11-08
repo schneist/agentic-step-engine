@@ -710,7 +710,7 @@ open:
   - { id: "O#48", type: open, status: resolved, source: "findings.md#O#48", verified: 2026-11-04, resolved_by: "D#90", title: "termHash umfasste die Tabelle der impliziten Flags nicht" }
   - { id: "O#49", type: open, status: resolved, source: "findings.md#O#49", verified: 2026-11-04, resolved_by: "D#92", title: "Hash bindet die Runner-Konfiguration nicht (configSha nur in der ungeschützten Plan-Datei)" }
   - { id: "O#50", type: open, status: resolved, source: "findings.md#O#50", verified: 2026-11-05, resolved_by: "D#93", title: "Vertrauensgrenze der Runner-Konfiguration: model.endpoint, http, Umgebung und Werkzeuge der CLI-Modelle (Rest in O#52)" }
-  - { id: "O#51", type: open, status: open, issue: 11, source: "findings.md#O#51", verified: 2026-11-08, note: "(a) erledigt durch D#95, (b) durch D#96, (c) durch D#97, (f) am 08.11. nachgezogen", title: "Kleinere Befunde aus dem Review von Gemini (Freigabe ohne Terminal, git im Worktree, FileExists, Eval 8 in der Sandbox, persönliche Pfade, context.yaml, CI)" }
+  - { id: "O#51", type: open, status: open, issue: 11, source: "findings.md#O#51", verified: 2026-11-08, note: "(a) erledigt durch D#95, (b) durch D#96, (c) durch D#97, (d) und (f) am 08.11. nachgezogen", title: "Kleinere Befunde aus dem Review von Gemini (Freigabe ohne Terminal, git im Worktree, FileExists, Eval 8 in der Sandbox, persönliche Pfade, context.yaml, CI)" }
   - { id: "O#52", type: open, status: open, issue: 12, source: "findings.md#O#52", verified: 2026-11-05, title: "CLI-Modelle ohne Sandbox; agy ohne Abschalten seiner Werkzeuge (Rest von O#50)" }
   - { id: "O#38", type: open, status: open, issue: 5, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
@@ -787,7 +787,7 @@ evals:
     title: cloud-vorpruefung (Paket mit Fehlern, Vorprüfung vor dem ersten aws-Aufruf)
     decided_by: ["D#84"]
     relates_to: ["O#40", "eval.7"]
-    note: "Fixture wie Eval 7 mit zwei Regelverstößen im Paket; infra/vorpruefung.sh als Skript in Hülle und Konfiguration; bin/aws ruft das Double von Eval 7; check.sh verlangt ask ohne schreibenden aws-Aufruf; von Hand geprüft; nicht im Harness. Offener Plan 0/10 (M#33: Vorprüfung läuft, wird aber kein Tor, fester Done-Text meldet Erfolg), Gerüst mit Tor 10/10 ohne Modellaufruf (M#34), offener Plan mit D#85 7/10 (M#35)"
+    note: "Fixture wie Eval 7 mit zwei Regelverstößen im Paket; infra/vorpruefung.sh als Skript in Hülle und Konfiguration; bin/aws ruft das Double von Eval 7, dessen Verzeichnis über die Datei path in den PATH und damit lesbar in die Sandbox kommt (O#51 d); check.sh verlangt ask ohne schreibenden aws-Aufruf; von Hand geprüft; nicht im Harness. Offener Plan 0/10 (M#33: Vorprüfung läuft, wird aber kein Tor, fester Done-Text meldet Erfolg), Gerüst mit Tor 10/10 ohne Modellaufruf (M#34), offener Plan mit D#85 7/10 (M#35)"
     measurements: ["M#33", "M#34", "M#35"]
   - id: eval.9
     type: eval
