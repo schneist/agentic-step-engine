@@ -650,7 +650,7 @@ decisions:
   - { id: "D#94", type: decision, status: decided, source: "findings.md#D#94", verified: 2026-11-07, title: "Vorprüfung der Skripte des Terms vor der Freigabe; scriptCheck reject (Standard) oder warn; ase plan --workspace", tested_by: [ase.runner.ScriptCheckSuite] }
   - { id: "D#95", type: decision, status: decided, source: "findings.md#D#95", verified: 2026-11-07, title: "Ohne --approve fragt ase run nur an einem Terminal (Standardeingabe); sonst nicht freigegeben, Exit 4; Ende der Eingabe ist Nein (O#51 a)", tested_by: [ase.runner.TerminalSuite] }
   - { id: "D#96", type: decision, status: decided, source: "findings.md#D#96", verified: 2026-11-08, title: "git auch in einem Worktree: .git-Datei beim Start, Git-Verzeichnis und commondir außerhalb des Arbeitsverzeichnisses, in der Sandbox nur lesbar (O#51 b)", tested_by: [ase.core.GitWorktreeSuite] }
-  - { id: "D#97", type: decision, status: decided, source: "findings.md#D#97", verified: 2026-11-08, title: "FileExists braucht ReadFile oder ListDir in der Hülle (Tor 1, Tor 2, ToolCheck); Zählung wie D#34 (O#51 c)", tested_by: [ase.core.DryRunSuite] }
+  - { id: "D#97", type: decision, status: decided, source: "findings.md#D#97", verified: 2026-11-08, title: "FileExists braucht ReadFile oder ListDir in der Hülle (Tor 1, Tor 2, ToolCheck); Zählung wie D#34 (O#51 c)", tested_by: [ase.core.DryRunSuite], measurements: ["M#50"] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -768,7 +768,7 @@ evals:
     title: red-test (Integration, deterministisch und live)
     relates_to: [flows.red-test]
     note: Fixture und check.sh fertig; Skript-Modell in Eval6Suite
-    measurements: ["M#5", "M#11", "M#13", "M#15", "M#20", "M#21", "M#22", "M#23", "M#24", "M#36", "M#45"]
+    measurements: ["M#5", "M#11", "M#13", "M#15", "M#20", "M#21", "M#22", "M#23", "M#24", "M#36", "M#45", "M#50"]
   - id: eval.7
     type: eval
     status: implemented
