@@ -182,6 +182,8 @@ object Main extends IOApp:
         go.handleErrorWith {
           case ModelUnavailable(e) => IO.println(s"Fehler: ${e.message}").as(ExitCode(1))
           case Failure(message)    => IO.println(s"Fehler: $message").as(ExitCode(1))
+          // alles andere unverändert weiter, nicht als MatchError verdeckt (D#98)
+          case other               => IO.raiseError(other)
         }
 
   /** Ein Fehler des Runners, nicht des Modells: Eingaben, Dateien, Konfiguration. */
@@ -513,7 +515,7 @@ object Main extends IOApp:
       transport <- JdkTransport.open[IO](config.model, forbidden)
       // ohne Schlüssel läuft ein Term ohne Löcher trotzdem; ein Fill endet dann mit dem Fehler
       model = transport.fold[FillModel[IO]](e => _ => IO.raiseError(ModelUnavailable(e)), t => ModelAdapter[IO](t, config.model, config.check))
-      ask = if cmd.noAsk then AskHandler.nonInteractive[IO] else interactiveAsk
+      ask = if cmd.noAsk then AskHandler.nonInteractive[IO] else interactiveAsk(IO.readLine)
       // ohne Sandbox die erste Zeile des Laufs (D#88)
       _ <- IO.whenA(config.exec.sandbox == Sandbox.Off)(IO.println(s"sandbox   ${Sandbox.describe(Sandbox.Off)}"))
       _ <- IO.println(s"approved  ${approved.termHash.short}  → $record\n")
@@ -534,8 +536,12 @@ object Main extends IOApp:
       case Outcome.Ask(_)     => ExitCode(2)
       case Outcome.Aborted(_) => ExitCode(3)
 
-  private val interactiveAsk: AskHandler[IO] = (q, last) =>
-    IO.print(AskContext.render(last) + s"\nask  $q\n> ") >> IO.readLine.map(a => Option(a).map(_.trim).filter(_.nonEmpty))
+  /** Die Frage am Terminal. Das Ende der Eingabe (`< /dev/null`, geschlossene Pipe) ist keine Antwort, wie eine leere
+    * Zeile: der Lauf endet mit dem Ausgang „ask“ und schreibt summary.json (D#98).
+    */
+  private[runner] def interactiveAsk(read: IO[String]): AskHandler[IO] = (q, last) =>
+    IO.print(AskContext.render(last) + s"\nask  $q\n> ") >>
+      read.map(Option(_)).recover { case _: java.io.EOFException => None }.map(_.map(_.trim).filter(_.nonEmpty))
 
 /** Was der Mensch vor einer Frage sieht: das Ergebnis des Schritts davor (D#73). Steuerzeichen sichtbar wie im
   * Explain; lange Ausgaben mit Anfang und Ende, die Mitte ausgelassen.

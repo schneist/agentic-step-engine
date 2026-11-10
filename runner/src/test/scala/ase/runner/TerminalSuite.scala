@@ -32,6 +32,14 @@ class TerminalSuite extends munit.FunSuite:
     assertEquals(approve(None, terminal = true, IO.pure("ja")), (None, 1))
     assertEquals(approve(None, terminal = true, IO.raiseError(new java.io.EOFException)), (None, 1))
 
+  test("D#98: an einer Frage ist das Ende der Eingabe keine Antwort, wie eine leere Zeile; kein Absturz"):
+    val last = StepResult(Some(0), Some("davor"))
+    def ask(text: IO[String]) = Main.interactiveAsk(text).ask("Weiter?", last).unsafeRunSync()
+    assertEquals(ask(IO.raiseError(new java.io.EOFException)), None)
+    assertEquals(ask(IO.pure("   ")), None)
+    assertEquals(ask(IO.pure(" start-ok ")), Some("start-ok"))
+    intercept[java.io.IOException](ask(IO.raiseError(new java.io.IOException("kaputt"))))
+
   test("mit --approve braucht es kein Terminal; ein anderer Hash gibt nicht frei"):
     assertEquals(approve(Some(checked.termHash.hex), terminal = false, IO.pure("n")), (Some(checked.termHash), 0))
     val other = "0" * 64
