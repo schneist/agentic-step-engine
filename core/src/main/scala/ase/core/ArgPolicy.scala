@@ -39,9 +39,12 @@ object ArgPolicy:
       "grep",
       Nil,
       Set("-r", "-n", "-i", "-l", "-F", "-E", "-w"),
-      Set.empty,
+      // D#99: Kontextzeilen, damit ein Agentenschritt vor EditFile die ganzen Zeilen um einen Treffer sieht (O#54).
+      // Kein -e: dann wäre das erste Nicht-Flag-Argument ein Pfad, den PatternThenPaths als Muster nicht prüft.
+      Set("-A", "-B", "-C"),
       Set("--include="),
-      Positional.PatternThenPaths
+      Positional.PatternThenPaths,
+      Map("-A" -> ValueRule.Pattern("[0-9]{1,3}"), "-B" -> ValueRule.Pattern("[0-9]{1,3}"), "-C" -> ValueRule.Pattern("[0-9]{1,3}"))
     ),
     ArgPolicy("git", List("status"), Set("--porcelain", "--short"), Set.empty, Set.empty, Positional.NoArgs),
     ArgPolicy("git", List("diff"), Set("--stat", "--name-only"), Set.empty, Set.empty, Positional.PathsAfterDashDash),

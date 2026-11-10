@@ -45,6 +45,29 @@ class ArgPolicySuite extends FunSuite:
     assert(DryRun.plan(Term.Shell("aws", call("--key", "x", "--body", "paket/a.txt"), h), env, config).isLeft)
     assertEquals(Scope.shellPaths("aws", call("--key", "paket/a.txt", "--body", "paket/a.txt"), config), List("paket/a.txt"))
 
+  private val grep = ArgPolicy.defaults.find(_.binary == "grep").get
+
+  test("grep: -A, -B, -C mit einer Zahl; das Muster bleibt Muster, die Pfade bleiben Pfade (D#99)"):
+    val p = ArgPolicy.parse(grep, List("-rn", "-A", "3", "-B", "2", "TODO", "src/a.scala"))
+    assertEquals((p.rejected, p.paths), (Nil, List("src/a.scala")))
+    assertEquals(ArgPolicy.parse(grep, List("-C", "999", "x", "src")).rejected, Nil)
+    assertEquals(ArgPolicy.parse(grep, List("-C", "0", "x")).touched, List("."))
+
+  test("grep: Kontext ohne Zahl, zu groß, angehängt, doppelt oder -e wird abgelehnt (D#99)"):
+    def rejected(args: String*) = ArgPolicy.parse(grep, args.toList).rejected.map(_._1)
+    assertEquals(rejected("-A", "x", "src"), List("-A"))         // Muster statt Zahl als Wert
+    assertEquals(rejected("-A", "1000", "x"), List("-A"))
+    assertEquals(rejected("-C", "3x", "x"), List("-C"))
+    assertEquals(rejected("-A3", "x"), List("-A3"))               // nur getrennt: -A 3
+    assertEquals(rejected("-A", "2", "-A", "3", "x"), List("-A")) // jedes Flag mit Wert höchstens einmal (D#87)
+    assertEquals(rejected("-e", "x", "src"), List("-e"))
+
+  test("grep: mit Kontextzeilen bleibt die Pfadprüfung (D#99)"):
+    val env = Envelope(Set(OpKind.Shell), "src", 5, 0, Set(AllowedCommand("grep", Nil)))
+    assert(ToolCheck.shell("grep", List("-n", "-C", "3", "x", "src/a.scala"), env, ArgPolicy.defaults).isRight)
+    assert(ToolCheck.shell("grep", List("-n", "-C", "3", "x", "../a.scala"), env, ArgPolicy.defaults).isLeft)
+    assert(ToolCheck.shell("grep", List("-n", "-C", "3", "x", "docs/a.md"), env, ArgPolicy.defaults).isLeft)
+
   test("wellFormed: ein Befehl mit Path-Regel nimmt Pfade und ist unter einem engeren pathPrefix nutzbar (D#83)"):
     val config = TestSupport.config.copy(argPolicies = TestSupport.config.argPolicies ++ List(put, run))
     val under = AllowedCommand("aws", List("s3api", "put-object"))
