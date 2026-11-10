@@ -103,7 +103,7 @@ INTERPRETER (alle über AgentAlg)
   Shell: nur AllowedCommand-Treffer (binary + Präfix-Args), keine Shell-Interpretation (kein sh -c), Argumente als Liste, keine Pipes/Redirections, Timeout, Ausgabe begrenzt.
   Argument-Policy pro Binary (D#12, Runner-Konfiguration): erlaubte Flags als Allowlist; jedes Nicht-Flag-Argument ist ein Pfad (bei grep das erste: Muster) und unterliegt derselben Pfadprüfung wie ReadFile. Start-Allowlist mit Policy:
     ls          -l -a                                  Pfade
-    grep        -r -n -i -l -F -E -w --include=        Muster, dann Pfade
+    grep        -r -n -i -l -F -E -w --include= -A/-B/-C <Zahl>   Muster, dann Pfade
     git status  --porcelain --short                    keine
     git diff    --stat --name-only                     Pfade nach --
     git log     --oneline -n                           Revisionsbereich, Pfade nach --
