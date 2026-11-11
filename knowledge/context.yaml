@@ -439,7 +439,7 @@ interpreters:
     verified: 2026-11-07
     decided_by: ["D#45", "D#46", "D#63", "D#64", "D#74", "D#75", "D#76", "D#79", "D#94", "D#95", "D#98"]
     tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite, ase.runner.SeriesSuite, ase.runner.ScriptCheckSuite, ase.runner.TerminalSuite]
-    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 4 mit implicits und elaboriertem Term, liest 1 bis 3), RunnerConfig.scala (bestOfN, programs D#68, programs[].required D#87, scriptCheck D#94), Terminal.scala (Freigabe ohne --approve nur an einem Terminal, D#95), ScriptCheck.scala (Skripte des Terms vor der Freigabe, ase plan --workspace), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
+    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 4 mit implicits und elaboriertem Term, liest 1 bis 3), RunnerConfig.scala (bestOfN, programs D#68, programs[].required D#87, scriptCheck D#94, scripts[] als {path, positional} D#100), Terminal.scala (Freigabe ohne --approve nur an einem Terminal, D#95), ScriptCheck.scala (Skripte des Terms vor der Freigabe, ase plan --workspace), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
   - id: core.usage
     type: interpreter
     status: implemented
@@ -653,6 +653,7 @@ decisions:
   - { id: "D#97", type: decision, status: decided, source: "findings.md#D#97", verified: 2026-11-08, title: "FileExists braucht ReadFile oder ListDir in der Hülle (Tor 1, Tor 2, ToolCheck); Zählung wie D#34 (O#51 c)", tested_by: [ase.core.DryRunSuite], measurements: ["M#50"] }
   - { id: "D#98", type: decision, status: decided, source: "findings.md#D#98", verified: 2026-11-10, title: "Ende der Eingabe an einer Frage ist keine Antwort: Ausgang ask, Exit 2, summary.json; unbekannte Ausnahmen nicht mehr als MatchError (O#53)", tested_by: [ase.runner.TerminalSuite] }
   - { id: "D#99", type: decision, status: decided, source: "findings.md#D#99", verified: 2026-11-10, title: "grep mit Kontextzeilen -A/-B/-C (Zahl bis 999, je einmal, getrennt); kein -e (O#54)", tested_by: [ase.core.ArgPolicySuite], measurements: ["M#52"] }
+  - { id: "D#100", type: decision, status: decided, source: "findings.md#D#100", verified: 2026-11-11, title: "Skripte mit Pfadargumenten nur per scripts-Eintrag {path, positional: Paths}; Pfade wie ReadFile, keine Flags, berührt weiter \".\" (Parsed.touchedBy); System-Prompt nur dann anders (O#55)", tested_by: [ase.core.ScriptArgsSuite, ase.core.LocalToolsSuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -716,7 +717,7 @@ open:
   - { id: "O#52", type: open, status: open, issue: 12, source: "findings.md#O#52", verified: 2026-11-05, title: "CLI-Modelle ohne Sandbox; agy ohne Abschalten seiner Werkzeuge (Rest von O#50)" }
   - { id: "O#53", type: open, status: resolved, issue: 13, source: "findings.md#O#53", verified: 2026-11-10, resolved_by: "D#98", title: "Frage bei geschlossener Eingabe stürzt mit MatchError ab" }
   - { id: "O#54", type: open, status: resolved, issue: 14, source: "findings.md#O#54", verified: 2026-11-10, resolved_by: "D#99", title: "grep ohne Kontextzeilen (-A/-B/-C) und ohne -e (-e bleibt verboten)" }
-  - { id: "O#55", type: open, status: open, issue: 15, source: "findings.md#O#55", verified: 2026-11-10, title: "Skripte ohne Argumente (Pfadargument mit Pfadprüfung)" }
+  - { id: "O#55", type: open, status: resolved, issue: 15, source: "findings.md#O#55", verified: 2026-11-11, resolved_by: "D#100", title: "Skripte ohne Argumente (Pfadargument mit Pfadprüfung)" }
   - { id: "O#38", type: open, status: open, issue: 5, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, issue: 4, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }

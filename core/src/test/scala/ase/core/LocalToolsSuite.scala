@@ -143,6 +143,15 @@ class LocalToolsSuite extends munit.FunSuite:
       assertEquals(stdin.result.map(_.output), Right(Some("stdin leer\n")))
       assertEquals(error(call(ws, Call.Shell("./fehlt.sh", Nil), shellEnv("./fehlt.sh"), ExecConfig.default, scripts("./fehlt.sh"))), Some(ToolError.ProgramNotFound("./fehlt.sh")))
 
+  withWs("Skript mit Pfaden (D#100): bekommt die normalisierten Pfade, berührt \".\"; Symlink nach außen abgelehnt"): (ws, _) =>
+      script(ws, "args.sh", "printf '%s\\n' \"$@\"\n")
+      val check = CheckConfig.default.copy(argPolicies = ArgPolicy.defaults :+ ArgPolicy.scriptAs("./args.sh", Positional.Paths))
+      val r = call(ws, Call.Shell("./args.sh", List("src//A.scala", "neu/B.md")), shellEnv("./args.sh"), ExecConfig.default, check)
+      assertEquals(r.result.map(_.output), Right(Some("src/A.scala\nneu/B.md\n")))
+      assertEquals(r.touched, List("args.sh", ".", "src/A.scala", "neu/B.md"))
+      assert(error(call(ws, Call.Shell("./args.sh", List("src/out/secret.txt")), shellEnv("./args.sh"), ExecConfig.default, check)).isDefined)
+      assert(error(call(ws, Call.Shell("./args.sh", List("-x")), shellEnv("./args.sh"), ExecConfig.default, check)).isDefined)
+
   withWs("git gehärtet: präparierte .git/config mit fsmonitor startet kein fremdes Programm"): (ws, outside) =>
       assume(sh(ws, "git", "--version")._1 == 0, "git fehlt")
       assertEquals(sh(ws, "git", "init", "-q")._1, 0)

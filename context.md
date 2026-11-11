@@ -149,6 +149,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Durchgereichte Umgebung** (`PassEnv`): Die Variablen, die ein Modellprozess von ase bekommt, dazu ein bereinigter PATH. Alles andere, auch Schlüssel anderer Dienste, sieht er nicht (D#93).
 - **Vorprüfung der Skripte** (`scriptCheck`): Vor der Freigabe prüft `ase run`, ob jedes Skript `./…`, das der Term statisch aufruft, im Arbeitsverzeichnis liegt und ausführbar ist; `ase plan` mit `--workspace` ebenso. `reject` (Standard) startet dann nichts, `warn` zeigt den Befund und läuft (D#94).
 - **Einhängung** (mount): Ein Pfad von außen, den die Sandbox einem Prozess sichtbar macht; alles andere gibt es für ihn nicht. Absolut, unter `~` oder relativ zum Arbeitsverzeichnis; nie das Arbeitsverzeichnis selbst oder etwas, das es enthält (D#88).
+- **Skript mit Pfaden** (`scripts`, `positional: Paths`): Ein Skript, dessen Eintrag in der Konfiguration Pfade erlaubt; jedes Argument wird geprüft wie bei ReadFile, Flags nie. Es berührt trotzdem das ganze Arbeitsverzeichnis (`Parsed.touchedBy`), läuft also nur unter pathPrefix "." (D#100).
 
 ## 8. Warum
 
@@ -324,7 +325,7 @@ Die Freigabe ist ein Mensch, der einen Hash bestätigt (D#11, D#38). Eine Serie 
 
 ### Warum Skripte in die Konfiguration gehören (D#46)
 
-Welche Programme im Arbeitsverzeichnis laufen dürfen, hängt vom Projekt ab, nicht von der Engine. `./run-tests.sh` ist in Eval 6 und im Release-Flow der Kern des Ablaufs, in einem anderen Projekt gäbe es das Skript nicht. Es steht deshalb in der Runner-Konfiguration, nicht im Code; jedes Skript läuft ohne Argumente und gilt als Workspace-Code (D#12).
+Welche Programme im Arbeitsverzeichnis laufen dürfen, hängt vom Projekt ab, nicht von der Engine. `./run-tests.sh` ist in Eval 6 und im Release-Flow der Kern des Ablaufs, in einem anderen Projekt gäbe es das Skript nicht. Es steht deshalb in der Runner-Konfiguration, nicht im Code; jedes Skript läuft ohne Argumente, außer die Konfiguration erlaubt ihm Pfade (D#100), und gilt als Workspace-Code (D#12).
 
 ### Warum ein lokales Modell als zweiter Anbieter (D#47)
 
@@ -421,6 +422,10 @@ Ein Aufruf von `aws` ohne `--profile` nimmt das Standardprofil der Maschine, ohn
 ### Warum grep Kontextzeilen bekommt, aber kein -e (D#99)
 
 Ein Agentenschritt, der eine Stelle in einer großen Datei mit EditFile ändern soll, muss die ganzen Zeilen um die Stelle kennen, auch die Folgezeile einer Anweisung. ReadFile zeigt höchstens 16 kB, grep bisher nur die Trefferzeile; ducktest half sich mit eigenem Code im Arbeitsverzeichnis, der genau das tut, was grep mit `-C` kann. Kontextzeilen lesen nichts, was grep nicht schon liest: dieselben Dateien unter denselben geprüften Pfaden, nur mehr Zeilen davon in der Ausgabe, die ohnehin begrenzt ist. Der Wert ist eine Zahl bis 999 und nur getrennt geschrieben, damit die Policy ihn als Wert erkennt und nicht als unbekanntes Flag. `-e` hätte dasselbe Bedürfnis anders bedient, aber die Prüfung verschoben: Mit `-e` ist das erste freie Argument kein Muster mehr, sondern ein Pfad, und die Policy prüft das erste freie Argument von grep nicht als Pfad. Ein Muster, das mit „-“ beginnt, bleibt damit unmöglich; das ist der kleinere Preis.
+
+### Warum ein Skript Pfade nehmen darf, aber nur, wenn die Konfiguration es sagt (D#100)
+
+Ein Skript, das einen Bericht prüft, muss wissen, welchen. Ohne Argumente blieb nur, den Namen vorher in eine Datei zu schreiben, die das Skript liest: ein zweiter Schritt, eine Datei mehr, und was das Skript prüft, stand nicht mehr im Aufruf, den der Mensch freigibt. Ein Pfad als Argument gibt dem Skript nichts, was es nicht schon hätte: Es führt Code aus, der im ganzen Arbeitsverzeichnis lesen und schreiben kann. Gefährlich wäre nur, wenn das Argument die Prüfung ändert. Deshalb zwei Regeln. Ein Skript berührt auch mit Pfaden das ganze Arbeitsverzeichnis; sonst liefe `./ase/x.sh ase/a.md` unter dem pathPrefix `ase`, wo `./ase/x.sh` allein nicht laufen darf, und ein Argument hätte eine Hülle erweitert. Und die Konfiguration muss es für jedes Skript sagen, denn jeder Text ist ein gültiger relativer Pfad: `prod` oder `alles` bestehen die Pfadprüfung. Ein Skript, das so ein Wort als Modus liest, bekäme sonst Aufrufe, die niemand vorgesehen hat. Wer `positional: Paths` einträgt, sagt damit, dass das Skript seine Argumente als Dateien liest. Flags bleiben verboten, weil sie genau die Modi sind, die so ein Wort wäre.
 
 ### Warum das Ende der Eingabe an einer Frage keine Antwort ist (D#98)
 

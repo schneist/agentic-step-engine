@@ -45,9 +45,9 @@ object RunnerConfig:
       nesting <- int(o, "nestingLimit", d.check.nestingLimit)
       rounds <- int(o, "planRounds", d.planRounds)
       bestOf <- int(o, "bestOfN", d.bestOfN)
-      scripts <- o("scripts").fold(List.empty[String].asRight[String])(scriptList)
+      scripts <- o("scripts").fold(List.empty[ArgPolicy].asRight[String])(scriptList)
       programs <- o("programs").fold(List.empty[Program].asRight[String])(programList(_, d.check.argPolicies))
-      policies = d.check.argPolicies ++ scripts.map(ArgPolicy.script) ++ programs.map(_.policy)
+      policies = d.check.argPolicies ++ scripts ++ programs.map(_.policy)
       required <- requiredOf(programs, policies)
       denials <- o("explainDenials").fold(d.explain.explainDenials.asRight[String])(commands)
       _ <- Either.cond(nesting >= 1 && rounds >= 1 && bestOf >= 1, (), "nestingLimit, planRounds und bestOfN müssen mindestens 1 sein")
@@ -149,15 +149,31 @@ object RunnerConfig:
       shellTimeout = shell.seconds
     )
 
-  /** Skripte nur als "./name" ohne weiteren Pfad: sie laufen ohne Argumente (ArgPolicy.script) und führen
-    * Workspace-Code aus (D#12).
+  /** Skripte als "./pfad": sie laufen ohne Argumente (ArgPolicy.script) und führen Workspace-Code aus (D#12). Als
+    * {"path": "./pfad", "positional": "Paths"} nehmen sie Pfade, geprüft wie bei ReadFile, nie Flags (D#100).
     */
-  private def scriptList(json: Json): Either[String, List[String]] =
-    json.asArray.toRight("scripts: erwartet eine Liste").flatMap(_.toList.traverse(j =>
-      // auch in Unterverzeichnissen (D#72); RelPath schließt .., .git und absolute Pfade aus
+  private def scriptList(json: Json): Either[String, List[ArgPolicy]] =
+    // auch in Unterverzeichnissen (D#72); RelPath schließt .., .git und absolute Pfade aus
+    def scriptPath(j: Json): Either[String, String] =
       j.asString.filter(s => s.startsWith("./") && RelPath.parse(s.drop(2)).exists(_.nonEmpty))
         .toRight(s"scripts: „${j.noSpaces}“ ist kein Skript der Form ./pfad")
-    ))
+    def entry(j: Json): Either[String, ArgPolicy] =
+      if j.isString then scriptPath(j).map(ArgPolicy.script)
+      else
+        for
+          o <- obj(j, "scripts")
+          _ <- only(o, "scripts", "path", "positional")
+          path <- o("path").toRight("scripts: path fehlt").flatMap(scriptPath)
+          positional <- o("positional").fold(Positional.NoArgs.asRight[String])(p =>
+            p.asString.flatMap(s => ArgPolicy.scriptPositionals.find(_.toString == s))
+              .toRight(s"scripts: $path: positional ist einer von ${ArgPolicy.scriptPositionals.mkString(", ")}")
+          )
+        yield ArgPolicy.scriptAs(path, positional)
+    // dasselbe Skript mit verschiedenen positional: welche Policy gälte, hinge an der Reihenfolge
+    json.asArray.toRight("scripts: erwartet eine Liste").flatMap(_.toList.traverse(entry)).map(_.distinct).flatMap { ps =>
+      ps.map(_.binary).diff(ps.map(_.binary).distinct).headOption
+        .map(b => s"scripts: „$b“ steht mit verschiedenen positional da").toLeft(ps)
+    }
 
   /** Ein Programm aus programs (D#68): seine Argument-Policy, die Pfade, deren Code es ausführt (leer: keinen), und
     * seine Pflicht-Flags (D#87).

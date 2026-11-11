@@ -52,9 +52,16 @@ object ArgPolicy:
     ArgPolicy("sbt", List("test"), Set.empty, Set.empty, Set.empty, Positional.NoArgs)
   )
 
-  /** Skript im Arbeitsverzeichnis ohne Argumente, etwa ./run-tests.sh. */
-  def script(binary: String): ArgPolicy =
-    ArgPolicy(binary, Nil, Set.empty, Set.empty, Set.empty, Positional.NoArgs)
+  /** Skript im Arbeitsverzeichnis, etwa ./run-tests.sh: ohne Argumente oder, wenn die Konfiguration es nennt, mit
+    * Pfaden (Positional.Paths, D#100). Flags nie.
+    */
+  def script(binary: String): ArgPolicy = scriptAs(binary, Positional.NoArgs)
+
+  def scriptAs(binary: String, positional: Positional): ArgPolicy =
+    ArgPolicy(binary, Nil, Set.empty, Set.empty, Set.empty, positional)
+
+  /** Die Positionen, die ein Skript haben darf (D#100). */
+  val scriptPositionals: List[Positional] = List(Positional.NoArgs, Positional.Paths)
 
   /** Die Policy mit dem längsten passenden Präfix. */
   def find(policies: List[ArgPolicy], cmd: String, args: List[String]): Option[ArgPolicy] =
@@ -67,6 +74,13 @@ object ArgPolicy:
   final case class Parsed(rejected: List[(String, String)], paths: List[String], pathAt: List[(Int, String)], valued: Set[String] = Set.empty):
     /** Was der Aufruf berührt: ohne Pfadargument das Arbeitsverzeichnis (D#27). */
     def touched: List[String] = if paths.isEmpty then List(".") else paths
+
+    /** Was der Aufruf von cmd berührt: ein Skript („./…“) immer das ganze Arbeitsverzeichnis, auch mit Pfadargumenten
+      * (D#100). Es führt Code aus, der überall schreiben kann; seine Pfade sagen nur, worauf es sich bezieht. So läuft
+      * ein Skript mit Pfaden unter keinem engeren pathPrefix als eines ohne.
+      */
+    def touchedBy(cmd: String): List[String] =
+      if cmd.startsWith("./") && paths.nonEmpty then ("." :: paths).distinct else touched
 
   private val CombinedShort = "^-[A-Za-z]{2,}$".r
 

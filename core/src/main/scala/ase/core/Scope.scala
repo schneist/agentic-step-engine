@@ -13,15 +13,16 @@ object Scope:
       case Left(_)       => Vector.empty
       case Right(prefix) => prior.filter(_.paths.forall(RelPath.isUnder(_, prefix)))
 
-  /** Pfade eines Shell-Ergebnisses (D#39): die ausdrücklich genannten. Ohne Pfadargument pfadlos (leer) nur bei
-    * Programmen, die Workspace-Code ausführen, und bei Befehlen aus config.pathless; sonst das ganze
-    * Arbeitsverzeichnis ".". Ohne Policy ebenfalls ".".
+  /** Pfade eines Shell-Ergebnisses (D#39): die ausdrücklich genannten, bei einem Skript dazu "." (D#100). Ohne
+    * Pfadargument pfadlos (leer) nur bei Programmen, die Workspace-Code ausführen, und bei Befehlen aus
+    * config.pathless; sonst das ganze Arbeitsverzeichnis ".". Ohne Policy ebenfalls ".".
     */
   def shellPaths(cmd: String, args: List[String], config: CheckConfig): List[String] =
     ArgPolicy.find(config.argPolicies, cmd, args) match
       case None => List(".")
       case Some(policy) =>
-        val explicit = ArgPolicy.parse(policy, args).paths
-        if explicit.nonEmpty then explicit
+        val parsed = ArgPolicy.parse(policy, args)
+        val explicit = parsed.paths
+        if explicit.nonEmpty then parsed.touchedBy(cmd)
         else if config.runsWorkspaceCode(cmd).isDefined || config.pathless.exists(_.allows(cmd, args)) then Nil
         else List(".")

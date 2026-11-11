@@ -34,8 +34,8 @@ object ToolCheck:
       policy <- ArgPolicy.find(policies, cmd, args).toRight(ToolError.ShellNotAllowed(cmd, args))
       parsed = ArgPolicy.parse(policy, args)
       _ <- parsed.rejected.headOption.map((a, r) => ToolError.ShellArgRejected(cmd, a, r)).toLeft(())
-      // jeder Pfad, ohne Pfad das Arbeitsverzeichnis (D#27)
-      touched <- parsed.touched.traverse(path(_, env).map(RelPath.show))
+      // jeder Pfad, ohne Pfad das Arbeitsverzeichnis (D#27); ein Skript immer auch das Arbeitsverzeichnis (D#100)
+      touched <- parsed.touchedBy(cmd).traverse(path(_, env).map(RelPath.show))
       normalized <- parsed.pathAt.traverse((i, prefix) => path(args(i).drop(prefix.length), env).map(p => i -> (prefix + RelPath.show(p))))
       _ <- program(cmd, env)
     yield

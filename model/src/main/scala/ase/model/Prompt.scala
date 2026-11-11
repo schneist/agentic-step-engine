@@ -84,13 +84,21 @@ object Prompt:
        |# Programme
        |Nur Programme aus der shellAllowlist der Hülle, jeweils mit diesen Argumenten:
        |${check.argPolicies.map(policy).mkString("\n")}${required(check)}
-       |- ./skript (ein Skript im Arbeitsverzeichnis): ohne Argumente.
+       |- ./skript (ein Skript im Arbeitsverzeichnis): ${scripts(check)}
        |Ohne Pfadargument berührt ein Programm das ganze Arbeitsverzeichnis "."; das ist nur unter pathPrefix "." erlaubt.
        |Kombinierte Kurz-Flags (-rn) gehen, wenn jedes einzeln erlaubt ist.
        |
        |# Ablehnungen
        |Verstößt ein Term gegen die Regeln, wird er nicht ausgeführt; du bekommst die Gründe und lieferst einen neuen.
        |Höchstens ${check.nestingLimit} Ebenen Seq, If und RepeatUntil ineinander.""".stripMargin
+
+  /** Ohne Skript mit Pfaden Zeichen für Zeichen der Text vor D#100 (promptSha, D#86). */
+  private def scripts(check: CheckConfig): String =
+    val withPaths = check.argPolicies.exists(p => p.binary.startsWith("./") && p.positional == Positional.Paths)
+    if !withPaths then "ohne Argumente."
+    else
+      "ohne Argumente, außer wo oben „dann Pfade“ steht; ein Skript berührt auch mit Pfaden das ganze\n" +
+        "  Arbeitsverzeichnis \".\"."
 
   /** Nur mit Pflicht-Flags, damit der Prompt ohne sie Zeichen für Zeichen gleich bleibt (promptSha, D#86, D#87). */
   private def required(check: CheckConfig): String =

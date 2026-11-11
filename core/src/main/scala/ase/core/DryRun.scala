@@ -202,7 +202,7 @@ object DryRun:
           val missing = ctx.config.required.getOrElse(cmd, Set.empty).toList.sorted.filterNot(parsed.valued)
           parsed.rejected.toVector.map((arg, reason) => Violation.ShellArgRejected(loc / "args", cmd, arg, reason)) ++
             missing.map(Violation.RequiredFlagMissing(loc / "args", cmd, _)) ++
-            parsed.touched.toVector.flatMap(path(_, loc / "args", ctx))
+            parsed.touchedBy(cmd).toVector.flatMap(path(_, loc / "args", ctx))
       Analysis(op(OpKind.Shell, ctx) ++ allowlist ++ policy, 1L, Some(Process), 0)
 
     def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): Check[StepResult] = ctx =>

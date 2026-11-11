@@ -223,6 +223,26 @@ class RunnerSuite extends munit.FunSuite:
     assert(n.argPolicies.contains(ArgPolicy.script("./ase/cfd/deckel_setzen.sh")))
     assertEquals(n.runsWorkspaceCode("./ase/cfd/deckel_setzen.sh"), Some(List("ase/cfd/deckel_setzen.sh")))
 
+  test("scripts: Eintrag als Objekt mit positional Paths nimmt Pfade (D#100); sonst ohne Argumente"):
+    val c = RunnerConfig.parse("""{"scripts":["./run-tests.sh",{"path":"./ase/bericht_pruefen.sh","positional":"Paths"},{"path":"./b.sh"}]}""")
+      .fold(fail(_), identity).check
+    assertEquals(c.argPolicies.takeRight(3), List(
+      ArgPolicy.script("./run-tests.sh"),
+      ArgPolicy.scriptAs("./ase/bericht_pruefen.sh", Positional.Paths),
+      ArgPolicy.script("./b.sh")
+    ))
+    assertEquals(c.runsWorkspaceCode("./ase/bericht_pruefen.sh"), Some(List("ase/bericht_pruefen.sh")))
+    // doppelt und gleich ist harmlos, doppelt mit verschiedenen positional nicht
+    assertEquals(RunnerConfig.parse("""{"scripts":["./a.sh","./a.sh"]}""").map(_.check.argPolicies.count(_.binary == "./a.sh")), Right(1))
+    List(
+      """{"path":"./a.sh","positional":"PatternThenPaths"}""",
+      """{"path":"./a.sh","positional":"paths"}""",
+      """{"path":"../a.sh","positional":"Paths"}""",
+      """{"positional":"Paths"}""",
+      """{"path":"./a.sh","flags":["-v"]}""",
+      """"./a.sh",{"path":"./a.sh","positional":"Paths"}"""
+    ).foreach(bad => assert(RunnerConfig.parse(s"""{"scripts":[$bad]}""").isLeft, bad))
+
   test("programs: eigene Argument-Policy, runsCode macht daraus Workspace-Code (D#68)"):
     val c = RunnerConfig.parse("""{"programs":[{"binary":"python3","flags":["-B"],"runsCode":["."]},{"binary":"wc","flags":["-l"]}]}""")
       .fold(fail(_), identity).check
