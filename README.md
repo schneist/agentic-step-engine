@@ -8,7 +8,7 @@
 - **Rechte pro Agentenschritt.** Im selben Lauf darf ein Agentenschritt nur `CHANGELOG.md` ändern, ein anderer nur unter `docs/`.
 - **Vorhersagbar.** Die Sprache ist klein und total: Jeder Lauf endet, und wie viele Schritte er höchstens braucht, steht vor dem Start fest ([Einordnung](#einordnung)).
 - **Einmal freigeben, oft laufen lassen.** Ein Flow hat einen stabilen Hash und läuft mit `--approve <hash> --no-ask` auch in CI.
-- **Erprobt.** Neun Testaufgaben mit bekanntem Ergebnis. Mit Claude bestanden fünf der sechs Standard-Testaufgaben 10 von 10 Läufen, die sechste 8 von 10 (die Arbeit war in allen zehn richtig, zwei Pläne hängten den Abschluss an eine zu strenge Prüfung). Zwei weitere gegen ein Double der AWS CLI und eine zur Abnahme von Agentenschritten zeigen, wo es noch hakt ([Zahlen](#wie-zuverlässig-es-ist)).
+- **Erprobt.** Neun Testaufgaben mit bekanntem Ergebnis. Mit Claude bestanden fünf der sechs Standard-Testaufgaben 10 von 10 Läufen, die sechste 8 von 10 (die Arbeit war in allen zehn richtig, zwei Pläne hängten den Abschluss an eine zu strenge Prüfung). Zwei weitere gegen ein Double der AWS CLI und eine zur Abnahme von Agentenschritten zeigen, wo es noch hakt. Dazu im Einsatz an einem privaten Python-Projekt, auch gegen echtes AWS ([Zahlen](#wie-zuverlässig-es-ist)).
 
 Prototyp in Scala 3 mit Kommandozeile, Apache License 2.0. Gedacht für Abläufe, die man einmal festlegt und oft laufen lässt, nicht als Ersatz für Claude Code oder Cursor im Alltag.
 
@@ -51,8 +51,8 @@ Mara schneidet alle zwei Wochen ein Release. Zwei Schritte brauchen Urteil: das 
 $ ase plan --flow flows/release.json version=2.4.0 previous=2.3.0 --envelope release-envelope.json --config ase.json --out release.plan.json
 $ ase run --plan release.plan.json --envelope release-envelope.json --config ase.json --workspace . --record ../ase-records/release-2.4.0.log
 dryrun    ok  (worst case 23 steps, depth 2)
-explain   06cd1a…8f61
-hash      06cd1a1845ded9bf0812f8344e37ac200e1c952942c1270e6e6e366c5b698f61
+explain   66e023…421e
+hash      66e0231e301a585dd69c460796fca7800759ea488f50b7a101b793b22d76421e
 params    previous=2.3.0 version=2.4.0
 
 1  führt aus: git status --porcelain
@@ -85,7 +85,7 @@ nicht erlaubt, u. a.: git push, git commit, git tag, rm, curl
 sandbox   jeder Aufruf sieht nur das Arbeitsverzeichnis und Systemverzeichnisse (lesbar), ohne Netz
 
 Freigeben? [y/N] y
-approved  06cd1a…8f61  → ../ase-records/release-2.4.0.log
+approved  66e023…421e  → ../ase-records/release-2.4.0.log
 ```
 
 ### Was während des Laufs passiert
@@ -133,7 +133,7 @@ Lauf beendet
 16 Schritte · 6 Modellaufrufe · 0 Ablehnungen an Tor 1 · 2 Ablehnungen an Tor 2 · 4 Dateien geändert · 23.4k Tokens
 Hinweis des Agenten (Agentenschritt 6): Changelog 2.4.0 ergänzt: 4 Features, 9 Fixes, 1 Breaking
 Hinweis des Agenten (Agentenschritt 7): parseConfig in docs/api.md und docs/migration.md angepasst; README.md laut Commit-Log vermutlich betroffen, nicht gelesen
-../ase-records/release-2.4.0.log · approved 06cd1a…8f61
+../ase-records/release-2.4.0.log · approved 66e023…421e
 ```
 
 Die erste Ablehnung verhindert Schaden. Der Changelog-Schritt wollte nebenbei die Version in `build.sbt` anheben. Er durfte nur `CHANGELOG.md` anfassen; eine stille Versionsänderung an anderer Stelle wäre im Explain nie sichtbar gewesen (und hätte Schritt 8 scheitern lassen). Tor 2 lehnt ab, bevor etwas läuft, und der Lauf geht weiter. Die zweite Ablehnung ist die ehrliche Seite: Das Modell wollte etwas Sinnvolles tun und durfte nicht. Es nennt die Stelle im Ergebnis, und Mara entscheidet selbst.
@@ -152,7 +152,7 @@ Ein Coding-Agent wie Claude Code lässt sich gut einzäunen. Der Plan-Modus zeig
 - **Code im Repository läuft in einer Sandbox, aber ungeprüft.** `ase` prüft, was das Modell tut, nicht den Code von `./run-tests.sh` oder `sbt test`. Seit D#88 läuft jeder Programmaufruf in bubblewrap: Er sieht das Arbeitsverzeichnis, Systemverzeichnisse nur lesbar, ein leeres HOME und kein Netz, und seine Hintergrundprozesse enden mit ihm. Ein Skript erreicht so weder Zugangsdaten noch Netz, kann aber das Arbeitsverzeichnis beliebig ändern, auch Dateien, die der Term danach liest; nur `.git` ist auch für Skripte schreibgeschützt (D#91), sonst könnte es dort Code für das nächste `git` des Nutzers ablegen; Explain warnt vor einem Agentenschritt, der solchen Code ändern darf. Ohne `bwrap` startet `ase run` nicht, außer mit `"sandbox": false` in der Konfiguration. Ein Container drumherum bleibt sinnvoll.
 - **Geprüft werden Ort und Art, nicht Inhalt.** Ein Agentenschritt kann innerhalb seiner Hülle schlechte Arbeit machen. Hüllen, die ein Modell selbst plant, können weiter sein als nötig. Den Explain muss also jemand lesen.
 - **Kein Zurückrollen.** Was gelaufen ist, bleibt gelaufen.
-- **Mehr Modellaufrufe.** Ein Plan und je Agentenschritt mindestens ein Fill. Claude braucht je nach Aufgabe 11k bis 61k Tokens je Lauf, ein Flow mit vier Agentenschritten wie in Eval 7 rund 135k bis 160k. Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
+- **Mehr Modellaufrufe.** Ein Plan und je Agentenschritt mindestens ein Fill. Claude braucht in den Testaufgaben je nach Aufgabe 12k bis 69k Tokens je Lauf, ein Flow mit vier Agentenschritten wie in Eval 7 rund 135k bis 160k. Ein Agentenschritt, der über mehrere Runden viel liest, kostet mehr, weil jede Runde das Gelesene wieder mitbekommt: im Einsatz 150k bis 330k (M#56, M#57). Ein Vergleich mit einem Agenten, der Werkzeuge direkt aufruft, ist nicht gemessen.
 - **Kleine Sprache.** Sie bearbeitet Dateien und ruft eine kleine Liste von Shell-Befehlen auf, mehr nicht.
 - **Werte von Flags prüft `ase` nur mit Regel.** Pfade als Argumente prüft `ase` wie bei `ReadFile`; den Wert eines Flags mit Wert nur, wenn die Argument-Policy ihm eine Regel gibt: ein Pfad im Arbeitsverzeichnis (`--body`, `--user-data file://`) oder ein Muster (D#83). Ohne Regel ist der Wert frei. Bei einem eigenen Programm wie `aws` also jedem Flag, das eine Datei liest oder Befehle trägt, eine Regel geben. Flags, die bestimmen, wo ein Aufruf wirkt, etwa `--profile` und `--region`, als `required` führen; dann scheitert jeder Aufruf ohne sie an der Prüfung.
 
@@ -175,11 +175,11 @@ Eval 7 ist schwerer gebaut: eine Rechnung auf einer Spot-Maschine in AWS starten
 
 Eval 9 misst, was die Abnahme eines Agentenschritts bringt (D#80): Ein Kompilierfehler verdeckt einen zweiten Fehler, den erst der Testlauf danach zeigt. Ein fester Flow, der nach der Reparatur einmal testet und bei Rot fragt, bestand 0 von 10 Läufen (M#46); derselbe Flow mit `verify ./run-tests.sh` an der Reparatur 10 von 10, weil jeder zweite Durchlauf den roten Test sah (M#47), bei rund 2,5-mal so vielen Tokens. Plant das Modell selbst, gibt es der Reparatur in allen 10 Läufen eine Abnahme und braucht sie in 3 (M#48).
 
-Im ersten echten Einsatz lief ein Flow an einem Python-Projekt mit rund 1.000 Skripten: 18 Rechenschritte in der Reihenfolge, die das Projekt vorschreibt, mit Abbruch, wenn eine Konsistenzprüfung scheitert, und am Ende ein Prüfbericht. 5 von 5 Läufen lieferten einen vollständigen Bericht mit denselben Befunden, je mit einem Modellaufruf und rund 56k Tokens.
+Im Einsatz ist `ase` an einem privaten Python-Projekt mit 75 Skripten, 18 davon in einer Prüfkette: Sie rechnet die Skripte in der vorgeschriebenen Reihenfolge, bricht ab, wenn eine Konsistenzprüfung scheitert, und ein Agentenschritt schreibt den Prüfbericht, den ein Skript abnimmt. Die Kette ist seit 11 Fassungen das Tor vor `main`; in der letzten Serie bestanden 5 von 5 Läufen, je mit einem Modellaufruf und rund 64k Tokens (M#55). Ein Agentenschritt, der Hypothesen zu einem Befund nur durch Lesen prüft, wurde in 5 von 5 Läufen abgenommen, seit seine Allowlist `python3` auf ein Werkzeugskript festlegt, bei 26 % weniger Tokens als vorher (M#57 gegen M#56). Flows für Spot-Maschinen in AWS (Spotpreise, Kostendeckel, Start, Zustand) laufen seit dem 04.11.2026 gegen echtes AWS, alle mit festen Schritten.
 
 ## Schnellstart
 
-Voraussetzungen: JDK 17 und sbt 1.10.7. `ase plan` läuft überall. `ase run` führt nur unter Linux aus, unter Windows also in WSL, weil Java dort `.bat` und `.cmd` über eine versteckte Shell startet. macOS ist ungetestet und deshalb gesperrt.
+Voraussetzungen: JDK 17 und sbt 1.10.7, für `ase run` dazu bubblewrap (`bwrap`, die Sandbox, D#88; ohne startet `ase run` nur mit `"sandbox": false`). `ase plan` läuft überall. `ase run` führt nur unter Linux aus, unter Windows also in WSL, weil Java dort `.bat` und `.cmd` über eine versteckte Shell startet. macOS ist ungetestet und deshalb gesperrt.
 
 ```
 git clone https://github.com/schneist/agentic-step-engine.git && cd agentic-step-engine
@@ -193,7 +193,7 @@ ase plan …               # bin/ase baut beim ersten Aufruf und nach Änderunge
 ```
 $ ase plan --flow flows/red-test.json --envelope evals/6-red-test/envelope.json --config evals/runner.json --out red.plan.json
 dryrun    ok  (worst case 19 steps, depth 1)
-explain   dcd18e…93bf
+explain   76c07f…17ab
 ...
 ```
 
