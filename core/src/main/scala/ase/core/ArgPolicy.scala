@@ -19,7 +19,8 @@ final case class ArgPolicy(
     valuedFlags: Set[String],
     prefixFlags: Set[String],
     positional: Positional,
-    values: Map[String, ValueRule] = Map.empty
+    values: Map[String, ValueRule] = Map.empty,
+    effect: Effect = Effect.Reversible
 ):
   /** Nimmt der Befehl Pfade an: als Nicht-Flag-Argument oder als Wert eines Flags nach Regel Path (D#83)? */
   def takesPaths: Boolean = positional != Positional.NoArgs || values.values.exists(_.isInstanceOf[ValueRule.Path])
@@ -29,6 +30,17 @@ final case class ArgPolicy(
     * (RunnerConfig), die eingebauten Policies auch nicht.
     */
   def script: Option[String] = prefixArgs.headOption.filter(_.contains('/'))
+
+/** Was ein Aufruf außerhalb des Arbeitsverzeichnisses bewirkt (D#103, O#58). Reversible: nichts, oder nur, was sich
+  * zurücknehmen lässt (der Standard; im Arbeitsverzeichnis hilft git). Irreversible: bleibt, wenn der Lauf scheitert.
+  * Costs: kostet Geld, solange es besteht, etwa eine gestartete Maschine; auch nicht umkehrbar.
+  */
+enum Effect(val label: String):
+  case Reversible extends Effect("umkehrbar")
+  case Irreversible extends Effect("nicht umkehrbar")
+  case Costs extends Effect("kostet Geld")
+
+  def acts: Boolean = this != Effect.Reversible
 
 /** Regel für den Wert eines Flags mit Wert (D#83). Path: nach einem festen Präfix wie "file://" ein Pfad im
   * Arbeitsverzeichnis, geprüft wie bei ReadFile; er zählt zu den Pfaden des Aufrufs. Pattern: Text, der ganz auf das

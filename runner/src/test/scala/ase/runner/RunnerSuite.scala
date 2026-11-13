@@ -321,6 +321,29 @@ class RunnerSuite extends munit.FunSuite:
       """{"binary":"python3","args":["-m/x"]}"""
     ).foreach(bad => assert(RunnerConfig.parse(s"""{"programs":[$bad]}""").isLeft, bad))
 
+  test("programs: effect je Policy, unattended nur für Befehle mit Wirkung (D#103)"):
+    val c = RunnerConfig.parse("""{"programs":[
+      {"binary":"aws","args":["ec2","run-instances"],"positional":"NoArgs","effect":"costs"},
+      {"binary":"aws","args":["s3api","put-object"],"positional":"NoArgs","effect":"irreversible"},
+      {"binary":"aws","args":["ec2","describe-instances"],"positional":"NoArgs"}],
+      "unattended":[{"binary":"aws","requiredPrefixArgs":["s3api"]}]}""").fold(fail(_), identity).check
+    assertEquals(c.argPolicies.takeRight(3).map(_.effect), List(Effect.Costs, Effect.Irreversible, Effect.Reversible))
+    assertEquals(c.unattended, List(AllowedCommand("aws", List("s3api"))))
+    List(
+      """"programs":[{"binary":"aws","args":["ec2"],"effect":"teuer"}]""",
+      """"programs":[{"binary":"aws","args":["ec2"],"effect":true}]""",
+      // unattended ohne Befehl mit Wirkung darunter
+      """"programs":[{"binary":"aws","args":["ec2"]}], "unattended":[{"binary":"aws","requiredPrefixArgs":["ec2"]}]""",
+      """"unattended":[{"binary":"grep","requiredPrefixArgs":[]}]""",
+      """"unattended":"aws""""
+    ).foreach(bad => assert(RunnerConfig.parse(s"{$bad}").isLeft, bad))
+    // die Konfiguration geht in den Hash (D#92): eine andere Wirkung, ein anderer configSha
+    val text = """{"programs":[{"binary":"aws","args":["ec2","run-instances"],"positional":"NoArgs","effect":"costs"}]}"""
+    assertNotEquals(Canonical.sha256Hex(text), Canonical.sha256Hex(text.replace("costs", "irreversible")))
+    val refusal = Main.unattendedRefusal(List(Effects.Site("aws ec2 run-instances", Effect.Costs)))
+    assert(refusal.startsWith("nicht freigegeben: ohne Menschen"), refusal)
+    assert(refusal.contains("aws ec2 run-instances (kostet Geld)"), refusal)
+
   test("programs: Wertregeln für Flags mit Wert, nur für valuedFlags, Muster müssen gültig sein (D#83)"):
     val c = RunnerConfig.parse("""{"programs":[{"binary":"aws","args":["s3api","put-object"],"valuedFlags":["--key","--body","--user-data"],
       "positional":"NoArgs","values":{"--body":{"type":"Path"},"--user-data":{"type":"Path","prefix":"file://"},

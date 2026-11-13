@@ -83,7 +83,7 @@ object Prompt:
        |
        |# Programme
        |Nur Programme aus der shellAllowlist der Hülle, jeweils mit diesen Argumenten:
-       |${check.argPolicies.map(policy).mkString("\n")}${required(check)}
+       |${check.argPolicies.map(policy(_, check)).mkString("\n")}${required(check)}${effects(check)}
        |- ./skript (ein Skript im Arbeitsverzeichnis): ${scripts(check)}
        |Ohne Pfadargument berührt ein Programm das ganze Arbeitsverzeichnis "."; das ist nur unter pathPrefix "." erlaubt.
        |Kombinierte Kurz-Flags (-rn) gehen, wenn jedes einzeln erlaubt ist.
@@ -119,7 +119,15 @@ object Prompt:
   private def show(cs: List[AllowedCommand]): String =
     if cs.isEmpty then "sonst nichts" else cs.map(c => s"„${c.show}“").mkString(", ")
 
-  private def policy(p: ArgPolicy): String =
+  /** Nur, wenn ein Befehl eine Wirkung hat, sonst Zeichen für Zeichen wie vorher (promptSha, D#86, D#103). */
+  private def effects(check: CheckConfig): String =
+    if !check.argPolicies.exists(_.effect.acts) then ""
+    else
+      "\n- Wirkung: Ein Befehl mit „Wirkung“ bewirkt etwas außerhalb des Arbeitsverzeichnisses, das bleibt, wenn der Lauf\n" +
+        "  scheitert. Ohne Menschen (--no-ask) startet ein Term nur, wenn auf jedem Weg vor einem solchen Befehl ein Ask\n" +
+        "  steht, auch vor einem Loch, dessen Hülle ihn erlaubt, außer der Befehl ist „ohne Frage erlaubt“."
+
+  private def policy(p: ArgPolicy, check: CheckConfig): String =
     val name = (p.binary :: p.prefixArgs).mkString(" ")
     val valued = p.valuedFlags.toList.map(f => p.values.get(f) match
       case None                         => s"$f <n>"
@@ -134,7 +142,11 @@ object Prompt:
       case Positional.RevisionThenPathsAfterDashDash => "dann ein Revisionsbereich, dann \"--\" und Pfade"
     // nur bei einem Werkzeugskript (D#101), sonst Zeichen für Zeichen wie vorher (promptSha, D#86)
     val script = p.script.fold("")(s => s" Führt $s aus und berührt damit das ganze Arbeitsverzeichnis \".\".")
-    s"- $name: Flags ${if flags.isEmpty then "keine" else flags.mkString(" ")}; $positional.$script"
+    // nur bei einer Wirkung (D#103), sonst Zeichen für Zeichen wie vorher
+    val effect =
+      if !p.effect.acts then ""
+      else s" Wirkung: ${p.effect.label}" + (if check.unattended.exists(_.allows(p.binary, p.prefixArgs)) then ", ohne Frage erlaubt." else ".")
+    s"- $name: Flags ${if flags.isEmpty then "keine" else flags.mkString(" ")}; $positional.$script$effect"
 
   private def envelopeJson(e: Envelope): String = Codec.envelope(e).spaces2
 

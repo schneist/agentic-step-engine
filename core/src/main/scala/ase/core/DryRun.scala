@@ -10,6 +10,7 @@ import cats.data.NonEmptyList
   * einzelnen Policy, sonst ließe eine Policy ohne Pflicht jeden Aufruf durch. configSha (D#92): Fingerabdruck der
   * ganzen Runner-Konfiguration, aus der diese Prüfung stammt (auch Sandbox, Skripte, Modell); geht in den termHash,
   * damit eine Freigabe nur unter derselben Konfiguration gilt. None, wo keine Konfigurationsdatei im Spiel ist (Tests).
+  * unattended (D#103): Befehle mit Wirkung, die auch ohne Menschen (--no-ask) laufen dürfen, wenn kein Ask davor steht.
   */
 final case class CheckConfig(
     nestingLimit: Int,
@@ -17,7 +18,8 @@ final case class CheckConfig(
     workspaceCode: Map[String, List[String]],
     pathless: List[AllowedCommand],
     required: Map[String, Set[String]] = Map.empty,
-    configSha: Option[String] = None
+    configSha: Option[String] = None,
+    unattended: List[AllowedCommand] = Nil
 ):
   def runsWorkspaceCode(cmd: String): Option[List[String]] =
     if cmd.startsWith("./") then Some(List(cmd.drop(2))) else workspaceCode.get(cmd)

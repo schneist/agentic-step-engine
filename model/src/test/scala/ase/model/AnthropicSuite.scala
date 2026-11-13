@@ -121,6 +121,20 @@ class AnthropicSuite extends munit.FunSuite:
     assert(s.contains("- ./ase/pruefen.sh: Flags keine; dann Pfade."), s)
     assert(s.contains("ohne Argumente, außer wo oben „dann Pfade“ steht; ein Skript berührt auch mit Pfaden das ganze\n  Arbeitsverzeichnis \".\"."), s)
 
+  test("Wirkung im System-Prompt nur, wenn ein Befehl eine hat; sonst der Text wie vorher (D#103)"):
+    val plain = Prompt.system(check)
+    assert(!plain.contains("Wirkung"), plain)
+    val start = ArgPolicy("aws", List("ec2", "run-instances"), Set.empty, Set.empty, Set.empty, Positional.NoArgs, effect = Effect.Costs)
+    val put = ArgPolicy("aws", List("s3api", "put-object"), Set.empty, Set.empty, Set.empty, Positional.NoArgs, effect = Effect.Irreversible)
+    val withEffects = check.copy(argPolicies = check.argPolicies ++ List(start, put), unattended = List(AllowedCommand("aws", List("s3api"))))
+    val s = Prompt.system(withEffects)
+    assert(s.contains("- aws ec2 run-instances: Flags keine; keine weiteren Argumente. Wirkung: kostet Geld."), s)
+    assert(s.contains("- aws s3api put-object: Flags keine; keine weiteren Argumente. Wirkung: nicht umkehrbar, ohne Frage erlaubt."), s)
+    assert(s.contains("Ohne Menschen (--no-ask) startet ein Term nur, wenn auf jedem Weg vor einem solchen Befehl ein Ask\n  steht"), s)
+    // ohne Wirkung dieselben Policies Zeichen für Zeichen wie vorher
+    val noEffect = check.copy(argPolicies = check.argPolicies ++ List(start, put).map(_.copy(effect = Effect.Reversible)))
+    assert(!Prompt.system(noEffect).contains("Wirkung"))
+
   test("Werkzeugskript im System-Prompt nur an seiner Policy; ohne eines der Text wie vorher (D#101)"):
     val plain = Prompt.system(check)
     assert(!plain.contains("aus und berührt damit"), plain)

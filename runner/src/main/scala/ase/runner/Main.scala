@@ -484,11 +484,22 @@ object Main extends IOApp:
         case ScriptCheck.Mode.Reject => IO.raiseError(Failure(ScriptCheck.render(config.scriptCheck, problems)))
         case ScriptCheck.Mode.Warn   => IO.println(ScriptCheck.render(config.scriptCheck, problems)))
       terminal <- IO.blocking(Terminal.stdin)
-      approved <- approve(checked, cmd.approve, terminal, IO.readLine)
-      code <- approved match
-        case None => IO.println("nicht freigegeben").as(ExitCode(4))
-        case Some(a) => runApproved(a, file, cmd, config)
+      // ohne Menschen (--no-ask, oder keine Eingabe vom Terminal) keine Wirkung nach außen ohne Ask davor (D#103)
+      open = if cmd.noAsk || !terminal then Effects.unguarded(checked.term, config.check) else Nil
+      code <-
+        if open.nonEmpty then IO.println(unattendedRefusal(open)).as(ExitCode(4))
+        else
+          approve(checked, cmd.approve, terminal, IO.readLine).flatMap {
+            case None    => IO.println("nicht freigegeben").as(ExitCode(4))
+            case Some(a) => runApproved(a, file, cmd, config)
+          }
     yield code
+
+  /** Warum ein Lauf ohne Menschen nicht startet (D#103). */
+  private[runner] def unattendedRefusal(open: List[Effects.Site]): String =
+    s"nicht freigegeben: ohne Menschen (--no-ask oder ohne Terminal) liefe ohne Ask davor: " +
+      open.map(s => s"${s.what} (${s.effect.label})").mkString(", ") +
+      ". Ein Ask davor in den Flow setzen, am Terminal ohne --no-ask laufen lassen oder den Befehl in der Konfiguration unter unattended erlauben."
 
   /** Freigabe (D#11, D#38): mit --approve der übergebene Hash, sonst fragt der Runner und bestätigt den gezeigten;
     * fragen nur an einem Terminal, sonst nicht freigegeben (D#95). Ende der Eingabe gilt als Nein.

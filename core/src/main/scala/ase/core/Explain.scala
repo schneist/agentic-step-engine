@@ -43,10 +43,26 @@ object Explain:
     val footer = Vector(s"shell     ${if allowlist.isEmpty then "keine" else Text.visible(allowlist.mkString(", "))}") ++
       Option.when(denied.nonEmpty)(s"nicht erlaubt, u. a.: ${denied.mkString(", ")}") ++
       Option.when(warned.nonEmpty)(s"Warnung: erlaubt, obwohl in explainDenials: ${warned.mkString(", ")}") ++
-      config.sandbox.collect { case s: Sandbox.On => s"sandbox   ${Text.visible(Sandbox.describe(s))}" }
+      config.sandbox.collect { case s: Sandbox.On => s"sandbox   ${Text.visible(Sandbox.describe(s))}" } ++
+      effects(checked.term, check)
     // ohne Sandbox die erste Zeile, damit es niemand überliest (D#88)
     val off = config.sandbox.collect { case Sandbox.Off => s"sandbox   ${Sandbox.describe(Sandbox.Off)}" }.toVector
     (off ++ header ++ Vector("") ++ body ++ Vector("") ++ footer).mkString("\n")
+
+  /** Wirkungen nach außen (D#103): welche Befehle des Terms bleiben, wenn der Lauf scheitert, und ob ein Lauf ohne
+    * Menschen (--no-ask) starten darf. Ohne Befehl mit Wirkung keine Zeile.
+    */
+  private def effects(term: Term, check: CheckConfig): Vector[String] =
+    val all = Effects.all(term, check)
+    if all.isEmpty then Vector.empty
+    else
+      val open = Effects.unguarded(term, check)
+      Vector(s"wirkung   ${Text.visible(all.map(s => s"${s.what} (${s.effect.label})").mkString(", "))}") ++
+        Option.when(check.unattended.nonEmpty)(s"ohne Frage erlaubt: ${Text.visible(check.unattended.map(_.show).mkString(", "))}") ++
+        Vector(
+          if open.isEmpty then "--no-ask   möglich: vor jeder Wirkung steht auf jedem Weg ein Ask, oder sie ist ohne Frage erlaubt"
+          else s"--no-ask   abgelehnt: ohne Ask davor ${Text.visible(open.map(_.what).mkString(", "))}"
+        )
 
   /** Einrückung, nächste Schrittnummer, Ergebnisse, die vor diesem Knoten entstanden sein können. */
   final case class State(indent: Int, next: Int, prior: Vector[Scope.Seen])
@@ -145,7 +161,12 @@ object Explain:
     def moveFile(from: String, to: String, origin: Origin): Out[StepResult] = step(s"verschiebt $from nach $to", List(from, to))
     def shell(cmd: String, args: List[String], origin: Origin): Out[StepResult] =
       val marker = if check.runsWorkspaceCode(cmd).isDefined then " (führt Workspace-Code aus)" else ""
-      step(s"führt aus: ${command(cmd, args)}$marker", Scope.shellPaths(cmd, args, check))
+      step(s"führt aus: ${command(cmd, args)}$marker${effectMarker(cmd, args)}", Scope.shellPaths(cmd, args, check))
+
+    /** Wirkung nach außen am Schritt (D#103); leer, wenn der Aufruf nichts bewirkt, das bleibt. */
+    def effectMarker(cmd: String, args: List[String]): String =
+      val e = Effects.of(check.argPolicies, cmd, args)
+      if e.acts then s" (${e.label})" else ""
     def ask(question: String, origin: Origin): Out[StepResult] =
       if textFitsInLine(question) then step(s"fragt: „${Text.visible(question)}“", Nil)
       else step("fragt:", Nil, i => textBlock("Frage", question, i + 1))
@@ -163,6 +184,8 @@ object Explain:
         else prefix.toList.flatMap(p => code.filter(RelPath.overlaps(p, _))).map(c => RelPath.show(c)).distinct.sorted
       val seen = Scope.visible(prior, envelope).map(_.step).distinct
       val runsCode = envelope.shellAllowlist.toList.filter(c => check.runsWorkspaceCode(c.binary).isDefined).map(_.show).sorted
+      // was der Agent hier nach außen bewirken darf (D#103)
+      val outward = Effects.hull(envelope, check).map(s => s"${s.what}: ${s.effect.label}").sorted
       // die impliziten Flags gelten auch für die Aufrufe, die der Agent hier schreibt (D#87)
       val implicitHere = envelope.shellAllowlist.toList.map(_.binary).distinct.sorted
         .filter(b => implicits.pairs(b).nonEmpty).map(b => s"$b ${implicits.pairs(b).mkString(" ")}")
@@ -177,6 +200,7 @@ object Explain:
         note(sees, s.indent)
       ) ++ Option.when(changesCode.nonEmpty)(note(s"Hinweis: darf Code ändern, der im Lauf ausgeführt wird (${changesCode.mkString(", ")})", s.indent)) ++
         Option.when(runsCode.nonEmpty)(note(s"Hinweis: darf Workspace-Code ausführen (${runsCode.mkString(", ")})", s.indent)) ++
+        Option.when(outward.nonEmpty)(note(s"Hinweis: darf nach außen wirken (${outward.mkString(", ")})", s.indent)) ++
         Option.when(implicitHere.nonEmpty)(note(s"implizit in jedem Aufruf: ${implicitHere.mkString(" · ")}", s.indent)) ++
         // nur wo etwas zu prüfen ist: ein Loch, das ändern oder Programme aufrufen darf (O#39)
         Option.when(verify.isEmpty && envelope.allowedOps.exists(acts))(note(WithoutVerify, s.indent))
@@ -184,7 +208,7 @@ object Explain:
         val marker = if check.runsWorkspaceCode(v.cmd).isDefined then " (führt Workspace-Code aus)" else ""
         val passes = if v.max == 1 then "1 Durchlauf" else s"${v.max} Durchläufe"
         Vector(
-          f"${s.next + 1}%-3d" + pad(s.indent) + Text.visible(s"Abnahme: führt aus: ${command(v.cmd, v.args)}$marker"),
+          f"${s.next + 1}%-3d" + pad(s.indent) + Text.visible(s"Abnahme: führt aus: ${command(v.cmd, v.args)}$marker${effectMarker(v.cmd, v.args)}"),
           note(s"bestanden, wenn ${Pred.show(v.until)}; sonst entscheidet der Agent erneut, höchstens $passes", s.indent)
         )
       }

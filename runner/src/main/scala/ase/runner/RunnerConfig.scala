@@ -36,7 +36,7 @@ object RunnerConfig:
     val d = default
     for
       o <- obj(json, "Konfiguration")
-      _ <- only(o, "Konfiguration", "model", "limits", "nestingLimit", "planRounds", "bestOfN", "explainDenials", "scripts", "programs", "sandbox", "scriptCheck")
+      _ <- only(o, "Konfiguration", "model", "limits", "nestingLimit", "planRounds", "bestOfN", "explainDenials", "scripts", "programs", "sandbox", "scriptCheck", "unattended")
       scriptCheck <- o("scriptCheck").fold(d.scriptCheck.asRight[String])(j =>
         j.asString.flatMap(ScriptCheck.Mode.parse).toRight("scriptCheck: erwartet \"reject\" oder \"warn\"")
       )
@@ -49,7 +49,11 @@ object RunnerConfig:
       programs <- o("programs").fold(List.empty[Program].asRight[String])(programList(_, d.check.argPolicies))
       policies = d.check.argPolicies ++ scripts ++ programs.map(_.policy)
       required <- requiredOf(programs, policies)
-      denials <- o("explainDenials").fold(d.explain.explainDenials.asRight[String])(commands)
+      denials <- o("explainDenials").fold(d.explain.explainDenials.asRight[String])(commands(_))
+      // Befehle mit Wirkung, die auch ohne Menschen laufen dürfen (D#103); jeder Eintrag muss einen solchen treffen
+      unattended <- o("unattended").fold(List.empty[AllowedCommand].asRight[String])(commands(_, "unattended"))
+      _ <- unattended.find(u => !policies.exists(p => p.effect.acts && u.allows(p.binary, p.prefixArgs)))
+        .map(u => s"unattended: „${u.show}“ trifft keinen Befehl mit effect; nur solche brauchen eine Erlaubnis").toLeft(())
       _ <- Either.cond(nesting >= 1 && rounds >= 1 && bestOf >= 1, (), "nestingLimit, planRounds und bestOfN müssen mindestens 1 sein")
       check = d.check.copy(
         nestingLimit = nesting,
@@ -57,7 +61,8 @@ object RunnerConfig:
         workspaceCode = programs.foldLeft(d.check.workspaceCode)((m, p) =>
           if p.runsCode.isEmpty then m else m.updated(p.policy.binary, (m.getOrElse(p.policy.binary, Nil) ++ p.runsCode).distinct)
         ),
-        required = required
+        required = required,
+        unattended = unattended
       )
       sandbox <- o("sandbox").fold(ExecConfig.default.sandbox.asRight[String])(sandboxOf(_, check))
     yield RunnerConfig(
@@ -217,7 +222,7 @@ object RunnerConfig:
   private def program(json: Json): Either[String, Program] =
     for
       o <- obj(json, "programs")
-      _ <- only(o, "programs", "binary", "args", "flags", "valuedFlags", "prefixFlags", "positional", "runsCode", "values", "required")
+      _ <- only(o, "programs", "binary", "args", "flags", "valuedFlags", "prefixFlags", "positional", "runsCode", "values", "required", "effect")
       binary <- o("binary").flatMap(_.asString).filter(Name.matches).toRight("programs: binary muss ein Programmname ohne Pfad sein")
       at = s"programs: $binary"
       args <- strings(o, "args", at)
@@ -245,9 +250,13 @@ object RunnerConfig:
       _ <- required.find(f => !valued.contains(f)).map(f => s"$at: required „$f“ ist kein Flag aus valuedFlags").toLeft(())
       // ein Pfad in jedem Aufruf änderte Sicht und Explain jedes Aufrufs (D#87)
       _ <- required.find(f => values.get(f).exists(_.isInstanceOf[ValueRule.Path])).map(f => s"$at: required „$f“ hat eine Wertregel Path; Pflicht-Flags sind kein Pfad").toLeft(())
+      // Wirkung nach außen (D#103); ohne Angabe umkehrbar
+      effect <- o("effect").fold(Effect.Reversible.asRight[String])(j =>
+        j.asString.flatMap(Effects.parse).toRight(s"$at: effect ist einer von ${Effects.Names.mkString(", ")}")
+      )
     // das Werkzeugskript ist Code, den das Programm ausführt (D#101): Abnahme (D#80) und Explain (D#62) sehen es
     yield Program(
-      ArgPolicy(binary, args, flags.toSet, valued.toSet, prefix.toSet, positional, values),
+      ArgPolicy(binary, args, flags.toSet, valued.toSet, prefix.toSet, positional, values, effect),
       (runsCode ++ script.flatMap(s => RelPath.parse(s).toOption).map(RelPath.show)).distinct,
       required.toSet
     )
@@ -283,15 +292,15 @@ object RunnerConfig:
       _.asArray.flatMap(_.toList.traverse(_.asString)).toRight(s"$at: $name erwartet eine Liste von Texten")
     )
 
-  private def commands(json: Json): Either[String, List[AllowedCommand]] =
-    json.asArray.toRight("explainDenials: erwartet eine Liste").flatMap(
+  private def commands(json: Json, at: String = "explainDenials"): Either[String, List[AllowedCommand]] =
+    json.asArray.toRight(s"$at: erwartet eine Liste").flatMap(
       _.toList.traverse(j => Codec.decodeEnvelope(Json.obj(
         "allowedOps" -> Json.arr(Json.fromString("Shell")),
         "pathPrefix" -> Json.fromString("."),
         "maxSteps" -> Json.fromInt(1),
         "maxDepth" -> Json.fromInt(0),
         "shellAllowlist" -> Json.arr(j)
-      ), Location.root).leftMap(e => s"explainDenials: ${e.message}").map(_.shellAllowlist.head))
+      ), Location.root).leftMap(e => s"$at: ${e.message}").map(_.shellAllowlist.head))
     )
 
   private def obj(json: Json, at: String): Either[String, JsonObject] = json.asObject.toRight(s"$at: erwartet ein Objekt")
