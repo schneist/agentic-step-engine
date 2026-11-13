@@ -53,6 +53,27 @@ class ToolScriptSuite extends munit.FunSuite:
     assert(violations(t, env).exists { case Violation.VerifierWritable(_, `kette`, "ase") => true; case _ => false },
       violations(t, env))
 
+  test("Abnahme (O#39, Fund 4): Werkzeugskript nimmt ein Loch auf einer anderen Datei ab, solange runsCode nur das Skript nennt"):
+    // ein Loch ändert widerstand.py; abgenommen wird mit python3 ase/kette.py … (wie textkorrektur.json)
+    val lauf = ArgPolicy("python3", List(kette, "lauf"), Set.empty, Set.empty, Set.empty, Positional.Paths)
+    def mit(runsCode: List[String]) = CheckConfig.default.copy(
+      argPolicies = ArgPolicy.defaults :+ lauf,
+      workspaceCode = CheckConfig.default.workspaceCode.updated("python3", runsCode)
+    )
+    val hole = Envelope(Set(OpKind.EditFile, OpKind.ReadFile), "widerstand.py", 3, 0, Set.empty)
+    val verify = Verify("python3", List(kette, "lauf", "widerstand.py"), Pred.LastExitCode(0), 2)
+    val env = Envelope(OpKind.values.toSet, ".", 20, 1, Set(AllowedCommand("python3", List(kette, "lauf"))))
+    val t = Term.Hole("korrigieren", hole, h, Some(verify))
+    def writable(c: CheckConfig) = DryRun.plan(t, env, c).left.toOption.toList.flatMap(_.toList).collect {
+      case Violation.VerifierWritable(_, code, _) => code
+    }
+    // (a) nur das Skript: DryRun lässt die Abnahme zu
+    assertEquals(writable(mit(List(kette))), Nil)
+    // (b) ehrlich, was kette.py lauf ausführt: auch die Datei des Lochs, dann lehnt D#80 ab wie bei sbt unter src
+    assertEquals(writable(mit(List(kette, "widerstand.py"))), List("widerstand.py"))
+    // (c) die heutige Konfiguration von ducktest (python3 mit runsCode ".") lehnt ebenfalls ab
+    assertEquals(writable(mit(List(".", kette))), List("."))
+
   test("ToolCheck: berührt \".\", das Skript und die normalisierte Datei; Skript bleibt, wie es steht"):
     assertEquals(
       ToolCheck.shell("python3", List(kette, "zeige", "1-2", "src//a.py"), root, config.argPolicies),
