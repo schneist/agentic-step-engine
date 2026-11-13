@@ -23,4 +23,9 @@ if stale; then
   esac
 fi
 
-exec java -cp "$(cat "$cache")" ase.runner.Main "$@"
+# Fassung von ase für summary.json (D#102): Commit, mit „-dirty“, wenn die Quellen davon abweichen; ohne git keine Angabe
+src="build.sbt project core/src/main model/src/main runner/src/main"
+commit=$(git -C "$repo" rev-parse HEAD 2>/dev/null || true)
+if [ -n "$commit" ] && [ -n "$(cd "$repo" && git status --porcelain -- $src 2>/dev/null)" ]; then commit="$commit-dirty"; fi
+
+exec java ${commit:+"-Dase.commit=$commit"} -cp "$(cat "$cache")" ase.runner.Main "$@"

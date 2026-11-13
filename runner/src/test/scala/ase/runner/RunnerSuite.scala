@@ -119,6 +119,39 @@ class RunnerSuite extends munit.FunSuite:
     assert(out.contains("in allen 2 Teiltermen derselbe Teilterm; Kandidat für feste Schritte statt Agentenschritt"), out)
     assert(out.contains("== ohne Flow-Kennung · Form "), out)
 
+  test("Herkunft (D#102): aseCommit nur in der erwarteten Form; Felder in summary.json, approval nur beim Lauf"):
+    val c = "0123456789abcdef0123456789abcdef01234567"
+    assertEquals(Provenance.aseCommit(Some(c)), Some(c))
+    assertEquals(Provenance.aseCommit(Some(s"$c-dirty\n")), Some(s"$c-dirty"))
+    List(None, Some(""), Some("e576a88"), Some(s"$c+x"), Some("ABCDEF0123456789ABCDEF0123456789ABCDEF01"))
+      .foreach(p => assertEquals(Provenance.aseCommit(p), None, p.toString))
+    val check = CheckConfig.default
+    assertEquals(Provenance.promptSha(check), Canonical.sha256Hex(ase.model.Prompt.system(check)))
+    val p = Provenance(Provenance.promptSha(check), Some(c), Some(Provenance.Way.Flag))
+    val fields = Json.obj(p.fields*).hcursor
+    assertEquals(fields.get[String]("approval"), Right("--approve"))
+    assertEquals(fields.get[String]("aseCommit"), Right(c))
+    assertEquals(Json.obj(p.copy(aseCommit = None, approval = Some(Provenance.Way.Terminal)).fields*).hcursor.keys.map(_.toList.sorted),
+      Some(List("approval", "promptSha")))
+    assertEquals(Provenance.Way.Terminal.label, "terminal")
+
+  test("ase stats: Herkunft je Gruppe, gemischte Prompts und Fassungen von ase genannt (D#102)"):
+    def summary(prompt: Option[String], commit: Option[String]) =
+      Json.obj("outcome" -> Json.fromString("done"), "source" -> Json.fromString("flows/x.json"), "sourceSha" -> Json.fromString("abcdef0123456789"))
+        .deepMerge(Json.obj((prompt.map("promptSha" -> Json.fromString(_)).toList ++ commit.map("aseCommit" -> Json.fromString(_)).toList)*))
+    val c1 = "e576a88" + "0" * 33
+    val same = Vector(1, 2).map(i => RunStats.Run(s"r$i", summary(Some("1a2b3c4d" + "0" * 56), Some(c1)), None))
+    val one = RunStats.render(RunStats.group(same))
+    assert(one.contains("Herkunft     Prompt 1a2b3c4d · ase e576a88"), one)
+    assert(!one.contains("verschiedenen Bedingungen"), one)
+    val mixed = same ++ Vector(
+      RunStats.Run("r3", summary(Some("9f8e7d6c" + "0" * 56), Some(c1 + "-dirty")), None),
+      RunStats.Run("r4", summary(None, None), None)
+    )
+    val out = RunStats.render(RunStats.group(mixed))
+    assert(out.contains("Prompt gemischt: 1a2b3c4d (2), 9f8e7d6c (1), unbekannt (1)"), out)
+    assert(out.contains("ase gemischt: e576a88 (2), e576a88-dirty (1), unbekannt (1); die Kennzahlen stammen aus verschiedenen Bedingungen"), out)
+
   test("ase tighten: engere Hülle aus Läufen derselben Form, Probe gegen den gebundenen Term, Flow sonst gleich (D#75)"):
     val wide = Envelope(Set(OpKind.ReadFile, OpKind.WriteFile), ".", 5, 0, Set.empty)
     val flowRoot = Envelope(Set(OpKind.ReadFile, OpKind.WriteFile, OpKind.Hole), ".", 10, 1, Set.empty)

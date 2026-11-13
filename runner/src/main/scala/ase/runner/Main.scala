@@ -233,7 +233,8 @@ object Main extends IOApp:
         case (Some(task), _) => read(task).flatMap(t => modelRoots(cmd.config, None).flatMap(planTask(t, root, config, _)).map((_, task.toString, t)))
         case (_, Some(flow)) => read(flow).flatMap(t => planFlow(t, cmd.values, root, config).map((_, flow.toString, t)))
         case _               => IO.raiseError(Failure(Cli.usage))
-      _ <- cmd.summary.traverse_(p => IO.blocking(Files.writeString(p, PlanSummary.of(planned).spaces2 + "\n", UTF_8)))
+      provenance <- provenanceOf(config, None)
+      _ <- cmd.summary.traverse_(p => IO.blocking(Files.writeString(p, PlanSummary.of(planned, Some(provenance)).spaces2 + "\n", UTF_8)))
       code <- planned.checked match
         case Some(checked) =>
           val (candidates, agreeing) = planned.vote match
@@ -350,7 +351,7 @@ object Main extends IOApp:
         m.model,
         m.effort,
         // der System-Prompt hängt nur von der Prüfkonfiguration ab (D#86)
-        Some(Canonical.sha256Hex(Prompt.system(config.check)))
+        Some(Provenance.promptSha(config.check))
       )
       // git status --porcelain: zwei Zeichen Status, ein Leerzeichen, dann der Pfad
       dirty = status.linesIterator.map(_.drop(3).trim).filter(_.nonEmpty).toList
@@ -508,6 +509,10 @@ object Main extends IOApp:
           case _         => None
         }
 
+  /** Herkunft für summary.json (D#102); ase.commit setzt bin/ase. */
+  private def provenanceOf(config: RunnerConfig, way: Option[Provenance.Way]): IO[Provenance] =
+    IO.delay(sys.props.get("ase.commit")).map(c => Provenance(Provenance.promptSha(config.check), Provenance.aseCommit(c), way))
+
   private def runApproved(approved: ApprovedTerm, file: PlanFile, cmd: Command.Run, config: RunnerConfig): IO[ExitCode] =
     val record = cmd.record.getOrElse(Path.of("record", LocalDateTime.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss")) + ".log"))
     for
@@ -528,8 +533,9 @@ object Main extends IOApp:
       shown = (cmd: String, args: List[String]) => Implicits.stripArgs(cmd, args, checked.implicits, checked.config.argPolicies)
       _ <- IO.println(RunLog.render(result.events, RunLog.Footer(file.rejections, Some(record.toString), file.calls, file.tokens), shown))
       seconds = (ended - started).toMillis / 1000.0
+      provenance <- provenanceOf(config, Some(if cmd.approve.isDefined then Provenance.Way.Flag else Provenance.Way.Terminal))
       _ <- cmd.summary.traverse_(p =>
-        IO.blocking(Files.writeString(p, Summary.of(file, approved, result, seconds, record.toAbsolutePath.normalize.toString, start).spaces2 + "\n", UTF_8))
+        IO.blocking(Files.writeString(p, Summary.of(file, approved, result, seconds, record.toAbsolutePath.normalize.toString, start, Some(provenance)).spaces2 + "\n", UTF_8))
       )
     yield result.outcome match
       case Outcome.Done       => ExitCode.Success
@@ -564,10 +570,19 @@ object AskContext:
 
 /** Kennzahlen eines Laufs für Serien (playbook/evals.md) und `ase stats`: Plan und Ausführung zusammen. source,
   * sourceSha, seconds und record seit D#74; sourceSha fehlt bei Plan-Dateien älter als Version 3. workspaceSha seit
-  * D#78: Tree-Hash des Arbeitsverzeichnisses vor dem Lauf (TreeHash), fehlt, wenn er nicht lesbar war.
+  * D#78: Tree-Hash des Arbeitsverzeichnisses vor dem Lauf (TreeHash), fehlt, wenn er nicht lesbar war. promptSha,
+  * aseCommit und approval seit D#102 (Provenance).
   */
 object Summary:
-  def of(file: PlanFile, approved: ApprovedTerm, result: RunResult, seconds: Double, record: String, workspaceSha: Option[String] = None): Json =
+  def of(
+      file: PlanFile,
+      approved: ApprovedTerm,
+      result: RunResult,
+      seconds: Double,
+      record: String,
+      workspaceSha: Option[String] = None,
+      provenance: Option[Provenance] = None
+  ): Json =
     val s = result.stats
     Json.obj(
       "outcome" -> Json.fromString(result.outcome.label),
@@ -593,13 +608,14 @@ object Summary:
       "tokens" -> Json.fromLong(file.tokens + s.tokens),
       "changedFiles" -> Json.arr(s.changedFiles.map(Json.fromString)*),
       "fillFingerprints" -> Json.arr(result.events.collect { case e: Event.FillAccepted => Json.fromString(Fingerprint.of(e.term).hex) }*)
-    ).dropNullValues
+    ).dropNullValues.deepMerge(Json.obj(provenance.toList.flatMap(_.fields)*))
 
 /** Kennzahlen des Plans allein (O#23), auch wenn kein Plan Tor 1 bestanden hat oder keine Mehrheit zustande kam.
   * Dieselben Schlüssel wie in Summary, damit series.sh beide gleich liest; planFingerprint fehlt ohne Plan.
   */
 object PlanSummary:
-  def of(p: Planned): Json =
+  /** provenance ohne approval: geplant ist noch nichts freigegeben (D#102). */
+  def of(p: Planned, provenance: Option[Provenance] = None): Json =
     val outcome = if p.checked.isDefined then "checked" else if p.split then "split" else "rejected"
     val (candidates, agreeing) = p.vote match
       case Some(BestOfN.Vote.Majority(_, a, of)) => (of, a)
@@ -614,3 +630,4 @@ object PlanSummary:
       "unusableAnswers" -> Json.fromInt(p.unusable),
       "tokens" -> Json.fromLong(p.tokens)
     ).deepMerge(Json.obj(p.checked.map(c => "planFingerprint" -> Json.fromString(Fingerprint.of(c.term).hex)).toList*))
+      .deepMerge(Json.obj(provenance.toList.flatMap(_.copy(approval = None).fields)*))

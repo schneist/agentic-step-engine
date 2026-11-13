@@ -71,7 +71,8 @@ object RunStats:
       row("Ablehnungen", s"Tor 1 ${sum("gate1Rejections")} · Tor 2 ${sum("gate2Rejections")} · ohne Term ${sum("unusableAnswers")} · Laufzeitfehler ${sum("runtimeFailures")} · Abnahme nicht bestanden ${sum("verifyFailures")}"),
       row("Fragen", s"in ${cs.count(_.get[Boolean]("asked").getOrElse(false))} von $n Läufen"),
       row("Pläne", if plans <= 1 then "ein Term" else s"$plans verschiedene Terme; Agentenschritte gleicher Nummer können verschiedene sein"),
-      row("Record-Log", if withLog.size == n then s"alle $n gelesen" else s"${withLog.size} von $n gelesen; Agentenschritte nur aus diesen")
+      row("Record-Log", if withLog.size == n then s"alle $n gelesen" else s"${withLog.size} von $n gelesen; Agentenschritte nur aus diesen"),
+      row("Herkunft", origin(cs))
     )
     val holes = withLog
       .flatMap(Usage.of)
@@ -82,6 +83,21 @@ object RunStats:
     (head ++ holes.flatten).mkString("\n")
 
   private def plural(n: Int, one: String, many: String): String = s"$n ${if n == 1 then one else many}"
+
+  /** System-Prompt und Fassung von ase je Lauf (D#102). Eine Fassung des Flows kann unter verschiedenen Prompts und
+    * Fassungen von ase gelaufen sein; dann stammen die Kennzahlen oben aus verschiedenen Bedingungen, und das steht
+    * hier, statt dass die Läufe stillschweigend zusammengezählt werden.
+    */
+  private def origin(cs: Vector[HCursor]): String =
+    def counts(f: String, short: String => String): Vector[(String, Int)] =
+      cs.map(c => str(c, f).fold("unbekannt")(short)).groupBy(identity).toVector.map((v, xs) => (v, xs.size)).sortBy((v, k) => (-k, v))
+    val prompts = counts("promptSha", _.take(8))
+    val commits = counts("aseCommit", c => c.take(7) + (if c.endsWith("-dirty") then "-dirty" else ""))
+    def show(name: String, vs: Vector[(String, Int)]): String = vs match
+      case Vector((v, _)) => s"$name $v"
+      case many           => s"$name gemischt: " + many.map((v, k) => s"$v ($k)").mkString(", ")
+    val text = s"${show("Prompt", prompts)} · ${show("ase", commits)}"
+    if prompts.size > 1 || commits.size > 1 then text + "; die Kennzahlen stammen aus verschiedenen Bedingungen" else text
 
   private def ops(s: Set[OpKind]): String = if s.isEmpty then "keine" else s.toList.sortBy(_.ordinal).mkString(", ")
 
