@@ -121,6 +121,14 @@ class AnthropicSuite extends munit.FunSuite:
     assert(s.contains("- ./ase/pruefen.sh: Flags keine; dann Pfade."), s)
     assert(s.contains("ohne Argumente, außer wo oben „dann Pfade“ steht; ein Skript berührt auch mit Pfaden das ganze\n  Arbeitsverzeichnis \".\"."), s)
 
+  test("Werkzeugskript im System-Prompt nur an seiner Policy; ohne eines der Text wie vorher (D#101)"):
+    val plain = Prompt.system(check)
+    assert(!plain.contains("aus und berührt damit"), plain)
+    val zeige = ArgPolicy("python3", List("ase/kette.py", "zeige"), Set.empty, Set.empty, Set.empty, Positional.PatternThenPaths)
+    val s = Prompt.system(check.copy(argPolicies = check.argPolicies :+ zeige))
+    assert(s.contains("- python3 ase/kette.py zeige: Flags keine; dann ein Muster, dann Pfade. Führt ase/kette.py aus und berührt damit das ganze Arbeitsverzeichnis \".\"."), s)
+    assertEquals(s.replace("\n- python3 ase/kette.py zeige: Flags keine; dann ein Muster, dann Pfade. Führt ase/kette.py aus und berührt damit das ganze Arbeitsverzeichnis \".\".", ""), plain)
+
   test("Pflicht-Flags im System-Prompt nur, wenn es welche gibt; implizite Flags in der Fill-Anfrage nur für erlaubte Programme (D#87)"):
     assert(!Prompt.system(check).contains("Pflicht-Flags"))
     val required = check.copy(required = Map("aws" -> Set("--region", "--profile")))

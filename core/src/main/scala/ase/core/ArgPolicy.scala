@@ -24,6 +24,12 @@ final case class ArgPolicy(
   /** Nimmt der Befehl Pfade an: als Nicht-Flag-Argument oder als Wert eines Flags nach Regel Path (D#83)? */
   def takesPaths: Boolean = positional != Positional.NoArgs || values.values.exists(_.isInstanceOf[ValueRule.Path])
 
+  /** Das Werkzeugskript, auf das die Policy ein Programm festlegt (D#101), etwa ase/kette.py in
+    * `python3 ase/kette.py zeige`: ein Pfad an erster Stelle der Pflicht-Argumente. Ein Unterbefehl enthält nie "/"
+    * (RunnerConfig), die eingebauten Policies auch nicht.
+    */
+  def script: Option[String] = prefixArgs.headOption.filter(_.contains('/'))
+
 /** Regel für den Wert eines Flags mit Wert (D#83). Path: nach einem festen Präfix wie "file://" ein Pfad im
   * Arbeitsverzeichnis, geprüft wie bei ReadFile; er zählt zu den Pfaden des Aufrufs. Pattern: Text, der ganz auf das
   * Muster passt.
@@ -69,18 +75,28 @@ object ArgPolicy:
 
   /** Abgelehnte Argumente mit Grund und die ausdrücklich genannten Pfade; pathAt sind deren Stellen in args mit dem
     * Präfix, das dort vor dem Pfad steht (Execute gibt dort Präfix und normalisierten Pfad weiter). valued: die Flags
-    * mit Wert, die der Aufruf vor „--“ trägt, jedes höchstens einmal (D#87).
+    * mit Wert, die der Aufruf vor „--“ trägt, jedes höchstens einmal (D#87). script: das Werkzeugskript der Policy
+    * (D#101).
     */
-  final case class Parsed(rejected: List[(String, String)], paths: List[String], pathAt: List[(Int, String)], valued: Set[String] = Set.empty):
+  final case class Parsed(
+      rejected: List[(String, String)],
+      paths: List[String],
+      pathAt: List[(Int, String)],
+      valued: Set[String] = Set.empty,
+      script: Option[String] = None
+  ):
     /** Was der Aufruf berührt: ohne Pfadargument das Arbeitsverzeichnis (D#27). */
     def touched: List[String] = if paths.isEmpty then List(".") else paths
 
     /** Was der Aufruf von cmd berührt: ein Skript („./…“) immer das ganze Arbeitsverzeichnis, auch mit Pfadargumenten
       * (D#100). Es führt Code aus, der überall schreiben kann; seine Pfade sagen nur, worauf es sich bezieht. So läuft
-      * ein Skript mit Pfaden unter keinem engeren pathPrefix als eines ohne.
+      * ein Skript mit Pfaden unter keinem engeren pathPrefix als eines ohne. Ebenso ein Programm, das die Policy auf
+      * ein Werkzeugskript festlegt (D#101), dazu das Skript selbst, damit es zur Laufzeit wie jeder Pfad aufgelöst wird.
       */
-    def touchedBy(cmd: String): List[String] =
-      if cmd.startsWith("./") && paths.nonEmpty then ("." :: paths).distinct else touched
+    def touchedBy(cmd: String): List[String] = script match
+      case Some(s)                                        => ("." :: s :: paths).distinct
+      case None if cmd.startsWith("./") && paths.nonEmpty => ("." :: paths).distinct
+      case None                                           => touched
 
   private val CombinedShort = "^-[A-Za-z]{2,}$".r
 
@@ -118,7 +134,7 @@ object ArgPolicy:
     ): Parsed =
       val i = args.size - rest.size
       rest match
-        case Nil => Parsed(rejected.reverse, paths.reverse.map(_._1), paths.reverse.map(p => (p._2, p._3)), seen)
+        case Nil => Parsed(rejected.reverse, paths.reverse.map(_._1), paths.reverse.map(p => (p._2, p._3)), seen, policy.script)
         case arg :: tail if afterDashDash =>
           loop(tail, true, positionals, rejected, (arg, i, "") :: paths, seen)
         case "--" :: tail =>

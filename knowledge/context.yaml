@@ -205,9 +205,9 @@ policies:
     type: policy
     status: implemented
     source: core/src/main/scala/ase/core/ArgPolicy.scala#ArgPolicy
-    verified: 2026-11-02
-    decided_by: ["D#12", "D#27", "D#83", "D#87"]
-    note: "parse lehnt ein Flag mit Wert ab, das zweimal steht (D#87), und meldet die gesehenen in Parsed.valued; Pflicht-Flags je Programm in CheckConfig.required, geprüft in DryRun.shell (RequiredFlagMissing)"
+    verified: 2026-11-13
+    decided_by: ["D#12", "D#27", "D#83", "D#87", "D#101"]
+    note: "parse lehnt ein Flag mit Wert ab, das zweimal steht (D#87), und meldet die gesehenen in Parsed.valued; Pflicht-Flags je Programm in CheckConfig.required, geprüft in DryRun.shell (RequiredFlagMissing); ArgPolicy.script: ein Pfad an erster Stelle von prefixArgs legt das Programm auf ein Werkzeugskript fest, Parsed.touchedBy dann \".\", das Skript und die Pfade (D#101)"
   - id: policy.scopeFilter
     type: policy
     status: implemented
@@ -439,7 +439,7 @@ interpreters:
     verified: 2026-11-07
     decided_by: ["D#45", "D#46", "D#63", "D#64", "D#74", "D#75", "D#76", "D#79", "D#94", "D#95", "D#98"]
     tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite, ase.runner.SeriesSuite, ase.runner.ScriptCheckSuite, ase.runner.TerminalSuite]
-    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 4 mit implicits und elaboriertem Term, liest 1 bis 3), RunnerConfig.scala (bestOfN, programs D#68, programs[].required D#87, scriptCheck D#94, scripts[] als {path, positional} D#100), Terminal.scala (Freigabe ohne --approve nur an einem Terminal, D#95), ScriptCheck.scala (Skripte des Terms vor der Freigabe, ase plan --workspace), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
+    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 4 mit implicits und elaboriertem Term, liest 1 bis 3), RunnerConfig.scala (bestOfN, programs D#68, programs[].required D#87, scriptCheck D#94, scripts[] als {path, positional} D#100, programs[].args mit Werkzeugskript an erster Stelle D#101), Terminal.scala (Freigabe ohne --approve nur an einem Terminal, D#95), ScriptCheck.scala (Skripte des Terms vor der Freigabe, ase plan --workspace), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
   - id: core.usage
     type: interpreter
     status: implemented
@@ -654,6 +654,7 @@ decisions:
   - { id: "D#98", type: decision, status: decided, source: "findings.md#D#98", verified: 2026-11-10, title: "Ende der Eingabe an einer Frage ist keine Antwort: Ausgang ask, Exit 2, summary.json; unbekannte Ausnahmen nicht mehr als MatchError (O#53)", tested_by: [ase.runner.TerminalSuite] }
   - { id: "D#99", type: decision, status: decided, source: "findings.md#D#99", verified: 2026-11-10, title: "grep mit Kontextzeilen -A/-B/-C (Zahl bis 999, je einmal, getrennt); kein -e (O#54)", tested_by: [ase.core.ArgPolicySuite], measurements: ["M#52"] }
   - { id: "D#100", type: decision, status: decided, source: "findings.md#D#100", verified: 2026-11-11, title: "Skripte mit Pfadargumenten nur per scripts-Eintrag {path, positional: Paths}; Pfade wie ReadFile, keine Flags, berührt weiter \".\" (Parsed.touchedBy); System-Prompt nur dann anders (O#55)", tested_by: [ase.core.ScriptArgsSuite, ase.core.LocalToolsSuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite], measurements: ["M#53", "M#54"] }
+  - { id: "D#101", type: decision, status: decided, source: "findings.md#D#101", verified: 2026-11-13, title: "Programm auf ein Werkzeugskript festlegen: programs[].args mit Pfad an erster Stelle (python3 ase/kette.py zeige), Workspace-Code, berührt \".\" wie ein Skript; System-Prompt nur dann anders (O#56)", tested_by: [ase.core.ToolScriptSuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite], measurements: [] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -718,7 +719,7 @@ open:
   - { id: "O#53", type: open, status: resolved, issue: 13, source: "findings.md#O#53", verified: 2026-11-10, resolved_by: "D#98", title: "Frage bei geschlossener Eingabe stürzt mit MatchError ab" }
   - { id: "O#54", type: open, status: resolved, issue: 14, source: "findings.md#O#54", verified: 2026-11-10, resolved_by: "D#99", title: "grep ohne Kontextzeilen (-A/-B/-C) und ohne -e (-e bleibt verboten)" }
   - { id: "O#55", type: open, status: resolved, issue: 15, source: "findings.md#O#55", verified: 2026-11-11, resolved_by: "D#100", title: "Skripte ohne Argumente (Pfadargument mit Pfadprüfung)" }
-  - { id: "O#56", type: open, status: open, issue: 16, source: "findings.md#O#56", verified: 2026-11-11, title: "Ein Agentenschritt kann python3 nicht auf ein Werkzeugskript festlegen (requiredPrefixArgs nur Unterbefehle, programs.args ohne Pfad)" }
+  - { id: "O#56", type: open, status: resolved, issue: 16, source: "findings.md#O#56", verified: 2026-11-13, resolved_by: "D#101", title: "Ein Agentenschritt kann python3 nicht auf ein Werkzeugskript festlegen (requiredPrefixArgs nur Unterbefehle, programs.args ohne Pfad)" }
   - { id: "O#57", type: open, status: open, issue: 17, source: "findings.md#O#57", verified: 2026-11-13, title: "Unbeaufsichtigte Läufe (--approve --no-ask) aus Läufen verdienen und bei Fehlschlag entziehen; Freigabe mit Ablauf und Widerruf" }
   - { id: "O#58", type: open, status: open, issue: 18, source: "findings.md#O#58", verified: 2026-11-13, title: "Nicht umkehrbare Wirkungen je Programm erklären (effect); Explain markiert sie, --no-ask nur mit Ask davor" }
   - { id: "O#59", type: open, status: open, issue: 19, source: "findings.md#O#59", verified: 2026-11-13, title: "tighten: Vorschlag per leave-one-out gegen die Fills der übrigen Läufe prüfen (Nachtrag zu D#78)" }

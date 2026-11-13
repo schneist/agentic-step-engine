@@ -272,6 +272,22 @@ class RunnerSuite extends munit.FunSuite:
     ).foreach(bad => assert(RunnerConfig.parse(s"""{"programs":[$bad]}""").isLeft, bad))
     assert(RunnerConfig.parse("""{"programs":[{"binary":"p"},{"binary":"p"}]}""").isLeft)
 
+  test("programs: ein Werkzeugskript an erster Stelle von args, als Workspace-Code (D#101)"):
+    val c = RunnerConfig.parse("""{"programs":[{"binary":"python3","runsCode":["."]},
+      {"binary":"python3","args":["ase/kette.py","zeige"],"positional":"PatternThenPaths"}]}""").fold(fail(_), identity).check
+    assertEquals(c.argPolicies.last, ArgPolicy("python3", List("ase/kette.py", "zeige"), Set.empty, Set.empty, Set.empty, Positional.PatternThenPaths))
+    assertEquals(c.runsWorkspaceCode("python3"), Some(List(".", "ase/kette.py")))
+    val alone = RunnerConfig.parse("""{"programs":[{"binary":"python3","args":["./kette.py"]}]}""").fold(fail(_), identity).check
+    assertEquals(alone.runsWorkspaceCode("python3"), Some(List("kette.py")))
+    List(
+      """{"binary":"python3","args":["zeige","ase/kette.py"]}""",
+      """{"binary":"python3","args":["../kette.py"]}""",
+      """{"binary":"python3","args":["/usr/lib/x.py"]}""",
+      """{"binary":"python3","args":["./"]}""",
+      """{"binary":"python3","args":[".git/hooks/x"]}""",
+      """{"binary":"python3","args":["-m/x"]}"""
+    ).foreach(bad => assert(RunnerConfig.parse(s"""{"programs":[$bad]}""").isLeft, bad))
+
   test("programs: Wertregeln für Flags mit Wert, nur für valuedFlags, Muster müssen gültig sein (D#83)"):
     val c = RunnerConfig.parse("""{"programs":[{"binary":"aws","args":["s3api","put-object"],"valuedFlags":["--key","--body","--user-data"],
       "positional":"NoArgs","values":{"--body":{"type":"Path"},"--user-data":{"type":"Path","prefix":"file://"},

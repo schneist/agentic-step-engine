@@ -132,7 +132,9 @@ object Prompt:
       case Positional.PatternThenPaths               => "dann ein Muster, dann Pfade"
       case Positional.PathsAfterDashDash             => "dann \"--\" und Pfade"
       case Positional.RevisionThenPathsAfterDashDash => "dann ein Revisionsbereich, dann \"--\" und Pfade"
-    s"- $name: Flags ${if flags.isEmpty then "keine" else flags.mkString(" ")}; $positional."
+    // nur bei einem Werkzeugskript (D#101), sonst Zeichen für Zeichen wie vorher (promptSha, D#86)
+    val script = p.script.fold("")(s => s" Führt $s aus und berührt damit das ganze Arbeitsverzeichnis \".\".")
+    s"- $name: Flags ${if flags.isEmpty then "keine" else flags.mkString(" ")}; $positional.$script"
 
   private def envelopeJson(e: Envelope): String = Codec.envelope(e).spaces2
 

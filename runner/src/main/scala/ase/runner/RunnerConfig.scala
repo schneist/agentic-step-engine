@@ -202,7 +202,8 @@ object RunnerConfig:
   private val Flag = "^--?[A-Za-z0-9][A-Za-z0-9-]*$".r
   private val PrefixFlag = "^--?[A-Za-z0-9][A-Za-z0-9-]*=$".r
 
-  /** Programme nur als Name, den LocalTools im bereinigten PATH sucht; Flags nur als einzelne Flags. Ein Programm mit
+  /** Programme nur als Name, den LocalTools im bereinigten PATH sucht; Flags nur als einzelne Flags; args als
+    * Unterbefehle, an erster Stelle auch ein Werkzeugskript im Arbeitsverzeichnis (D#101). Ein Programm mit
     * denselben Pflicht-Argumenten wie ein vorhandenes ist ein Fehler, damit keine Policy still eine andere ersetzt.
     */
   private def programList(json: Json, existing: List[ArgPolicy]): Either[String, List[Program]] =
@@ -220,7 +221,12 @@ object RunnerConfig:
       binary <- o("binary").flatMap(_.asString).filter(Name.matches).toRight("programs: binary muss ein Programmname ohne Pfad sein")
       at = s"programs: $binary"
       args <- strings(o, "args", at)
-      _ <- args.find(a => !Name.matches(a)).map(a => s"$at: args „$a“ ist kein Unterbefehl").toLeft(())
+      // an erster Stelle darf ein Werkzeugskript stehen, ein Pfad mit "/" (D#101); sonst nur Unterbefehle
+      script = args.headOption.filter(_.contains('/'))
+      _ <- script.find(s => s.startsWith("-") || RelPath.parse(s).forall(_.isEmpty))
+        .map(s => s"$at: args „$s“ ist kein Pfad zu einer Datei im Arbeitsverzeichnis").toLeft(())
+      _ <- args.drop(script.toList.length).find(a => !Name.matches(a))
+        .map(a => s"$at: args „$a“ ist kein Unterbefehl (ein Pfad nur an erster Stelle, D#101)").toLeft(())
       flags <- strings(o, "flags", at)
       valued <- strings(o, "valuedFlags", at)
       prefix <- strings(o, "prefixFlags", at)
@@ -239,7 +245,12 @@ object RunnerConfig:
       _ <- required.find(f => !valued.contains(f)).map(f => s"$at: required „$f“ ist kein Flag aus valuedFlags").toLeft(())
       // ein Pfad in jedem Aufruf änderte Sicht und Explain jedes Aufrufs (D#87)
       _ <- required.find(f => values.get(f).exists(_.isInstanceOf[ValueRule.Path])).map(f => s"$at: required „$f“ hat eine Wertregel Path; Pflicht-Flags sind kein Pfad").toLeft(())
-    yield Program(ArgPolicy(binary, args, flags.toSet, valued.toSet, prefix.toSet, positional, values), runsCode, required.toSet)
+    // das Werkzeugskript ist Code, den das Programm ausführt (D#101): Abnahme (D#80) und Explain (D#62) sehen es
+    yield Program(
+      ArgPolicy(binary, args, flags.toSet, valued.toSet, prefix.toSet, positional, values),
+      (runsCode ++ script.flatMap(s => RelPath.parse(s).toOption).map(RelPath.show)).distinct,
+      required.toSet
+    )
 
   /** Wertregeln je Flag mit Wert (D#83): {"--body": {"type": "Path"}, "--user-data": {"type": "Path", "prefix": "file://"},
     * "--query": {"type": "Pattern", "regex": "^…$"}}. Nur für Flags aus valuedFlags; ein Muster muss sich übersetzen lassen.
