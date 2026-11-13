@@ -719,6 +719,13 @@ open:
   - { id: "O#54", type: open, status: resolved, issue: 14, source: "findings.md#O#54", verified: 2026-11-10, resolved_by: "D#99", title: "grep ohne Kontextzeilen (-A/-B/-C) und ohne -e (-e bleibt verboten)" }
   - { id: "O#55", type: open, status: resolved, issue: 15, source: "findings.md#O#55", verified: 2026-11-11, resolved_by: "D#100", title: "Skripte ohne Argumente (Pfadargument mit Pfadprüfung)" }
   - { id: "O#56", type: open, status: open, issue: 16, source: "findings.md#O#56", verified: 2026-11-11, title: "Ein Agentenschritt kann python3 nicht auf ein Werkzeugskript festlegen (requiredPrefixArgs nur Unterbefehle, programs.args ohne Pfad)" }
+  - { id: "O#57", type: open, status: open, issue: 17, source: "findings.md#O#57", verified: 2026-11-13, title: "Unbeaufsichtigte Läufe (--approve --no-ask) aus Läufen verdienen und bei Fehlschlag entziehen; Freigabe mit Ablauf und Widerruf" }
+  - { id: "O#58", type: open, status: open, issue: 18, source: "findings.md#O#58", verified: 2026-11-13, title: "Nicht umkehrbare Wirkungen je Programm erklären (effect); Explain markiert sie, --no-ask nur mit Ask davor" }
+  - { id: "O#59", type: open, status: open, issue: 19, source: "findings.md#O#59", verified: 2026-11-13, title: "tighten: Vorschlag per leave-one-out gegen die Fills der übrigen Läufe prüfen (Nachtrag zu D#78)" }
+  - { id: "O#60", type: open, status: open, issue: 20, source: "findings.md#O#60", verified: 2026-11-13, title: "Record-Logs als Beleg für stats und tighten: Hash je Log und Kette je Flow-Fassung" }
+  - { id: "O#61", type: open, status: open, issue: 21, source: "findings.md#O#61", verified: 2026-11-13, title: "Herkunft je Lauf: promptSha, ase-Commit und freigebende Person in summary.json und Record-Log" }
+  - { id: "O#62", type: open, status: open, issue: 22, source: "findings.md#O#62", verified: 2026-11-13, title: "Beobachtungsmodus: Lauf im Wegwerf-Worktree, Diff erst nach zweiter Bestätigung übernehmen" }
+  - { id: "O#63", type: open, status: open, issue: 23, source: "findings.md#O#63", verified: 2026-11-13, title: "Schwärzen vor dem Modellaufruf (Muster aus der Konfiguration), niedrig" }
   - { id: "O#38", type: open, status: open, issue: 5, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, issue: 4, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }
