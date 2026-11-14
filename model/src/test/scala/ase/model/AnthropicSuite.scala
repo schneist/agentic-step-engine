@@ -143,6 +143,17 @@ class AnthropicSuite extends munit.FunSuite:
     assert(s.contains("- python3 ase/kette.py zeige: Flags keine; dann ein Muster, dann Pfade. Führt ase/kette.py aus und berührt damit das ganze Arbeitsverzeichnis \".\"."), s)
     assertEquals(s.replace("\n- python3 ase/kette.py zeige: Flags keine; dann ein Muster, dann Pfade. Führt ase/kette.py aus und berührt damit das ganze Arbeitsverzeichnis \".\".", ""), plain)
 
+  test("Muster für das erste Positionsargument im System-Prompt nur an seiner Policy; ohne der Text wie vorher (D#104)"):
+    val plain = Prompt.system(check)
+    val sync = ArgPolicy("aws", List("s3", "sync"), Set.empty, Set.empty, Set.empty, Positional.PatternThenPaths, Map.empty,
+      Effect.Reversible, Some("^s3://b/p/$"))
+    val line = "\n- aws s3 sync: Flags keine; dann ein Text nach Muster ^s3://b/p/$, dann Pfade."
+    val s = Prompt.system(check.copy(argPolicies = check.argPolicies :+ sync))
+    assert(s.contains(line), s)
+    assertEquals(s.replace(line, ""), plain)
+    val ohne = Prompt.system(check.copy(argPolicies = check.argPolicies :+ sync.copy(firstPattern = None)))
+    assert(ohne.contains("\n- aws s3 sync: Flags keine; dann ein Muster, dann Pfade."), ohne)
+
   test("Pflicht-Flags im System-Prompt nur, wenn es welche gibt; implizite Flags in der Fill-Anfrage nur für erlaubte Programme (D#87)"):
     assert(!Prompt.system(check).contains("Pflicht-Flags"))
     val required = check.copy(required = Map("aws" -> Set("--region", "--profile")))

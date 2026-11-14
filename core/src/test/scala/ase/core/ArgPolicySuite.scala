@@ -75,3 +75,24 @@ class ArgPolicySuite extends FunSuite:
     // git status hat keine Path-Regel und keine Positionsargumente (D#27)
     val noPaths = Attenuation.wellFormed(Envelope(Set(OpKind.Shell), "paket", 5, 0, Set(AllowedCommand("git", List("status")))), Location.root, config)
     assert(noPaths.exists(_.render.contains("nimmt keine Pfade")), noPaths.map(_.render).toString)
+
+  // D#104: Muster für das erste Positionsargument bei PatternThenPaths (ducktest, ANFRAGE_DUCKTEST_QUELLE.md)
+  private val sync = ArgPolicy("aws", List("s3", "sync"), Set("--only-show-errors"), Set("--region"), Set.empty,
+    Positional.PatternThenPaths, Map.empty, Effect.Reversible, Some("^s3://ducktest-cfd-[0-9]{12}/49er_v[0-9]{1,3}/$"))
+  private def syncCall(args: String*) = List("s3", "sync") ++ args
+
+  test("parse: mit firstPattern muss das erste Positionsargument ganz passen; das Ziel bleibt ein Pfad (D#104)"):
+    val ok = ArgPolicy.parse(sync, syncCall("--region", "eu-central-1", "s3://ducktest-cfd-000000000000/49er_v14/", "cfd_ernte/49er_v14", "--only-show-errors"))
+    assertEquals(ok.rejected, Nil)
+    assertEquals(ok.paths, List("cfd_ernte/49er_v14"))
+    // anderer Bucket, lokale Quelle, Text um das Muster herum
+    List("s3://anderer/49er_v14/", "/root/.aws", "~/.aws", "s3://ducktest-cfd-000000000000/49er_v14/x", "xs3://ducktest-cfd-000000000000/49er_v14/")
+      .foreach(src => assertEquals(ArgPolicy.parse(sync, syncCall(src, "cfd_ernte/x")).rejected.map(_._1), List(src), src))
+    // ohne Muster ungeprüft wie bisher (grep)
+    assertEquals(ArgPolicy.parse(sync.copy(firstPattern = None), syncCall("/root/.aws", "cfd_ernte/x")).rejected, Nil)
+
+  test("ToolCheck: eine andere Quelle scheitert an Tor 1 mit dem Muster im Grund (D#104)"):
+    val env = Envelope(Set(OpKind.Shell), ".", 5, 0, Set(AllowedCommand("aws", List("s3", "sync"))))
+    assert(ToolCheck.shell("aws", syncCall("s3://ducktest-cfd-000000000000/49er_v14/", "cfd_ernte/49er_v14"), env, List(sync)).isRight)
+    val bad = ToolCheck.shell("aws", syncCall("/root/.aws", "cfd_ernte/x"), env, List(sync))
+    assert(bad.left.exists(_.toString.contains("passt nicht auf das Muster")), bad.toString)

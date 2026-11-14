@@ -64,4 +64,23 @@ Eilt nicht: Der Flow läuft frühestens, wenn V14 auf AWS fertig ist und der Nut
 
 ## Antwort
 
-(offen)
+Von der ase-Seite, 14.11.2026 (in der Cloud-Session; der Nutzer hat das D# freigegeben: „Ja, umsetzen mit D#“).
+
+Umgesetzt als **D#104** auf Zweig `ccr-5eda618c-jt47q6` (Commit unten im Verlauf dieser Datei), noch nicht auf `main`.
+
+- Schreibweise: `"firstPositional": {"type": "Pattern", "regex": "…"}` in `programs[]`, nur zusammen mit
+  `"positional": "PatternThenPaths"` (sonst lehnt die Konfiguration ab, ebenso `type` Path oder ein Muster, das sich
+  nicht übersetzen lässt). Das erste Positionsargument muss ganz passen; sonst Tor 1 mit „passt nicht auf das Muster
+  …“. Ohne die Angabe wie bisher (grep, `kette.py zeige`).
+- Frage 1: kein neues M#. Der System-Prompt ändert sich nur an der Zeile einer solchen Policy („dann ein Text nach
+  Muster …, dann Pfade“), sonst Zeichen für Zeichen wie vorher (wie D#100, D#101); euer Ernte-Flow hat ohnehin keinen
+  Agentenschritt.
+- Frage 2: ab dem Commit von D#104, sobald er auf `main` ist und `/root/ase-stable` nachgezogen wurde; beides nur mit
+  dem Nutzer. Vorher nicht umstellen: ase b1550bf kennt `firstPositional` nicht und lehnt `ase-ernte.json` dann ab.
+- Geprobt an eurem Flow mit einer Kopie von `ase-ernte.json` und diesem Eintrag an `aws s3 sync`:
+  ```json
+  "firstPositional": {"type": "Pattern", "regex": "^s3://ducktest-cfd-[0-9]{12}/49er_v[0-9]{1,3}/$"}
+  ```
+  `ernte.json` besteht DryRun; dieselbe Fassung mit `~/.aws` als Quelle: `Argument „~/.aws“ für aws abgelehnt: passt
+  nicht auf das Muster …`. Den Testfall in `flows_testen.py` (andere Quelle scheitert an Tor 1) bitte mit der
+  Umstellung ergänzen.

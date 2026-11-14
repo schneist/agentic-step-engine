@@ -10,7 +10,8 @@ enum Positional:
 
 /** Argument-Policy pro Programm (D#12): erlaubte Flags als Allowlist, Nicht-Flag-Argumente sind Pfade.
   * Nennt ein Aufruf keinen Pfad, berührt er das Arbeitsverzeichnis "." (D#27). values: was der Wert eines Flags mit
-  * Wert sein darf (D#83); ohne Regel ist er beliebiger Text, der nicht mit "-" beginnt.
+  * Wert sein darf (D#83); ohne Regel ist er beliebiger Text, der nicht mit "-" beginnt. firstPattern: Muster, auf das
+  * bei PatternThenPaths das erste Positionsargument ganz passen muss (D#104); ohne Muster ist es ungeprüft (grep).
   */
 final case class ArgPolicy(
     binary: String,
@@ -20,7 +21,8 @@ final case class ArgPolicy(
     prefixFlags: Set[String],
     positional: Positional,
     values: Map[String, ValueRule] = Map.empty,
-    effect: Effect = Effect.Reversible
+    effect: Effect = Effect.Reversible,
+    firstPattern: Option[String] = None
 ):
   /** Nimmt der Befehl Pfade an: als Nicht-Flag-Argument oder als Wert eines Flags nach Regel Path (D#83)? */
   def takesPaths: Boolean = positional != Positional.NoArgs || values.values.exists(_.isInstanceOf[ValueRule.Path])
@@ -171,7 +173,9 @@ object ArgPolicy:
             case Paths =>
               loop(tail, false, positionals + 1, rejected, (arg, i, "") :: paths, seen)
             case PatternThenPaths =>
-              if positionals == 0 then loop(tail, false, 1, rejected, paths, seen)
+              // D#104: mit Muster muss das erste Positionsargument ganz darauf passen, sonst ungeprüft wie bei grep
+              val first = policy.firstPattern.filterNot(arg.matches).map(rx => (arg, s"passt nicht auf das Muster $rx"))
+              if positionals == 0 then loop(tail, false, 1, first.toList ++ rejected, paths, seen)
               else loop(tail, false, positionals + 1, rejected, (arg, i, "") :: paths, seen)
             case PathsAfterDashDash =>
               loop(tail, false, positionals, (arg, "Pfade erst nach „--“") :: rejected, paths, seen)

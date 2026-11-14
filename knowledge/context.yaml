@@ -206,8 +206,8 @@ policies:
     status: implemented
     source: core/src/main/scala/ase/core/ArgPolicy.scala#ArgPolicy
     verified: 2026-11-13
-    decided_by: ["D#12", "D#27", "D#83", "D#87", "D#101"]
-    note: "parse lehnt ein Flag mit Wert ab, das zweimal steht (D#87), und meldet die gesehenen in Parsed.valued; Pflicht-Flags je Programm in CheckConfig.required, geprüft in DryRun.shell (RequiredFlagMissing); ArgPolicy.script: ein Pfad an erster Stelle von prefixArgs legt das Programm auf ein Werkzeugskript fest, Parsed.touchedBy dann \".\", das Skript und die Pfade (D#101)"
+    decided_by: ["D#12", "D#27", "D#83", "D#87", "D#101", "D#104"]
+    note: "parse lehnt ein Flag mit Wert ab, das zweimal steht (D#87), und meldet die gesehenen in Parsed.valued; Pflicht-Flags je Programm in CheckConfig.required, geprüft in DryRun.shell (RequiredFlagMissing); ArgPolicy.script: ein Pfad an erster Stelle von prefixArgs legt das Programm auf ein Werkzeugskript fest, Parsed.touchedBy dann \".\", das Skript und die Pfade (D#101); ArgPolicy.firstPattern: Muster für das erste Positionsargument bei PatternThenPaths (D#104)"
   - id: policy.scopeFilter
     type: policy
     status: implemented
@@ -439,7 +439,7 @@ interpreters:
     verified: 2026-11-07
     decided_by: ["D#45", "D#46", "D#63", "D#64", "D#74", "D#75", "D#76", "D#79", "D#94", "D#95", "D#98"]
     tested_by: [ase.runner.RunnerSuite, ase.runner.Eval1Suite, ase.runner.SeriesSuite, ase.runner.ScriptCheckSuite, ase.runner.TerminalSuite]
-    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 4 mit implicits und elaboriertem Term, liest 1 bis 3), RunnerConfig.scala (bestOfN, programs D#68, programs[].required D#87, scriptCheck D#94, scripts[] als {path, positional} D#100, programs[].args mit Werkzeugskript an erster Stelle D#101, Provenance in summary.json D#102), Terminal.scala (Freigabe ohne --approve nur an einem Terminal, D#95), ScriptCheck.scala (Skripte des Terms vor der Freigabe, ase plan --workspace), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
+    note: "ase plan / ase run / ase stats / ase series begin|end|show / ase compare; PlanFile.scala (Version 4 mit implicits und elaboriertem Term, liest 1 bis 3), RunnerConfig.scala (bestOfN, programs D#68, programs[].required D#87, scriptCheck D#94, scripts[] als {path, positional} D#100, programs[].args mit Werkzeugskript an erster Stelle D#101, programs[].firstPositional D#104, Provenance in summary.json D#102), Terminal.scala (Freigabe ohne --approve nur an einem Terminal, D#95), ScriptCheck.scala (Skripte des Terms vor der Freigabe, ase plan --workspace), Summary (source, sourceSha, seconds, record seit D#74), PlanSummary (ase plan --summary), RunStats.scala (ase stats), FlowTighten.scala (ase tighten); plan Exit 2 ohne Mehrheit, 3 abgelehnt (auch Flows)"
   - id: core.usage
     type: interpreter
     status: implemented
@@ -657,6 +657,7 @@ decisions:
   - { id: "D#101", type: decision, status: decided, source: "findings.md#D#101", verified: 2026-11-13, title: "Programm auf ein Werkzeugskript festlegen: programs[].args mit Pfad an erster Stelle (python3 ase/kette.py zeige), Workspace-Code, berührt \".\" wie ein Skript; System-Prompt nur dann anders (O#56)", tested_by: [ase.core.ToolScriptSuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite], measurements: ["M#56", "M#57"] }
   - { id: "D#102", type: decision, status: decided, source: "findings.md#D#102", verified: 2026-11-13, title: "Herkunft je Lauf in summary.json: promptSha, aseCommit (bin/ase, -dirty), approval (terminal|--approve); stats nennt Mischungen; kein Name, Record-Log unverändert (O#61)", tested_by: [ase.runner.RunnerSuite] }
   - { id: "D#103", type: decision, status: decided, source: "findings.md#D#103", verified: 2026-11-13, title: "Wirkung nach außen je Befehl (programs[].effect: reversible, irreversible, costs), unattended je Befehl; --no-ask oder ohne Terminal nur ohne unbewachte Wirkung (Effects.unguarded); Explain und System-Prompt nennen sie (O#58)", tested_by: [ase.core.EffectsSuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite], measurements: ["M#60", "M#61", "M#62"] }
+  - { id: "D#104", type: decision, status: decided, source: "findings.md#D#104", verified: 2026-11-14, title: "Muster für das erste Positionsargument bei PatternThenPaths (programs[].firstPositional), etwa die Quelle von aws s3 sync; ohne Angabe ungeprüft wie bisher; System-Prompt nur dann anders (ducktest, ANFRAGE_DUCKTEST_QUELLE.md)", tested_by: [ase.core.ArgPolicySuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }

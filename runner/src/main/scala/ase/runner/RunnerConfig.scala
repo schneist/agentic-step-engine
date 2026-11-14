@@ -222,7 +222,7 @@ object RunnerConfig:
   private def program(json: Json): Either[String, Program] =
     for
       o <- obj(json, "programs")
-      _ <- only(o, "programs", "binary", "args", "flags", "valuedFlags", "prefixFlags", "positional", "runsCode", "values", "required", "effect")
+      _ <- only(o, "programs", "binary", "args", "flags", "valuedFlags", "prefixFlags", "positional", "runsCode", "values", "required", "effect", "firstPositional")
       binary <- o("binary").flatMap(_.asString).filter(Name.matches).toRight("programs: binary muss ein Programmname ohne Pfad sein")
       at = s"programs: $binary"
       args <- strings(o, "args", at)
@@ -250,13 +250,26 @@ object RunnerConfig:
       _ <- required.find(f => !valued.contains(f)).map(f => s"$at: required „$f“ ist kein Flag aus valuedFlags").toLeft(())
       // ein Pfad in jedem Aufruf änderte Sicht und Explain jedes Aufrufs (D#87)
       _ <- required.find(f => values.get(f).exists(_.isInstanceOf[ValueRule.Path])).map(f => s"$at: required „$f“ hat eine Wertregel Path; Pflicht-Flags sind kein Pfad").toLeft(())
+      // Muster für das erste Positionsargument (D#104), nur bei PatternThenPaths
+      firstPattern <- o("firstPositional").fold(Option.empty[String].asRight[String])(j =>
+        for
+          _ <- Either.cond(positional == Positional.PatternThenPaths, (), s"$at: firstPositional nur mit positional PatternThenPaths")
+          here = s"$at: firstPositional"
+          r <- obj(j, here)
+          _ <- only(r, here, "type", "regex")
+          _ <- Either.cond(r("type").flatMap(_.asString).contains("Pattern"), (), s"$here: type ist Pattern")
+          regex <- r("regex").flatMap(_.asString).toRight(s"$here: regex fehlt")
+          _ <- Either.catchOnly[java.util.regex.PatternSyntaxException](java.util.regex.Pattern.compile(regex))
+            .leftMap(e => s"$here: Muster ungültig: ${e.getDescription}")
+        yield Some(regex)
+      )
       // Wirkung nach außen (D#103); ohne Angabe umkehrbar
       effect <- o("effect").fold(Effect.Reversible.asRight[String])(j =>
         j.asString.flatMap(Effects.parse).toRight(s"$at: effect ist einer von ${Effects.Names.mkString(", ")}")
       )
     // das Werkzeugskript ist Code, den das Programm ausführt (D#101): Abnahme (D#80) und Explain (D#62) sehen es
     yield Program(
-      ArgPolicy(binary, args, flags.toSet, valued.toSet, prefix.toSet, positional, values, effect),
+      ArgPolicy(binary, args, flags.toSet, valued.toSet, prefix.toSet, positional, values, effect, firstPattern),
       (runsCode ++ script.flatMap(s => RelPath.parse(s).toOption).map(RelPath.show)).distinct,
       required.toSet
     )

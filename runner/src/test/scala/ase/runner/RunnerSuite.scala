@@ -321,6 +321,19 @@ class RunnerSuite extends munit.FunSuite:
       """{"binary":"python3","args":["-m/x"]}"""
     ).foreach(bad => assert(RunnerConfig.parse(s"""{"programs":[$bad]}""").isLeft, bad))
 
+  test("programs: firstPositional nur als Muster und nur bei PatternThenPaths (D#104)"):
+    val c = RunnerConfig.parse("""{"programs":[{"binary":"aws","args":["s3","sync"],"positional":"PatternThenPaths",
+      "firstPositional":{"type":"Pattern","regex":"^s3://b/p/$"}}]}""").fold(fail(_), identity).check
+    assertEquals(c.argPolicies.last.firstPattern, Some("^s3://b/p/$"))
+    List(
+      """{"binary":"aws","args":["s3","sync"],"positional":"Paths","firstPositional":{"type":"Pattern","regex":"^x$"}}""",
+      """{"binary":"aws","args":["s3","sync"],"firstPositional":{"type":"Pattern","regex":"^x$"}}""",
+      """{"binary":"aws","args":["s3","sync"],"positional":"PatternThenPaths","firstPositional":{"type":"Path"}}""",
+      """{"binary":"aws","args":["s3","sync"],"positional":"PatternThenPaths","firstPositional":{"type":"Pattern"}}""",
+      """{"binary":"aws","args":["s3","sync"],"positional":"PatternThenPaths","firstPositional":{"type":"Pattern","regex":"("}}""",
+      """{"binary":"aws","args":["s3","sync"],"positional":"PatternThenPaths","firstPositional":{"type":"Pattern","regex":"x","prefix":"y"}}"""
+    ).foreach(bad => assert(RunnerConfig.parse(s"""{"programs":[$bad]}""").isLeft, bad))
+
   test("programs: effect je Policy, unattended nur für Befehle mit Wirkung (D#103)"):
     val c = RunnerConfig.parse("""{"programs":[
       {"binary":"aws","args":["ec2","run-instances"],"positional":"NoArgs","effect":"costs"},
