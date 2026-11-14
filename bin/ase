@@ -2,6 +2,10 @@
 # Startet den Runner aus diesem Repository: bin/ase plan … oder bin/ase run … (Optionen im README).
 # Beim ersten Aufruf und nach Änderungen an Quellen oder Build fragt das Skript sbt nach dem Klassenpfad und legt ihn
 # in target/ase-classpath.txt ab; danach startet es nur noch java.
+# bin/ase pull zieht dieses Repository (git pull --ff-only) und baut neu.
+# Sperre (D#104): Jeder Aufruf hält bis zu seinem Ende eine geteilte Sperre auf .ase-lock; Bauen und Ziehen brauchen
+# sie exklusiv und warten, bis alle laufenden Aufrufe geendet haben. Ein Lauf rechnet so nie mit Klassen, die während
+# des Laufs ausgetauscht wurden.
 set -euo pipefail
 
 repo=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
@@ -13,19 +17,56 @@ stale() {
     \( -name '*.scala' -o -name '*.sbt' -o -name 'build.properties' \) -newer "$cache" -print -quit)" ]
 }
 
-if stale; then
+# Klassenpfad von sbt holen; die Sperre (Deskriptor 9) erbt sbt nicht.
+build() {
   echo "ase: baue den Runner (sbt), einmalig nach Änderungen …" >&2
   mkdir -p "$repo/target"
-  cp=$(cd "$repo" && sbt -batch -error "export runner/Runtime/fullClasspath" | tail -1)
+  cp=$(cd "$repo" && sbt -batch -error "export runner/Runtime/fullClasspath" 9>&- | tail -1)
   case "$cp" in
     *scala3-library*) printf '%s\n' "$cp" > "$cache" ;;
     *) echo "ase: sbt lieferte keinen Klassenpfad: $cp" >&2; exit 1 ;;
   esac
+}
+
+locking=1
+if command -v flock > /dev/null; then
+  exec 9>> "$repo/.ase-lock"
+else
+  locking=0
 fi
+
+# hold -s|-x GRUND: Sperre geteilt oder exklusiv nehmen; ist sie belegt, sagen, worauf gewartet wird.
+# Ein Wechsel zwischen -s und -x gibt die alte Sperre erst frei (flock), zwei Aufrufe blockieren sich dabei nicht.
+hold() {
+  [ "$locking" = 1 ] || return 0
+  if ! flock -n "$1" 9; then
+    echo "ase: warte auf $2 …" >&2
+    flock "$1" 9
+  fi
+}
+
+if [ "${1-}" = pull ]; then
+  [ $# -eq 1 ] || { echo "ase: pull nimmt keine Argumente" >&2; exit 2; }
+  [ "$locking" = 1 ] || { echo "ase: pull braucht flock (util-linux)" >&2; exit 1; }
+  hold -x "das Ende laufender Aufrufe von ase (pull)"
+  git -C "$repo" pull --ff-only 9>&-
+  if stale; then build; fi
+  echo "ase: steht auf $(git -C "$repo" rev-parse --short HEAD), gebaut" >&2
+  exit 0
+fi
+
+[ "$locking" = 1 ] || echo "ase: flock fehlt, laufe ohne Sperre gegen gleichzeitiges Bauen" >&2
+hold -s "einen Bau oder ein pull"
+while stale; do
+  hold -x "das Ende laufender Aufrufe von ase, um neu zu bauen"
+  if stale; then build; fi
+  hold -s "einen Bau oder ein pull"
+done
 
 # Fassung von ase für summary.json (D#102): Commit, mit „-dirty“, wenn die Quellen davon abweichen; ohne git keine Angabe
 src="build.sbt project core/src/main model/src/main runner/src/main"
 commit=$(git -C "$repo" rev-parse HEAD 2>/dev/null || true)
 if [ -n "$commit" ] && [ -n "$(cd "$repo" && git status --porcelain -- $src 2>/dev/null)" ]; then commit="$commit-dirty"; fi
 
+# java erbt Deskriptor 9 und hält die geteilte Sperre bis zum Ende; Kindprozesse von java erben ihn nicht.
 exec java ${commit:+"-Dase.commit=$commit"} -cp "$(cat "$cache")" ase.runner.Main "$@"

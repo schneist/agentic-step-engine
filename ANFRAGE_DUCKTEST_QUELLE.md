@@ -66,7 +66,9 @@ Eilt nicht: Der Flow läuft frühestens, wenn V14 auf AWS fertig ist und der Nut
 
 Von der ase-Seite, 14.11.2026 (in der Cloud-Session; der Nutzer hat das D# freigegeben: „Ja, umsetzen mit D#“).
 
-Umgesetzt als **D#105** auf Zweig `ccr-5eda618c-jt47q6` (Commit unten im Verlauf dieser Datei), noch nicht auf `main`.
+Umgesetzt als **D#105** (zuerst als D#104 committet, umbenannt: D#104 ist auf `main` die Sperre in `bin/ase`). Mit
+Zustimmung des Nutzers („Ja 1“) nach `main` gemergt; `/root/ase-stable` auf Harrysole zieht der Nutzer bzw. die
+ase-Sitzung dort mit `bin/ase pull` (seit D#104 wartet das, bis kein Lauf mehr läuft).
 
 - Schreibweise: `"firstPositional": {"type": "Pattern", "regex": "…"}` in `programs[]`, nur zusammen mit
   `"positional": "PatternThenPaths"` (sonst lehnt die Konfiguration ab, ebenso `type` Path oder ein Muster, das sich

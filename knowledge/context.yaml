@@ -476,9 +476,9 @@ interpreters:
     type: runner
     status: implemented
     source: bin/ase
-    verified: 2026-10-29
-    decided_by: ["D#60"]
-    note: "baut beim ersten Aufruf und nach Änderungen (Klassenpfad in target/ase-classpath.txt), startet dann java"
+    verified: 2026-11-14
+    decided_by: ["D#60", "D#102", "D#104"]
+    note: "baut beim ersten Aufruf und nach Änderungen (Klassenpfad in target/ase-classpath.txt), startet dann java mit ase.commit; jeder Aufruf hält eine geteilte Sperre auf .ase-lock, Bauen und bin/ase pull eine exklusive (D#104)"
   - id: runner.seriesScript
     type: runner
     status: implemented
@@ -657,6 +657,7 @@ decisions:
   - { id: "D#101", type: decision, status: decided, source: "findings.md#D#101", verified: 2026-11-13, title: "Programm auf ein Werkzeugskript festlegen: programs[].args mit Pfad an erster Stelle (python3 ase/kette.py zeige), Workspace-Code, berührt \".\" wie ein Skript; System-Prompt nur dann anders (O#56)", tested_by: [ase.core.ToolScriptSuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite], measurements: ["M#56", "M#57"] }
   - { id: "D#102", type: decision, status: decided, source: "findings.md#D#102", verified: 2026-11-13, title: "Herkunft je Lauf in summary.json: promptSha, aseCommit (bin/ase, -dirty), approval (terminal|--approve); stats nennt Mischungen; kein Name, Record-Log unverändert (O#61)", tested_by: [ase.runner.RunnerSuite] }
   - { id: "D#103", type: decision, status: decided, source: "findings.md#D#103", verified: 2026-11-13, title: "Wirkung nach außen je Befehl (programs[].effect: reversible, irreversible, costs), unattended je Befehl; --no-ask oder ohne Terminal nur ohne unbewachte Wirkung (Effects.unguarded); Explain und System-Prompt nennen sie (O#58)", tested_by: [ase.core.EffectsSuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite], measurements: ["M#60", "M#61", "M#62"] }
+  - { id: "D#104", type: decision, status: decided, source: "findings.md#D#104", verified: 2026-11-14, title: "Sperre in bin/ase: geteilt je Aufruf bis zum Ende, exklusiv für Bauen und bin/ase pull (flock auf .ase-lock); ohne flock ohne Sperre, pull lehnt ab (O#64)" }
   - { id: "D#105", type: decision, status: decided, source: "findings.md#D#105", verified: 2026-11-14, title: "Muster für das erste Positionsargument bei PatternThenPaths (programs[].firstPositional), etwa die Quelle von aws s3 sync; ohne Angabe ungeprüft wie bisher; System-Prompt nur dann anders (ducktest, ANFRAGE_DUCKTEST_QUELLE.md)", tested_by: [ase.core.ArgPolicySuite, ase.runner.RunnerSuite, ase.model.AnthropicSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
@@ -730,6 +731,7 @@ open:
   - { id: "O#61", type: open, status: resolved, issue: 21, source: "findings.md#O#61", verified: 2026-11-13, resolved_by: "D#102", title: "Herkunft je Lauf: promptSha, ase-Commit und freigebende Person in summary.json und Record-Log" }
   - { id: "O#62", type: open, status: open, issue: 22, source: "findings.md#O#62", verified: 2026-11-13, title: "Beobachtungsmodus: Lauf im Wegwerf-Worktree, Diff erst nach zweiter Bestätigung übernehmen" }
   - { id: "O#63", type: open, status: open, issue: 23, source: "findings.md#O#63", verified: 2026-11-13, title: "Schwärzen vor dem Modellaufruf (Muster aus der Konfiguration), niedrig" }
+  - { id: "O#64", type: open, status: resolved, issue: 24, source: "findings.md#O#64", verified: 2026-11-14, resolved_by: "D#104", title: "Sperre in bin/ase gegen Bauen und Ziehen während laufender Aufrufe" }
   - { id: "O#38", type: open, status: open, issue: 5, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, issue: 4, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }
