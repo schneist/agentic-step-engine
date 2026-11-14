@@ -2,10 +2,11 @@
 # Startet den Runner aus diesem Repository: bin/ase plan … oder bin/ase run … (Optionen im README).
 # Beim ersten Aufruf und nach Änderungen an Quellen oder Build fragt das Skript sbt nach dem Klassenpfad und legt ihn
 # in target/ase-classpath.txt ab; danach startet es nur noch java.
-# bin/ase pull zieht dieses Repository (git pull --ff-only) und baut neu.
-# Sperre (D#104): Jeder Aufruf hält bis zu seinem Ende eine geteilte Sperre auf .ase-lock; Bauen und Ziehen brauchen
-# sie exklusiv und warten, bis alle laufenden Aufrufe geendet haben. Ein Lauf rechnet so nie mit Klassen, die während
-# des Laufs ausgetauscht wurden.
+# bin/ase pull zieht dieses Repository (git pull --ff-only) und baut neu; bin/ase checkout <commit> holt und checkt
+# genau diesen Commit losgelöst aus und baut (feste Fassung, D#106).
+# Sperre (D#104): Jeder Aufruf hält bis zu seinem Ende eine geteilte Sperre auf .ase-lock; Bauen, Ziehen und
+# Auschecken brauchen sie exklusiv und warten, bis alle laufenden Aufrufe geendet haben. Ein Lauf rechnet so nie mit
+# Klassen, die während des Laufs ausgetauscht wurden.
 set -euo pipefail
 
 repo=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
@@ -45,11 +46,26 @@ hold() {
   fi
 }
 
-if [ "${1-}" = pull ]; then
-  [ $# -eq 1 ] || { echo "ase: pull nimmt keine Argumente" >&2; exit 2; }
-  [ "$locking" = 1 ] || { echo "ase: pull braucht flock (util-linux)" >&2; exit 1; }
-  hold -x "das Ende laufender Aufrufe von ase (pull)"
-  git -C "$repo" pull --ff-only 9>&-
+if [ "${1-}" = pull ] || [ "${1-}" = checkout ]; then
+  cmd=$1; shift
+  case "$cmd" in
+    pull) [ $# -eq 0 ] || { echo "ase: pull nimmt keine Argumente" >&2; exit 2; } ;;
+    checkout) [ $# -eq 1 ] && [ -n "$1" ] && [ "${1#-}" = "$1" ] \
+      || { echo "ase: checkout nimmt genau einen Commit (etwa aus ase/ase-fassung.txt)" >&2; exit 2; } ;;
+  esac
+  [ "$locking" = 1 ] || { echo "ase: $cmd braucht flock (util-linux)" >&2; exit 1; }
+  hold -x "das Ende laufender Aufrufe von ase ($cmd)"
+  if [ "$cmd" = pull ]; then
+    git -C "$repo" symbolic-ref -q HEAD > /dev/null \
+      || { echo "ase: kein Zweig ausgecheckt (feste Fassung); neue Fassung mit bin/ase checkout <commit> oder vorher git checkout main" >&2; exit 1; }
+    git -C "$repo" pull --ff-only 9>&-
+  else
+    # feste Fassung (D#106): holen, den Commit prüfen, losgelöst auschecken
+    git -C "$repo" fetch -q --tags origin 9>&-
+    target=$(git -C "$repo" rev-parse -q --verify "$1^{commit}") \
+      || { echo "ase: Commit $1 ist auch nach fetch unbekannt" >&2; exit 1; }
+    git -C "$repo" checkout -q --detach "$target" 9>&-
+  fi
   if stale; then build; fi
   echo "ase: steht auf $(git -C "$repo" rev-parse --short HEAD), gebaut" >&2
   exit 0

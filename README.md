@@ -188,7 +188,7 @@ export PATH="$PWD/bin:$PATH"
 ase plan …               # bin/ase baut beim ersten Aufruf und nach Änderungen, danach startet es nur java
 ```
 
-`bin/ase` hält während jedes Aufrufs eine geteilte Sperre (`flock` auf `.ase-lock`); gebaut wird erst, wenn kein anderer Aufruf mehr läuft. Ein Klon, aus dem andere rechnen, wird mit `bin/ase pull` aktualisiert statt mit `git pull`: Es wartet auf laufende Aufrufe, zieht mit `--ff-only` und baut (D#104). Ohne `flock` (util-linux) läuft `bin/ase` ohne Sperre, und `pull` lehnt ab.
+`bin/ase` hält während jedes Aufrufs eine geteilte Sperre (`flock` auf `.ase-lock`); gebaut wird erst, wenn kein anderer Aufruf mehr läuft. Ein Klon, aus dem andere rechnen, wird mit `bin/ase pull` aktualisiert statt mit `git pull`: Es wartet auf laufende Aufrufe, zieht mit `--ff-only` und baut (D#104). Steht ein Projekt auf einer festen Fassung, wechselt `bin/ase checkout <commit>` unter derselben Sperre dorthin: holen, losgelöst auschecken, bauen; `pull` lehnt dann ab, bis wieder ein Zweig ausgecheckt ist (D#106). Ohne `flock` (util-linux) läuft `bin/ase` ohne Sperre, und `pull` lehnt ab.
 
 **Ohne Modell:** Ein Flow wird ohne Modell geprüft und erklärt.
 

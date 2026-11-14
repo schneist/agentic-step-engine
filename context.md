@@ -154,6 +154,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Einhängung** (mount): Ein Pfad von außen, den die Sandbox einem Prozess sichtbar macht; alles andere gibt es für ihn nicht. Absolut, unter `~` oder relativ zum Arbeitsverzeichnis; nie das Arbeitsverzeichnis selbst oder etwas, das es enthält (D#88).
 - **Skript mit Pfaden** (`scripts`, `positional: Paths`): Ein Skript, dessen Eintrag in der Konfiguration Pfade erlaubt; jedes Argument wird geprüft wie bei ReadFile, Flags nie. Es berührt trotzdem das ganze Arbeitsverzeichnis (`Parsed.touchedBy`), läuft also nur unter pathPrefix "." (D#100).
 - **Werkzeugskript** (`programs[].args` mit Pfad an erster Stelle): Ein Skript im Arbeitsverzeichnis, auf das eine Argument-Policy ein Programm festlegt, etwa `python3 ase/kette.py zeige`. Es ist Workspace-Code (`runsCode`), und ein Aufruf berührt wie ein Skript das ganze Arbeitsverzeichnis (`ArgPolicy.script`, D#101).
+- **Feste Fassung** (`bin/ase checkout <commit>`): Ein Klon von ase, der losgelöst auf genau dem Commit steht, den ein Projekt für seinen Stand nennt (in ducktest `ase/ase-fassung.txt`); gewechselt wird nur unter der Sperre (D#106).
 - **Muster des ersten Positionsarguments** (`programs[].firstPositional`): Regel `{"type": "Pattern", "regex": …}` bei `positional: PatternThenPaths`, auf die das erste Nicht-Flag-Argument ganz passen muss, etwa die Quelle von `aws s3 sync`; ohne sie ist es ungeprüft wie das Suchmuster von grep (D#105).
 
 ## 8. Warum
@@ -431,6 +432,10 @@ Ein Agentenschritt, der eine Stelle in einer großen Datei mit EditFile ändern 
 ### Warum ein Skript Pfade nehmen darf, aber nur, wenn die Konfiguration es sagt (D#100)
 
 Ein Skript, das einen Bericht prüft, muss wissen, welchen. Ohne Argumente blieb nur, den Namen vorher in eine Datei zu schreiben, die das Skript liest: ein zweiter Schritt, eine Datei mehr, und was das Skript prüft, stand nicht mehr im Aufruf, den der Mensch freigibt. Ein Pfad als Argument gibt dem Skript nichts, was es nicht schon hätte: Es führt Code aus, der im ganzen Arbeitsverzeichnis lesen und schreiben kann. Gefährlich wäre nur, wenn das Argument die Prüfung ändert. Deshalb zwei Regeln. Ein Skript berührt auch mit Pfaden das ganze Arbeitsverzeichnis; sonst liefe `./ase/x.sh ase/a.md` unter dem pathPrefix `ase`, wo `./ase/x.sh` allein nicht laufen darf, und ein Argument hätte eine Hülle erweitert. Und die Konfiguration muss es für jedes Skript sagen, denn jeder Text ist ein gültiger relativer Pfad: `prod` oder `alles` bestehen die Pfadprüfung. Ein Skript, das so ein Wort als Modus liest, bekäme sonst Aufrufe, die niemand vorgesehen hat. Wer `positional: Paths` einträgt, sagt damit, dass das Skript seine Argumente als Dateien liest. Flags bleiben verboten, weil sie genau die Modi sind, die so ein Wort wäre.
+
+### Warum eine feste Fassung über bin/ase gewechselt wird (D#106)
+
+Zwei Container und ein Rechner zu Hause sollen mit derselben Engine rechnen, sonst vergleicht eine Prüfkette in der Cloud nicht dasselbe wie die auf Harrysole. „Der neueste Stand von main“ ist dafür kein Name: Er ändert sich, sobald eine Session mergt, und am 14.11. mergten zwei Sessions binnen einer Stunde. Ein Commit ist ein Name. ducktest schreibt ihn je Stand in eine Datei, und wer einrichtet, checkt genau ihn aus. Das Auschecken gehört in `bin/ase` aus demselben Grund wie das Ziehen (D#104): Es tauscht Quellen aus, und ein Lauf daneben rechnete sonst mit gemischten Klassen. Losgelöst statt auf einem Zweig, weil ein Zweig weiterwandert und die Fassung nicht. Darum lehnt `pull` dort ab, statt still auf main zu springen: Wer eine feste Fassung verlässt, soll es mit Absicht tun.
 
 ### Warum das erste Positionsargument ein Muster bekommen kann (D#105)
 
