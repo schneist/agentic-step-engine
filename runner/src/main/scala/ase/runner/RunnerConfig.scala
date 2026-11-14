@@ -250,7 +250,7 @@ object RunnerConfig:
       _ <- required.find(f => !valued.contains(f)).map(f => s"$at: required „$f“ ist kein Flag aus valuedFlags").toLeft(())
       // ein Pfad in jedem Aufruf änderte Sicht und Explain jedes Aufrufs (D#87)
       _ <- required.find(f => values.get(f).exists(_.isInstanceOf[ValueRule.Path])).map(f => s"$at: required „$f“ hat eine Wertregel Path; Pflicht-Flags sind kein Pfad").toLeft(())
-      // Muster für das erste Positionsargument (D#104), nur bei PatternThenPaths
+      // Muster für das erste Positionsargument (D#105), nur bei PatternThenPaths
       firstPattern <- o("firstPositional").fold(Option.empty[String].asRight[String])(j =>
         for
           _ <- Either.cond(positional == Positional.PatternThenPaths, (), s"$at: firstPositional nur mit positional PatternThenPaths")

@@ -11,7 +11,7 @@ enum Positional:
 /** Argument-Policy pro Programm (D#12): erlaubte Flags als Allowlist, Nicht-Flag-Argumente sind Pfade.
   * Nennt ein Aufruf keinen Pfad, berührt er das Arbeitsverzeichnis "." (D#27). values: was der Wert eines Flags mit
   * Wert sein darf (D#83); ohne Regel ist er beliebiger Text, der nicht mit "-" beginnt. firstPattern: Muster, auf das
-  * bei PatternThenPaths das erste Positionsargument ganz passen muss (D#104); ohne Muster ist es ungeprüft (grep).
+  * bei PatternThenPaths das erste Positionsargument ganz passen muss (D#105); ohne Muster ist es ungeprüft (grep).
   */
 final case class ArgPolicy(
     binary: String,
@@ -173,7 +173,7 @@ object ArgPolicy:
             case Paths =>
               loop(tail, false, positionals + 1, rejected, (arg, i, "") :: paths, seen)
             case PatternThenPaths =>
-              // D#104: mit Muster muss das erste Positionsargument ganz darauf passen, sonst ungeprüft wie bei grep
+              // D#105: mit Muster muss das erste Positionsargument ganz darauf passen, sonst ungeprüft wie bei grep
               val first = policy.firstPattern.filterNot(arg.matches).map(rx => (arg, s"passt nicht auf das Muster $rx"))
               if positionals == 0 then loop(tail, false, 1, first.toList ++ rejected, paths, seen)
               else loop(tail, false, positionals + 1, rejected, (arg, i, "") :: paths, seen)

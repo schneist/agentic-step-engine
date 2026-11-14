@@ -143,7 +143,7 @@ class AnthropicSuite extends munit.FunSuite:
     assert(s.contains("- python3 ase/kette.py zeige: Flags keine; dann ein Muster, dann Pfade. Führt ase/kette.py aus und berührt damit das ganze Arbeitsverzeichnis \".\"."), s)
     assertEquals(s.replace("\n- python3 ase/kette.py zeige: Flags keine; dann ein Muster, dann Pfade. Führt ase/kette.py aus und berührt damit das ganze Arbeitsverzeichnis \".\".", ""), plain)
 
-  test("Muster für das erste Positionsargument im System-Prompt nur an seiner Policy; ohne der Text wie vorher (D#104)"):
+  test("Muster für das erste Positionsargument im System-Prompt nur an seiner Policy; ohne der Text wie vorher (D#105)"):
     val plain = Prompt.system(check)
     val sync = ArgPolicy("aws", List("s3", "sync"), Set.empty, Set.empty, Set.empty, Positional.PatternThenPaths, Map.empty,
       Effect.Reversible, Some("^s3://b/p/$"))

@@ -321,7 +321,7 @@ class RunnerSuite extends munit.FunSuite:
       """{"binary":"python3","args":["-m/x"]}"""
     ).foreach(bad => assert(RunnerConfig.parse(s"""{"programs":[$bad]}""").isLeft, bad))
 
-  test("programs: firstPositional nur als Muster und nur bei PatternThenPaths (D#104)"):
+  test("programs: firstPositional nur als Muster und nur bei PatternThenPaths (D#105)"):
     val c = RunnerConfig.parse("""{"programs":[{"binary":"aws","args":["s3","sync"],"positional":"PatternThenPaths",
       "firstPositional":{"type":"Pattern","regex":"^s3://b/p/$"}}]}""").fold(fail(_), identity).check
     assertEquals(c.argPolicies.last.firstPattern, Some("^s3://b/p/$"))

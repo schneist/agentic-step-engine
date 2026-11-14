@@ -137,7 +137,7 @@ object Prompt:
     val positional = p.positional match
       case Positional.NoArgs                         => "keine weiteren Argumente"
       case Positional.Paths                          => "dann Pfade"
-      // mit Muster für das erste Positionsargument (D#104), sonst Zeichen für Zeichen wie vorher (promptSha, D#86)
+      // mit Muster für das erste Positionsargument (D#105), sonst Zeichen für Zeichen wie vorher (promptSha, D#86)
       case Positional.PatternThenPaths               => p.firstPattern.fold("dann ein Muster, dann Pfade")(rx => s"dann ein Text nach Muster $rx, dann Pfade")
       case Positional.PathsAfterDashDash             => "dann \"--\" und Pfade"
       case Positional.RevisionThenPathsAfterDashDash => "dann ein Revisionsbereich, dann \"--\" und Pfade"

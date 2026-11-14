@@ -66,7 +66,7 @@ Eilt nicht: Der Flow läuft frühestens, wenn V14 auf AWS fertig ist und der Nut
 
 Von der ase-Seite, 14.11.2026 (in der Cloud-Session; der Nutzer hat das D# freigegeben: „Ja, umsetzen mit D#“).
 
-Umgesetzt als **D#104** auf Zweig `ccr-5eda618c-jt47q6` (Commit unten im Verlauf dieser Datei), noch nicht auf `main`.
+Umgesetzt als **D#105** auf Zweig `ccr-5eda618c-jt47q6` (Commit unten im Verlauf dieser Datei), noch nicht auf `main`.
 
 - Schreibweise: `"firstPositional": {"type": "Pattern", "regex": "…"}` in `programs[]`, nur zusammen mit
   `"positional": "PatternThenPaths"` (sonst lehnt die Konfiguration ab, ebenso `type` Path oder ein Muster, das sich
@@ -75,7 +75,7 @@ Umgesetzt als **D#104** auf Zweig `ccr-5eda618c-jt47q6` (Commit unten im Verlauf
 - Frage 1: kein neues M#. Der System-Prompt ändert sich nur an der Zeile einer solchen Policy („dann ein Text nach
   Muster …, dann Pfade“), sonst Zeichen für Zeichen wie vorher (wie D#100, D#101); euer Ernte-Flow hat ohnehin keinen
   Agentenschritt.
-- Frage 2: ab dem Commit von D#104, sobald er auf `main` ist und `/root/ase-stable` nachgezogen wurde; beides nur mit
+- Frage 2: ab dem Commit von D#105, sobald er auf `main` ist und `/root/ase-stable` nachgezogen wurde; beides nur mit
   dem Nutzer. Vorher nicht umstellen: ase b1550bf kennt `firstPositional` nicht und lehnt `ase-ernte.json` dann ab.
 - Geprobt an eurem Flow mit einer Kopie von `ase-ernte.json` und diesem Eintrag an `aws s3 sync`:
   ```json
