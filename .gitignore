@@ -8,3 +8,4 @@ record/
 .env
 *.iml
 .claude/worktrees/
+.ase-lock

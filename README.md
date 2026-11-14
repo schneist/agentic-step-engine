@@ -179,7 +179,7 @@ Im Einsatz ist `ase` an einem privaten Python-Projekt mit 75 Skripten, 18 davon 
 
 ## Schnellstart
 
-Voraussetzungen: JDK 17 und sbt 1.10.7, für `ase run` dazu bubblewrap (`bwrap`, die Sandbox, D#88; ohne startet `ase run` nur mit `"sandbox": false`). `ase plan` läuft überall. `ase run` führt nur unter Linux aus, unter Windows also in WSL, weil Java dort `.bat` und `.cmd` über eine versteckte Shell startet. macOS ist ungetestet und deshalb gesperrt.
+Voraussetzungen: JDK 17 und sbt 1.10.7, für `bin/ase` unter Linux `flock` (util-linux, D#104), für `ase run` dazu bubblewrap (`bwrap`, die Sandbox, D#88; ohne startet `ase run` nur mit `"sandbox": false`). `ase plan` läuft überall. `ase run` führt nur unter Linux aus, unter Windows also in WSL, weil Java dort `.bat` und `.cmd` über eine versteckte Shell startet. macOS ist ungetestet und deshalb gesperrt.
 
 ```
 git clone https://github.com/schneist/agentic-step-engine.git && cd agentic-step-engine
@@ -187,6 +187,8 @@ sbt test                 # außerhalb von Linux sind die Execute-Tests sichtbar 
 export PATH="$PWD/bin:$PATH"
 ase plan …               # bin/ase baut beim ersten Aufruf und nach Änderungen, danach startet es nur java
 ```
+
+`bin/ase` hält während jedes Aufrufs eine geteilte Sperre (`flock` auf `.ase-lock`); gebaut wird erst, wenn kein anderer Aufruf mehr läuft. Ein Klon, aus dem andere rechnen, wird mit `bin/ase pull` aktualisiert statt mit `git pull`: Es wartet auf laufende Aufrufe, zieht mit `--ff-only` und baut (D#104). Ohne `flock` (util-linux) läuft `bin/ase` ohne Sperre, und `pull` lehnt ab.
 
 **Ohne Modell:** Ein Flow wird ohne Modell geprüft und erklärt.
 
