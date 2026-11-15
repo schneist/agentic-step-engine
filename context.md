@@ -156,6 +156,7 @@ Siehe findings.md, Abschnitt "Offen". Werden beim OK zu Schritt 1 entschieden un
 - **Werkzeugskript** (`programs[].args` mit Pfad an erster Stelle): Ein Skript im Arbeitsverzeichnis, auf das eine Argument-Policy ein Programm festlegt, etwa `python3 ase/kette.py zeige`. Es ist Workspace-Code (`runsCode`), und ein Aufruf berührt wie ein Skript das ganze Arbeitsverzeichnis (`ArgPolicy.script`, D#101).
 - **Stehende Erlaubnis** (D#107): Was eine Session ohne neue Rückfrage tun darf, weil der Nutzer es einmal für eine Art von Änderung erlaubt hat; heute nur der Merge von Doku und Werkzeuge nach `main`.
 - **Feste Fassung** (`bin/ase checkout <commit>`): Ein Klon von ase, der losgelöst auf genau dem Commit steht, den ein Projekt für seinen Stand nennt (in ducktest `ase/ase-fassung.txt`); gewechselt wird nur unter der Sperre (D#106).
+- **Lehre** (`L#`): Was eine Sitzung aus einer Abweichung vom Erwarteten mitnimmt, mit Beleg, Ursache und genau einer Folge; Einträge in `findings.md`, Abschnitt Lehren, abgeleitet mit dem Skill `lehren` (D#108).
 - **Muster des ersten Positionsarguments** (`programs[].firstPositional`): Regel `{"type": "Pattern", "regex": …}` bei `positional: PatternThenPaths`, auf die das erste Nicht-Flag-Argument ganz passen muss, etwa die Quelle von `aws s3 sync`; ohne sie ist es ungeprüft wie das Suchmuster von grep (D#105).
 
 ## 8. Warum
@@ -433,6 +434,10 @@ Ein Agentenschritt, der eine Stelle in einer großen Datei mit EditFile ändern 
 ### Warum ein Skript Pfade nehmen darf, aber nur, wenn die Konfiguration es sagt (D#100)
 
 Ein Skript, das einen Bericht prüft, muss wissen, welchen. Ohne Argumente blieb nur, den Namen vorher in eine Datei zu schreiben, die das Skript liest: ein zweiter Schritt, eine Datei mehr, und was das Skript prüft, stand nicht mehr im Aufruf, den der Mensch freigibt. Ein Pfad als Argument gibt dem Skript nichts, was es nicht schon hätte: Es führt Code aus, der im ganzen Arbeitsverzeichnis lesen und schreiben kann. Gefährlich wäre nur, wenn das Argument die Prüfung ändert. Deshalb zwei Regeln. Ein Skript berührt auch mit Pfaden das ganze Arbeitsverzeichnis; sonst liefe `./ase/x.sh ase/a.md` unter dem pathPrefix `ase`, wo `./ase/x.sh` allein nicht laufen darf, und ein Argument hätte eine Hülle erweitert. Und die Konfiguration muss es für jedes Skript sagen, denn jeder Text ist ein gültiger relativer Pfad: `prod` oder `alles` bestehen die Pfadprüfung. Ein Skript, das so ein Wort als Modus liest, bekäme sonst Aufrufe, die niemand vorgesehen hat. Wer `positional: Paths` einträgt, sagt damit, dass das Skript seine Argumente als Dateien liest. Flags bleiben verboten, weil sie genau die Modi sind, die so ein Wort wäre.
+
+### Warum Lehren ein fester Schritt am Ende sind (D#108)
+
+Am 14.11. kamen sechs Lehren aus einer Sitzung zusammen, und alle sechs hatten denselben Weg: Erst fiel etwas auf, dann fragte der Nutzer, ob man daraus lernen könne. Ohne die Frage wären sie im Chat geblieben, und der Chat verschwindet mit der Sitzung. Ein fester Schritt am Ende macht daraus Einträge in git, die die nächste Sitzung liest. Jede Lehre braucht eine Folge, weil eine Lehre ohne Folge beim nächsten Mal genauso passiert; die Reihenfolge der Folgen beginnt bei der Prüfung, die es erzwingt, weil eine Regel im Text nur so gut ist wie die Aufmerksamkeit dessen, der sie liest. Wiederholt sich eine Lehre, war die Folge zu schwach, und der Eintrag sagt es. Ein Skill statt eines Hooks: Ein Hook am Ende jeder Antwort käme zu oft und wüsste nicht, wann eine Sitzung fertig ist; das weiß nur die Sitzung.
 
 ### Warum Doku und Werkzeuge ohne Rückfrage nach main dürfen (D#107)
 

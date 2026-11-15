@@ -36,7 +36,8 @@ Nichts wird ausgeführt, was nicht vorher geprüft wurde. Weder ein Plan noch ei
 - `architecture.md` nur für Entscheidungen mit echten Alternativen und Umkehrkosten. Alles andere ist eine Zeile in `findings.md`.
 - Neue Begriffe noch in derselben Session ins Glossar (`context.md` §7).
 - Jeder offene Punkt (`O#`) hat ein GitHub-Issue in `schneist/agentic-step-engine`: Titel `O#<n>: <Kurztitel>`, Text aus `findings.md`. Die Nummer steht in `findings.md` (`- O#<n> · Issue [#<i>](…) · …`) und in `knowledge/context.yaml` (`issue: <i>`). Wird der Punkt erledigt, das Issue mit Verweis auf das `D#` (und den Commit) schließen.
-- Nach jedem Schritt aus `SPEC.md`: `sbt test` grün, `context.yaml` und `findings.md` nachgeführt, kurze Zusammenfassung, offene Punkte. Dann warten.
+- Nach jedem Schritt aus `SPEC.md`: `sbt test` grün, `context.yaml` und `findings.md` nachgeführt, kurze Zusammenfassung, offene Punkte, Lehren (unten). Dann warten.
+- Lehren: Am Ende jeder Sitzung und nach jedem Schritt aus `SPEC.md` den Skill `lehren` ausführen (`.claude/skills/lehren/SKILL.md`, D#108): Abweichungen mit Beleg, Ursache, je Lehre genau eine Folge, Einträge `L#` in `findings.md`, dem Nutzer vorlegen. Wiederholt sich eine Lehre, war die Folge zu schwach.
 - `record/` und API-Keys nie committen.
 
 ## Andere Sitzungen (ducktest)
