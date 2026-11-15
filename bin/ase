@@ -8,6 +8,9 @@
 # Auschecken brauchen sie exklusiv und warten, bis alle laufenden Aufrufe geendet haben. Ein Lauf rechnet so nie mit
 # Klassen, die während des Laufs ausgetauscht wurden.
 set -euo pipefail
+# Alles in einem Block: bash liest ihn ganz, bevor er läuft. Tauscht checkout oder pull diese Datei aus, läuft der
+# Aufruf mit der Fassung zu Ende, mit der er begann (D#110).
+{
 
 repo=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
 cache="$repo/target/ase-classpath.txt"
@@ -18,14 +21,22 @@ stale() {
     \( -name '*.scala' -o -name '*.sbt' -o -name 'build.properties' \) -newer "$cache" -print -quit)" ]
 }
 
-# Klassenpfad von sbt holen; die Sperre (Deskriptor 9) erbt sbt nicht.
+# Exit-Codes des Startskripts selbst (D#110), getrennt von denen des Runners (0 bis 4, README):
+#   20 Commit unbekannt (checkout)  21 Bau gescheitert  22 git gescheitert (fetch, pull, checkout)  23 falscher Aufruf
+# Klassenpfad von sbt holen; die Sperre (Deskriptor 9) erbt sbt nicht. Die ganze Ausgabe von sbt steht in
+# target/ase-build.log; scheitert der Bau, zeigt das Skript deren Ende.
 build() {
   echo "ase: baue den Runner (sbt), einmalig nach Änderungen …" >&2
   mkdir -p "$repo/target"
-  cp=$(cd "$repo" && sbt -batch -error "export runner/Runtime/fullClasspath" 9>&- | tail -1)
+  log="$repo/target/ase-build.log"
+  rc=0; (cd "$repo" && sbt -batch -error "export runner/Runtime/fullClasspath" 9>&- > "$log" 2>&1) || rc=$?
+  if [ "$rc" != 0 ]; then
+    echo "ase: Bau gescheitert (sbt, Exit $rc), Ende von $log:" >&2; tail -20 "$log" >&2; exit 21
+  fi
+  cp=$(tail -1 "$log")
   case "$cp" in
     *scala3-library*) printf '%s\n' "$cp" > "$cache" ;;
-    *) echo "ase: sbt lieferte keinen Klassenpfad: $cp" >&2; exit 1 ;;
+    *) echo "ase: Bau gescheitert, sbt lieferte keinen Klassenpfad; Ende von $log:" >&2; tail -20 "$log" >&2; exit 21 ;;
   esac
 }
 
@@ -49,22 +60,22 @@ hold() {
 if [ "${1-}" = pull ] || [ "${1-}" = checkout ]; then
   cmd=$1; shift
   case "$cmd" in
-    pull) [ $# -eq 0 ] || { echo "ase: pull nimmt keine Argumente" >&2; exit 2; } ;;
+    pull) [ $# -eq 0 ] || { echo "ase: pull nimmt keine Argumente" >&2; exit 23; } ;;
     checkout) [ $# -eq 1 ] && [ -n "$1" ] && [ "${1#-}" = "$1" ] \
-      || { echo "ase: checkout nimmt genau einen Commit (etwa aus ase/ase-fassung.txt)" >&2; exit 2; } ;;
+      || { echo "ase: checkout nimmt genau einen Commit (etwa aus ase/ase-fassung.txt)" >&2; exit 23; } ;;
   esac
   [ "$locking" = 1 ] || { echo "ase: $cmd braucht flock (util-linux)" >&2; exit 1; }
   hold -x "das Ende laufender Aufrufe von ase ($cmd)"
   if [ "$cmd" = pull ]; then
     git -C "$repo" symbolic-ref -q HEAD > /dev/null \
       || { echo "ase: kein Zweig ausgecheckt (feste Fassung); neue Fassung mit bin/ase checkout <commit> oder vorher git checkout main" >&2; exit 1; }
-    git -C "$repo" pull --ff-only 9>&-
+    git -C "$repo" pull --ff-only 9>&- || { echo "ase: git pull gescheitert (Netz, lokale Änderungen oder kein Fast-Forward)" >&2; exit 22; }
   else
     # feste Fassung (D#106): holen, den Commit prüfen, losgelöst auschecken
-    git -C "$repo" fetch -q --tags origin 9>&-
+    git -C "$repo" fetch -q --tags origin 9>&- || { echo "ase: git fetch gescheitert (Netz oder Zugang)" >&2; exit 22; }
     target=$(git -C "$repo" rev-parse -q --verify "$1^{commit}") \
-      || { echo "ase: Commit $1 ist auch nach fetch unbekannt" >&2; exit 1; }
-    git -C "$repo" checkout -q --detach "$target" 9>&-
+      || { echo "ase: Commit $1 ist auch nach fetch unbekannt" >&2; exit 20; }
+    git -C "$repo" checkout -q --detach "$target" 9>&- || { echo "ase: git checkout gescheitert (lokale Änderungen?)" >&2; exit 22; }
   fi
   if stale; then build; fi
   echo "ase: steht auf $(git -C "$repo" rev-parse --short HEAD), gebaut" >&2
@@ -86,3 +97,5 @@ if [ -n "$commit" ] && [ -n "$(cd "$repo" && git status --porcelain -- $src 2>/d
 
 # java erbt Deskriptor 9 und hält die geteilte Sperre bis zum Ende; Kindprozesse von java erben ihn nicht.
 exec java ${commit:+"-Dase.commit=$commit"} -cp "$(cat "$cache")" ase.runner.Main "$@"
+}
+exit "$?"

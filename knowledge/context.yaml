@@ -477,7 +477,7 @@ interpreters:
     status: implemented
     source: bin/ase
     verified: 2026-11-14
-    decided_by: ["D#60", "D#102", "D#104", "D#106"]
+    decided_by: ["D#60", "D#102", "D#104", "D#106", "D#110"]
     note: "baut beim ersten Aufruf und nach Änderungen (Klassenpfad in target/ase-classpath.txt), startet dann java mit ase.commit; jeder Aufruf hält eine geteilte Sperre auf .ase-lock, Bauen, bin/ase pull und bin/ase checkout <commit> eine exklusive (D#104, D#106)"
   - id: runner.seriesScript
     type: runner
@@ -663,6 +663,7 @@ decisions:
   - { id: "D#107", type: decision, status: decided, source: "findings.md#D#107", verified: 2026-11-15, title: "Stehende Erlaubnis: Merge nach main ohne Rückfrage nur für Doku und Werkzeuge (Markdown außer SPEC.md und architecture.md, knowledge/context.yaml, tools/); neue D# weiter mit Zustimmung" }
   - { id: "D#108", type: decision, status: decided, source: "findings.md#D#108", verified: 2026-11-15, title: "Lehren am Ende fest im Ablauf: Skill lehren (.claude/skills/lehren), L# in findings.md, je Lehre genau eine Folge, kein Hook" }
   - { id: "D#109", type: decision, status: decided, source: "findings.md#D#109", verified: 2026-11-15, title: "Lehren zentral im Leitstand (Sammlung lehren, Reiter, Formular für den Nutzer); Skill lehren beginnt mit dem Ableiten der Einträge des Nutzers" }
+  - { id: "D#110", type: decision, status: decided, source: "findings.md#D#110", verified: 2026-11-15, title: "bin/ase: eigene Exit-Codes 20 bis 23, Bau-Log target/ase-build.log mit Ende bei Fehlschlag, Rumpf als Block gegen Selbstaustausch (O#67)" }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }
@@ -738,6 +739,7 @@ open:
   - { id: "O#64", type: open, status: resolved, issue: 24, source: "findings.md#O#64", verified: 2026-11-14, resolved_by: "D#104", title: "Sperre in bin/ase gegen Bauen und Ziehen während laufender Aufrufe" }
   - { id: "O#65", type: open, status: resolved, issue: 25, source: "findings.md#O#65", verified: 2026-11-14, resolved_by: "D#106", title: "Feste ase-Fassung unter der Sperre auschecken (bin/ase checkout)" }
   - { id: "O#66", type: open, status: open, issue: 26, source: "findings.md#O#66", verified: 2026-11-15, title: "sbt test in der Cloud-Session: zwei Tests rot am Container (SandboxSuite TMPDIR, LocalToolsSuite Kindprozess)" }
+  - { id: "O#67", type: open, status: resolved, issue: 27, source: "findings.md#O#67", verified: 2026-11-15, resolved_by: "D#110", title: "bin/ase meldet Fehlschläge ununterscheidbar und verschluckt die Ausgabe von sbt" }
   - { id: "L#1", type: lesson, status: recorded, source: "findings.md#L#1", verified: 2026-11-15, title: "Parallele Session nicht bemerkt: list_sessions zu Beginn, Nummern vorher ansagen" }
   - { id: "L#2", type: lesson, status: recorded, source: "findings.md#L#2", verified: 2026-11-15, title: "Dokumentiert, aber nicht angewendet: Wirkung prüfen, Skripte melden Fehlschläge" }
   - { id: "L#3", type: lesson, status: recorded, source: "findings.md#L#3", verified: 2026-11-15, title: "Eingabe von Hand ungeprüft: einrichten.sh prüft Schlüssel (angefragt)" }
