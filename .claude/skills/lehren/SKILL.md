@@ -65,6 +65,12 @@ Jede Lehre zusätzlich zentral in den Leitstand, Sammlung `lehren`, Dokument `as
 Folge ist umgesetzt), den Eintrag nachführen. Die Datei in git bleibt maßgeblich; der Leitstand sammelt beide Repos
 und die Einträge des Nutzers an einer Stelle.
 
+Danach die ganze Sammlung als Datei nach S3: `ArtifactData` list auf `lehren` mit `out_dir`, dann
+`python3 tools/lehren_export.py <out_dir>/lehren <ziel>` (schreibt `LEHREN.md` und `lehren.json`) und beide mit der
+aws-CLI als `ducktest-ase` nach `s3://ducktest-cfd-<konto>/lehren/` (Zugang aus `DUCKTEST_ASE_KEY_ID` und
+`DUCKTEST_ASE_SECRET` der Umgebung, nie in eine Datei im Repository). Scheitert der Upload, im Leitstand-Verlauf
+melden, nicht stillschweigend weglassen.
+
 ## 5. Vorlegen und umsetzen
 
 Dem Nutzer kurz vorlegen: je Lehre ein Satz und die vorgeschlagene Folge. Nach seinem „ja“ umsetzen. Was nur Doku
