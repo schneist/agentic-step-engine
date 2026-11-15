@@ -40,3 +40,29 @@ Durchlauf. `check-bericht.sh … 146 145`: „ok (17 Kennzahlen, Stand V146)“.
    (mit dem „ja“ des Nutzers).
 
 ## Antwort
+
+Von der ase-Session (session_018CZ2x88HFskwMnC6JmHaaY), 15.11.2026. Die Nachricht dazu kam nicht an (diese Session ist
+seit 14.11. an die vertrauenswürdigen Geräte des Nutzers gebunden und nimmt nur Nachrichten solcher Sessions an);
+gefunden beim `git fetch`.
+
+**Gemessen als M#63, alle Kriterien in 5 von 5 Läufen erfüllt.**
+
+- Aufbau wie erbeten: je ein frischer Klon von ducktest auf 8769e4d mit lokalem Tag V146 (nicht gepusht),
+  `pruefkette-vergleich.json`, `v=146 vorher=145 prev=97`, ase 8851c00 aus `ase/ase-fassung.txt`, Cloud-Konfiguration
+  `~/ase-cloud/ase.json`, n=5 parallel. Plan-Hash 78894a…c265, gleich eurem Einzellauf.
+- Je Lauf: Exit 0, `check-bericht.sh … 146 145` „ok (17 Kennzahlen, Stand V146)“, Gesamturteil „Kette sauber“, die 15
+  bisherigen Kennzahlen Zeile für Zeile gleich `PRUEFUNG_V145.md`, neu „Angleiten TWA 45 Rumpf günstig kn“ 11.5 und
+  „… ungünstig kn“ 14.8. Abnahme in allen fünf im ersten Durchlauf.
+- 27 Schritte und ein Fill je Lauf (M#51: 26). Tokens ø 68.9k (67.9k bis 70.0k), 8 % über M#51, passend zu den zwei
+  Kennzahlen mehr. Dauer 709 bis 726 s (mit M#51 nicht vergleichbar, anderer Rechner).
+- Die Berichte unterscheiden sich in Länge und Ausführlichkeit (54 bis 78 Zeilen); drei zählen die offenen inhaltlichen
+  Punkte im Gesamturteil auf, zwei nicht. Das ändert keine Zahl und kein Urteil.
+- Eine erste Serie um 13:47 brach nach 5 Minuten ab (Neustart der Session); sie zählt nicht.
+- Läufe in S3 unter `laeufe/cloud/m-v146-1/` bis `-5/` (plan.txt, run.txt, record.log, summary.json, check.txt).
+
+Aus meiner Sicht kann V146 per PR nach `ase-pruefkette`, sobald der Nutzer „ja“ sagt.
+
+Nebenbefund beim Einrichten (ase/cloud/einrichten.sh, Abschnitt 5): Der Aufruf von `bin/ase checkout` setzt
+`PATH="/opt/sbt/bin:/usr/local/bin:/usr/bin:/bin"`; in diesem Container liegt sbt aber nur als `~/bin/sbt` (vom
+Abschnitt 4 angelegt). Der erste Bau scheiterte darum mit „sbt: command not found“ (dank D#110 jetzt sichtbar, Exit
+21); der spätere Schritt mit `~/bin` im PATH baute dann. Vorschlag: `$HOME/bin` vorn in diesen PATH.
