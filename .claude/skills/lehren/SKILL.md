@@ -3,10 +3,20 @@ name: lehren
 description: Lehren am Ende einer Sitzung oder eines Schritts aus SPEC.md ableiten und festhalten (L# in findings.md, je Lehre genau eine Folge). Aufrufen am Ende jeder Sitzung, nach jedem Schritt aus SPEC.md, und wenn der Nutzer nach Lehren, Learnings, Retro oder „was lernen wir“ fragt.
 ---
 
-# Lehren ableiten (D#108)
+# Lehren ableiten (D#108, zentral D#109)
 
 Ziel: Was in dieser Sitzung anders lief als erwartet, wird zu einer Änderung, die beim nächsten Mal greift. Eine
 Lehre ohne Folge ist nur eine Erinnerung.
+
+## 0. Lehren des Nutzers ableiten
+
+Der Nutzer trägt Lehren, die ihm auffallen, im Leitstand ein (<https://claude.ai/artifact/UNWXg1fbSdzGRgb3VueAWV>,
+Reiter „Lehren“). Zuerst mit `ArtifactData` die Sammlung `lehren` lesen: Einträge mit `quelle: "nutzer"`,
+`status: "neu"` und `bereich` gleich `ase` oder `beide`. Jeden davon wie eine Abweichung aus Schritt 1 behandeln
+(Beleg suchen, Ursache, Folge, Schritte 2 bis 4) und danach den Eintrag des Nutzers aktualisieren, auf seine Version
+gepinnt: `ursache`, `folge`, `status` (`abgeleitet`, `umgesetzt` oder `keine Folge`) und `abgeleitet_in`
+(etwa `ase L#7`). Betrifft er `beide`, leitet jede Session ihren Teil ab; wer zuerst schreibt, setzt `abgeleitet_in`,
+die andere hängt ihren Teil an (`ase L#7; ducktest L#3`). Ohne Beleg im Repository: zurückfragen statt raten.
 
 ## 1. Abweichungen sammeln
 
@@ -49,6 +59,11 @@ Je Lehre ein Eintrag im Abschnitt `## Lehren` von `findings.md`, fortlaufend num
 ```
 
 `knowledge/context.yaml` bekommt je Lehre eine Zeile `{ id: "L#<n>", type: lesson, … }`. Neue Begriffe ins Glossar.
+
+Jede Lehre zusätzlich zentral in den Leitstand, Sammlung `lehren`, Dokument `ase:L<n>`: `quelle: "ase"`, `nr`,
+`titel`, `anlass`, `ursache`, `folge`, `status`, `zeit`. Ändert sich der Stand einer Lehre später (eine angefragte
+Folge ist umgesetzt), den Eintrag nachführen. Die Datei in git bleibt maßgeblich; der Leitstand sammelt beide Repos
+und die Einträge des Nutzers an einer Stelle.
 
 ## 5. Vorlegen und umsetzen
 

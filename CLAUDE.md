@@ -37,7 +37,7 @@ Nichts wird ausgeführt, was nicht vorher geprüft wurde. Weder ein Plan noch ei
 - Neue Begriffe noch in derselben Session ins Glossar (`context.md` §7).
 - Jeder offene Punkt (`O#`) hat ein GitHub-Issue in `schneist/agentic-step-engine`: Titel `O#<n>: <Kurztitel>`, Text aus `findings.md`. Die Nummer steht in `findings.md` (`- O#<n> · Issue [#<i>](…) · …`) und in `knowledge/context.yaml` (`issue: <i>`). Wird der Punkt erledigt, das Issue mit Verweis auf das `D#` (und den Commit) schließen.
 - Nach jedem Schritt aus `SPEC.md`: `sbt test` grün, `context.yaml` und `findings.md` nachgeführt, kurze Zusammenfassung, offene Punkte, Lehren (unten). Dann warten.
-- Lehren: Am Ende jeder Sitzung und nach jedem Schritt aus `SPEC.md` den Skill `lehren` ausführen (`.claude/skills/lehren/SKILL.md`, D#108): Abweichungen mit Beleg, Ursache, je Lehre genau eine Folge, Einträge `L#` in `findings.md`, dem Nutzer vorlegen. Wiederholt sich eine Lehre, war die Folge zu schwach.
+- Lehren: Am Ende jeder Sitzung und nach jedem Schritt aus `SPEC.md` den Skill `lehren` ausführen (`.claude/skills/lehren/SKILL.md`, D#108): Abweichungen mit Beleg, Ursache, je Lehre genau eine Folge, Einträge `L#` in `findings.md`, dem Nutzer vorlegen. Wiederholt sich eine Lehre, war die Folge zu schwach. Zuerst die Lehren ableiten, die der Nutzer im Leitstand eingetragen hat (Reiter „Lehren“, D#109); jede Lehre auch dort als `ase:L<n>`.
 - `record/` und API-Keys nie committen.
 
 ## Andere Sitzungen (ducktest)
