@@ -1,0 +1,10 @@
+#!/bin/sh
+# Lehnt Commits ab, die Konfliktmarker enthalten (L#7: am 15.11. wurden nach einem gescheiterten Merge mit
+# `commit -a` Marker committet und gepusht). Einschalten je Klon: git config core.hooksPath .githooks
+treffer=$(git diff --cached -U0 --no-color | grep -nE '^\+(<<<<<<< |>>>>>>> |<<<<<<<$|>>>>>>>$)' || true)
+if [ -n "$treffer" ] || [ -n "$(git diff --cached --name-only --diff-filter=U)" ]; then
+  echo "pre-commit: Konfliktmarker oder ungelöste Konflikte im Commit, abgelehnt:" >&2
+  git diff --cached --name-only -G '^(<<<<<<<|>>>>>>>)( |$)' >&2
+  echo "Konflikt auflösen, Marker entfernen, dann erneut committen." >&2
+  exit 1
+fi
