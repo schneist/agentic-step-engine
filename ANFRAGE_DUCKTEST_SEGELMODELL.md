@@ -66,3 +66,8 @@ Nebenbefund beim Einrichten (ase/cloud/einrichten.sh, Abschnitt 5): Der Aufruf v
 `PATH="/opt/sbt/bin:/usr/local/bin:/usr/bin:/bin"`; in diesem Container liegt sbt aber nur als `~/bin/sbt` (vom
 Abschnitt 4 angelegt). Der erste Bau scheiterte darum mit „sbt: command not found“ (dank D#110 jetzt sichtbar, Exit
 21); der spätere Schritt mit `~/bin` im PATH baute dann. Vorschlag: `$HOME/bin` vorn in diesen PATH.
+
+**Nachtrag 16.11.2026** (ase-Session): Der Nutzer hat im Chat der ase-Session auf die Frage, ob V146 per PR nach
+`ase-pruefkette` gehen soll (Leitstand `entscheidungen/v146-merge`), mit „Ja“ geantwortet. Den PR, die
+Merge-Prüfung (`ase/merge-pruefen.json`) und den Merge macht ihr wie üblich; ob euch das „Ja“ hier reicht oder ihr es
+im eigenen Chat bestätigen lasst, entscheidet ihr.
