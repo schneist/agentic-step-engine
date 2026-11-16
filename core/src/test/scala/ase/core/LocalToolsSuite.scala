@@ -117,7 +117,9 @@ class LocalToolsSuite extends munit.FunSuite:
   private def shellEnv(name: String) = all.copy(shellAllowlist = Set(AllowedCommand(name, Nil)))
 
   withWs("Shell: Zeitüberschreitung beendet den Prozess samt Kindprozessen"): (ws, _) =>
-      script(ws, "slow.sh", "sleep 60 &\necho \"kind $!\"\nsleep 60\n")
+      // Das Kind meldet sich nach 4 s mit einer Datei im Arbeitsverzeichnis. Eine PID taugt nicht als Beleg: In der
+      // Sandbox hat das Skript einen eigenen PID-Namensraum, und dieselbe Nummer ist außen ein anderer Prozess (O#66).
+      script(ws, "slow.sh", "(sleep 4; echo lebt > kind_lebt.txt) &\necho kind gestartet\nsleep 60\n")
       val config = ExecConfig.default.copy(shellTimeout = 2.seconds)
       val started = System.nanoTime()
       val r = call(ws, Call.Shell("./slow.sh", Nil), shellEnv("./slow.sh"), config, scripts("./slow.sh"))
@@ -125,9 +127,9 @@ class LocalToolsSuite extends munit.FunSuite:
       val out = error(r) match
         case Some(ToolError.Timeout("./slow.sh", 2L, out)) => out
         case other                                       => fail(s"erwartet Timeout, war $other")
-      val pid = "kind (\\d+)".r.findFirstMatchIn(out).map(_.group(1).toLong).getOrElse(fail(s"keine PID in $out"))
-      Thread.sleep(500)
-      assert(!java.lang.ProcessHandle.of(pid).map(_.isAlive).orElse(false), s"Kindprozess $pid lebt noch")
+      assert(out.contains("kind gestartet"), out)
+      Thread.sleep(4000)
+      assert(!Files.exists(ws.resolve("kind_lebt.txt")), "Kindprozess hat nach der Zeitüberschreitung weitergearbeitet")
 
   withWs("Shell: Ausgabe begrenzt, stdin leer, Programm relativ zum Arbeitsverzeichnis"): (ws, _) =>
       script(ws, "loud.sh", "for i in $(seq 1 100000); do echo \"Zeile $i\"; done\n")

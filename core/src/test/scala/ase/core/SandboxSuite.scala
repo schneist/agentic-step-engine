@@ -87,7 +87,12 @@ class SandboxSuite extends munit.FunSuite:
     val home = sys.env.get("HOME").map(Path.of(_).normalize)
     val viaPath = sys.env.getOrElse("PATH", "").split(":").filter(_.nonEmpty).map(Path.of(_).normalize).toList
       .flatMap(d => home.filter(h => d.startsWith(h) && d != h).map(h => h.relativize(d).getName(0).toString)).distinct
-    assertEquals(lines, List(viaPath.size.toString, "0", s"tmp=${if sys.env.contains("TMPDIR") then "/tmp" else ""}", tmpEntry))
+    // in /tmp dazu die Wege zu Programmverzeichnissen aus PATH, die unter /tmp liegen (etwa sbt in einem Scratch-Ordner, O#66)
+    val tmp = Path.of("/tmp")
+    val tmpViaPath = sys.env.getOrElse("PATH", "").split(":").filter(_.nonEmpty).map(Path.of(_).normalize).toList
+      .filter(d => d.startsWith(tmp) && d != tmp).map(d => tmp.relativize(d).getName(0).toString)
+    assertEquals(lines.take(3), List(viaPath.size.toString, "0", s"tmp=${if sys.env.contains("TMPDIR") then "/tmp" else ""}"))
+    assertEquals(lines.drop(3).toSet, (tmpEntry :: tmpViaPath).toSet)
 
   withWs("kein Netz in der Sandbox, auch nicht zu 127.0.0.1; mit Zusatz net ein Programm schon, ein Skript nie"): (ws, _) =>
     val server = new ServerSocket(0, 5, InetAddress.getLoopbackAddress)
