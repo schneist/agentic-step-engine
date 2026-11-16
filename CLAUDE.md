@@ -39,6 +39,8 @@ Nichts wird ausgeführt, was nicht vorher geprüft wurde. Weder ein Plan noch ei
 - Nach jedem Schritt aus `SPEC.md`: `sbt test` grün, `context.yaml` und `findings.md` nachgeführt, kurze Zusammenfassung, offene Punkte, Lehren (unten). Dann warten.
 - Lehren: Am Ende jeder Sitzung und nach jedem Schritt aus `SPEC.md` den Skill `lehren` ausführen (`.claude/skills/lehren/SKILL.md`, D#108): Abweichungen mit Beleg, Ursache, je Lehre genau eine Folge, Einträge `L#` in `findings.md`, dem Nutzer vorlegen. Wiederholt sich eine Lehre, war die Folge zu schwach. Zuerst die Lehren ableiten, die der Nutzer im Leitstand eingetragen hat (Reiter „Lehren“, D#109); jede Lehre auch dort als `ase:L<n>`.
 - `record/` und API-Keys nie committen.
+- Lange Läufe (Messserien, Prüfketten) mit `setsid nohup … < /dev/null & disown` starten und eine Fertig-Datei schreiben lassen; Kindprozesse der Session sterben bei einem Neustart des Workers (L#8).
+- Gegenprobe: Jeder Test, der ein Fehlverhalten erkennen soll, wird beim Schreiben einmal mit eingebautem Fehlverhalten laufen gelassen und muss rot werden; danach zurücknehmen und in findings.md nennen (L#10).
 - Hooks: je Klon einmal `git config core.hooksPath .githooks`; `pre-commit` lehnt Konfliktmarker ab (L#7). Nach einem `git merge` nie in derselben Befehlskette committen: erst `git status` ohne `U` und keine Marker, dann committen. In Klonen von ducktest vor jedem Commit `/home/user/agentic-step-engine/.githooks/pre-commit` (oder der Pfad dieses Klons) von Hand laufen lassen.
 
 ## Andere Sitzungen (ducktest)

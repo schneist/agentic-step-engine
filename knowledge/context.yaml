@@ -747,6 +747,9 @@ open:
   - { id: "L#5", type: lesson, status: recorded, source: "findings.md#L#5", verified: 2026-11-15, title: "Nachrichten zwischen Sessions nicht verlässlich: Inhalt in git oder Leitstand" }
   - { id: "L#6", type: lesson, status: recorded, source: "findings.md#L#6", verified: 2026-11-15, title: "Ungeprüftes in Anfrage, doppelter Leitstand-Eintrag: Verify-before-assert auch dort" }
   - { id: "L#7", type: lesson, status: recorded, source: "findings.md#L#7", verified: 2026-11-15, title: "Konfliktmarker committet und gepusht: .githooks/pre-commit lehnt sie ab, nach einem Merge nie in derselben Kette committen" }
+  - { id: "L#8", type: lesson, status: recorded, source: "findings.md#L#8", verified: 2026-11-16, title: "Hintergrundläufe sterben beim Neustart der Session: setsid nohup, Fertig-Datei" }
+  - { id: "L#9", type: lesson, status: recorded, source: "findings.md#L#9", verified: 2026-11-16, title: "Erinnerungen werden abgelehnt: nicht auf send_later bauen, Fertig-Datei statt Erinnerung" }
+  - { id: "L#10", type: lesson, status: recorded, source: "findings.md#L#10", verified: 2026-11-16, title: "Test grün ohne zu prüfen: Gegenprobe, die rot werden muss, für jeden Test eines Fehlverhaltens" }
   - { id: "O#38", type: open, status: open, issue: 5, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
   - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
   - { id: "O#35", type: open, status: open, issue: 4, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }
