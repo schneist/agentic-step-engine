@@ -224,11 +224,29 @@ Ein Flow ist ein JSON-Objekt mit vier Pflichtfeldern und einem optionalen:
 
 Was ein Flow wie der Release-Flow im eigenen Repository braucht: `ase.json` mit `{ "scripts": ["./run-tests.sh"] }`, denn Skripte laufen nur, wenn sie dort stehen. Dazu `release-envelope.json`, die äußere Hülle; sie muss mindestens so weit sein wie die Hülle im Flow, am einfachsten ist eine Kopie des Felds `envelope` aus `flows/release.json`. `ase plan` braucht für jeden Parameter in `params` einen Wert, der zur Regex passt. Das Record-Log muss außerhalb von `--workspace` liegen. Mit `--workspace .` und ohne `--record` bricht `ase run` ab, denn der Standard `record/…` läge im Arbeitsverzeichnis.
 
+### Flows nacheinander: eine Stufenfolge
+
+Brauchen zwei Flows verschiedene Hüllen oder Konfigurationen, etwa einer, der eine Datei schreibt, und einer, der sie nur liest, laufen sie als Stufenfolge (D#112). Eine Datei `*.folge.json`:
+
+```json
+{
+  "description": "Deckel setzen, dann starten",
+  "params": { "zone": "^[a-z]{2}-[a-z]+-[0-9][a-z]$" },
+  "stufen": [
+    { "name": "deckel", "flow": "deckel.json", "envelope": "envelope-deckel.json", "config": "ase-deckel.json", "werte": { "zone": "${zone}" } },
+    { "name": "start",  "flow": "start.json",  "envelope": "envelope-start.json",  "config": "ase-start.json",  "werte": { "zone": "${zone}" } }
+  ]
+}
+```
+
+Pfade gelten relativ zur Folge. `ase plan --folge F zone=… --out P` prüft jede Stufe für sich wie einen Flow, zeigt je Stufe den Explain und am Ende die Zeile `folge-hash`. `ase run --plan P --workspace W --approve <folge-hash>` prüft alle Stufen neu, gibt einmal frei und führt sie nacheinander aus, jede mit ihrer Konfiguration und Sandbox. Die nächste Stufe läuft nur, wenn die vorige mit done endet; ein `Abort` im Flow hält die Folge an (Exit 3). Record-Log und Summary bekommen je Stufe ihren Namen: `record-deckel.log`, `summary-deckel.json`. `--envelope` und `--config` entfallen bei `run`, sie stehen je Stufe in der Plan-Datei.
+
 ## Kommandozeile und Konfiguration
 
 ```
 ase plan --envelope E (--task T | --flow F [name=wert …]) --out P [--summary S] [--config C] [--workspace W]
-ase run  --plan P --envelope E --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
+ase plan --folge F [name=wert …] --out P [--workspace W]
+ase run  --plan P [--envelope E] --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
 ase stats PFAD …
 ase tighten --flow F --out NEU [--min-calls N] [--config C] PFAD …
 ase series begin --eval DIR [--flow F] --commit C --status S --n N [--parallel] [--reference FP] [--config C] --out I

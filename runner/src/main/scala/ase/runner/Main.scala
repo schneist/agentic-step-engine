@@ -2,6 +2,7 @@ package ase.runner
 
 import ase.core.*
 import ase.model.*
+import cats.data.NonEmptyList
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.syntax.all.*
 import io.circe.{Json, parser}
@@ -26,9 +27,12 @@ enum Command:
       /** für die Vorprüfung der Skripte (D#94); ohne sie prüft erst `ase run` */
       workspace: Option[Path] = None
   )
+  /** Stufenfolge (D#112): Hülle und Konfiguration stehen je Stufe in der Folge. */
+  case PlanFolge(folge: Path, values: Map[String, String], out: Path, workspace: Option[Path] = None)
   case Run(
       plan: Path,
-      envelope: Path,
+      /** nur für einen einzelnen Plan; bei einer Folge stehen Hülle und Konfiguration je Stufe in der Plan-Datei */
+      envelope: Option[Path],
       workspace: Path,
       approve: Option[String],
       record: Option[Path],
@@ -56,7 +60,8 @@ enum Command:
 object Cli:
   val usage: String =
     """ase plan --envelope E (--task T | --flow F [name=wert …]) --out P [--summary S] [--config C] [--workspace W]
-      |ase run  --plan P --envelope E --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
+      |ase plan --folge F [name=wert …] --out P [--workspace W]
+      |ase run  --plan P [--envelope E] --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
       |ase stats PFAD …
       |ase tighten --flow F --out NEU [--min-calls N] [--config C] PFAD …
       |ase series begin --eval DIR [--flow F] --commit C --status S --n N [--parallel] [--reference FP] [--config C] --out I
@@ -83,6 +88,19 @@ object Cli:
       o.keys.find(k => !ks.contains(k)).map(k => s"unbekannte Option --$k").toLeft(())
 
     args match
+      case "plan" :: rest if rest.contains("--folge") =>
+        for
+          (o, flags, free) <- opts(rest, Map.empty, Set.empty, Nil)
+          _ <- known(o, "folge", "out", "workspace")
+          _ <- flags.headOption.map(f => s"unbekannte Option --$f").toLeft(())
+          folge <- need(o, "folge")
+          out <- need(o, "out")
+          values <- free.traverse(a =>
+            a.split("=", 2) match
+              case Array(k, v) => Right(k -> v)
+              case _           => Left(s"unerwartetes Argument „$a“")
+          )
+        yield Command.PlanFolge(folge, values.toMap, out, o.get("workspace").map(Path.of(_)))
       case "plan" :: rest =>
         for
           (o, _, free) <- opts(rest, Map.empty, Set.empty, Nil)
@@ -112,11 +130,10 @@ object Cli:
           _ <- (flags - "no-ask").headOption.map(f => s"unbekannte Option --$f").toLeft(())
           _ <- free.headOption.map(a => s"unerwartetes Argument „$a“").toLeft(())
           plan <- need(o, "plan")
-          envelope <- need(o, "envelope")
           workspace <- need(o, "workspace")
         yield Command.Run(
           plan,
-          envelope,
+          o.get("envelope").map(Path.of(_)),
           workspace,
           o.get("approve"),
           o.get("record").map(Path.of(_)),
@@ -172,7 +189,8 @@ object Main extends IOApp:
       case Right(cmd) =>
         val go = cmd match
           case p: Command.Plan => plan(p)
-          case r: Command.Run  => execute(r)
+          case f: Command.PlanFolge => planFolge(f)
+          case r: Command.Run  => read(r.plan).flatMap(t => if FolgePlanFile.isFolge(t) then executeFolge(r, t) else execute(r, t))
           case s: Command.Stats => stats(s)
           case t: Command.Tighten => tighten(t)
           case b: Command.SeriesBegin => seriesBegin(b)
@@ -463,26 +481,13 @@ object Main extends IOApp:
       }
     paths.flatTraverse(files).flatMap(found => found.distinct.traverse(load).map(_.flatten.toVector))
 
-  private def execute(cmd: Command.Run): IO[ExitCode] =
+  private def execute(cmd: Command.Run, text: String): IO[ExitCode] =
     for
       (config, sha) <- loadConfig(cmd.config)
-      root <- loadEnvelope(cmd.envelope)
-      file <- read(cmd.plan).flatMap(t => orFail(PlanFile.parse(t, config.check.nestingLimit)))
-      _ <- orFail(Either.cond(file.configSha == sha, (), "Plan und Lauf haben verschiedene Runner-Konfigurationen (D#40)"))
-      // die Hülle der Plan-Datei darf die des Runners nur abschwächen (D#22)
-      _ <- orFail(Attenuation.check(file.envelope, root, Location.root / "envelope", Attenuation.Mode.Flow) match
-        case Nil => Right(())
-        case vs  => Left(vs.map(_.render).mkString("\n")))
-      // die Plan-Datei trägt den elaborierten Term; ase run elaboriert nicht neu, prüft nur die Tabelle (D#87)
-      _ <- orFail(Implicits.check(file.implicits, config.check))
-      checked <- orFail(DryRun.plan(file.term, file.envelope, config.check, file.params, file.implicits).leftMap(_.toList.map(_.render).mkString("\n")))
-      explain = Explain.render(checked, config.explain)
-      _ <- IO.println(explain)
-      // Skripte vor der Freigabe (D#94): reject startet nichts, warn zeigt den Befund und läuft
-      problems <- IO.blocking(ScriptCheck.problems(cmd.workspace, ScriptCheck.scripts(checked.term)))
-      _ <- IO.whenA(problems.nonEmpty)(config.scriptCheck match
-        case ScriptCheck.Mode.Reject => IO.raiseError(Failure(ScriptCheck.render(config.scriptCheck, problems)))
-        case ScriptCheck.Mode.Warn   => IO.println(ScriptCheck.render(config.scriptCheck, problems)))
+      envelope <- orFail(cmd.envelope.toRight("--envelope fehlt"))
+      root <- loadEnvelope(envelope)
+      file <- orFail(PlanFile.parse(text, config.check.nestingLimit))
+      checked <- recheck(file, root, config, sha, cmd.workspace)
       terminal <- IO.blocking(Terminal.stdin)
       // ohne Menschen (--no-ask, oder keine Eingabe vom Terminal) keine Wirkung nach außen ohne Ask davor (D#103)
       open = if cmd.noAsk || !terminal then Effects.unguarded(checked.term, config.check) else Nil
@@ -494,6 +499,27 @@ object Main extends IOApp:
             case Some(a) => runApproved(a, file, cmd, config)
           }
     yield code
+
+  /** Was ase run vor der Freigabe mit einer Plan-Datei tut: dieselbe Konfiguration, die Hülle des Runners nur
+    * abgeschwächt, die Tabelle impliziter Flags passend, DryRun neu, Explain, Skripte im Arbeitsverzeichnis (D#11).
+    */
+  private def recheck(file: PlanFile, root: Envelope, config: RunnerConfig, sha: String, workspace: Path): IO[CheckedTerm] =
+    for
+      _ <- orFail(Either.cond(file.configSha == sha, (), "Plan und Lauf haben verschiedene Runner-Konfigurationen (D#40)"))
+      // die Hülle der Plan-Datei darf die des Runners nur abschwächen (D#22)
+      _ <- orFail(Attenuation.check(file.envelope, root, Location.root / "envelope", Attenuation.Mode.Flow) match
+        case Nil => Right(())
+        case vs  => Left(vs.map(_.render).mkString("\n")))
+      // die Plan-Datei trägt den elaborierten Term; ase run elaboriert nicht neu, prüft nur die Tabelle (D#87)
+      _ <- orFail(Implicits.check(file.implicits, config.check))
+      checked <- orFail(DryRun.plan(file.term, file.envelope, config.check, file.params, file.implicits).leftMap(_.toList.map(_.render).mkString("\n")))
+      _ <- IO.println(Explain.render(checked, config.explain))
+      // Skripte vor der Freigabe (D#94): reject startet nichts, warn zeigt den Befund und läuft
+      problems <- IO.blocking(ScriptCheck.problems(workspace, ScriptCheck.scripts(checked.term)))
+      _ <- IO.whenA(problems.nonEmpty)(config.scriptCheck match
+        case ScriptCheck.Mode.Reject => IO.raiseError(Failure(ScriptCheck.render(config.scriptCheck, problems)))
+        case ScriptCheck.Mode.Warn   => IO.println(ScriptCheck.render(config.scriptCheck, problems)))
+    yield checked
 
   /** Warum ein Lauf ohne Menschen nicht startet (D#103). */
   private[runner] def unattendedRefusal(open: List[Effects.Site]): String =
@@ -517,6 +543,121 @@ object Main extends IOApp:
       case None =>
         IO.print("\nFreigeben? [y/N] ") >> answer.recover { case _: java.io.EOFException => "" }.map(_.trim.toLowerCase).map {
           case "y" | "j" => Approval.approve(checked, checked.termHash).toOption
+          case _         => None
+        }
+
+  /** `ase plan --folge` (D#112): jede Stufe wie ein Flow mit ihrer eigenen Hülle und Konfiguration gebunden und
+    * geprüft; abgelegt wird nur, wenn alle bestehen, mit einem Hash über alle Stufen. Exit 0 geprüft, 3 eine Stufe
+    * abgelehnt oder, mit --workspace und scriptCheck reject, ein Skript fehlt (dann liegt keine Plan-Datei vor), 1 Fehler.
+    */
+  private def planFolge(cmd: Command.PlanFolge): IO[ExitCode] =
+    val path = cmd.folge.toAbsolutePath.normalize
+    val dir = Option(path.getParent).getOrElse(Path.of("").toAbsolutePath)
+    for
+      text <- read(path)
+      folge <- orFail(Folge.parse(text).leftMap(_.render))
+      bound <- orFail(Folge.bind(folge, cmd.values).leftMap(_.render))
+      stages <- bound.traverse { (s, werte) =>
+        val flow = dir.resolve(s.flow).normalize
+        val envelope = dir.resolve(s.envelope).normalize
+        val config = s.config.map(c => dir.resolve(c).normalize)
+        for
+          _ <- IO.println(s"\n── Stufe ${s.name}: ${s.flow}")
+          (cfg, sha) <- loadConfig(config)
+          root <- loadEnvelope(envelope)
+          flowText <- read(flow)
+          planned <- planFlow(flowText, werte, root, cfg)
+          ok <- planned.checked.flatTraverse { checked =>
+            val scripts = ScriptCheck.scripts(checked.term)
+            IO.println(Explain.render(checked, cfg.explain)) >>
+              cmd.workspace.traverse(w => IO.blocking(ScriptCheck.problems(w, scripts))).flatMap {
+                case Some(ps) if ps.nonEmpty =>
+                  IO.println(ScriptCheck.render(cfg.scriptCheck, ps)).as(cfg.scriptCheck != ScriptCheck.Mode.Reject)
+                case _ => IO.pure(true)
+              }.map { pass =>
+                val file = PlanFile(flow.toString, sha, checked.rootEnvelope, checked.params, checked.term, 0, 0, 0, 0L, 1, 1, Some(Canonical.sha256Hex(flowText)), checked.implicits)
+                Option.when(pass)(FolgePlanFile.Stufe(s.name, flow.toString, envelope.toString, config.map(_.toString), PlanFile.encode(file)) -> checked)
+              }
+          }
+        yield ok
+      }
+      code <- stages.sequence match
+        case None => IO.println("\nfolge     abgelehnt; nichts abgelegt").as(ExitCode(3))
+        case Some(ok) =>
+          orFail(CheckedFolge.of(ok.map((s, c) => s.name -> c))).flatMap { checked =>
+            val file = FolgePlanFile(path.toString, Canonical.sha256Hex(text), cmd.values, ok.toList.map(_._1))
+            IO.blocking(Files.writeString(cmd.out, FolgePlanFile.encode(file).spaces2 + "\n", UTF_8)) >>
+              IO.println(folgeFooter(checked)).as(ExitCode.Success)
+          }
+    yield code
+
+  private def folgeFooter(f: CheckedFolge): String =
+    s"\nfolge     ${f.stages.size} Stufen: ${f.stages.toList.map(_._1).mkString(" → ")}; die nächste läuft nur nach done\n" +
+      s"folge     freigegeben wird die Folge, nicht eine Stufe\nfolge-hash ${f.hash.hex}"
+
+  /** `ase run` mit dem Plan einer Folge (D#112): jede Stufe mit der Hülle und Konfiguration von ihren Pfaden neu
+    * geprüft, eine Freigabe über den Hash der Folge, dann Stufe für Stufe; die nächste nur nach done. Record und
+    * Summary je Stufe mit dem Namen der Stufe im Dateinamen. Exit-Code der letzten gelaufenen Stufe.
+    */
+  private def executeFolge(cmd: Command.Run, text: String): IO[ExitCode] =
+    for
+      _ <- orFail(Either.cond(cmd.envelope.isEmpty && cmd.config.isEmpty, (), "Bei einer Folge stehen Hülle und Konfiguration je Stufe in der Plan-Datei; --envelope und --config entfallen"))
+      plan <- orFail(FolgePlanFile.parse(text))
+      stages <- plan.stufen.traverse { s =>
+        for
+          _ <- IO.println(s"\n── Stufe ${s.name}: ${s.flow}")
+          (cfg, sha) <- loadConfig(s.config.map(Path.of(_)))
+          root <- loadEnvelope(Path.of(s.envelope))
+          file <- orFail(PlanFile.parse(s.plan.noSpaces, cfg.check.nestingLimit).leftMap(e => s"Stufe ${s.name}: $e"))
+          checked <- recheck(file, root, cfg, sha, cmd.workspace)
+        yield FolgeStage(s, cfg, file, checked)
+      }
+      nel <- orFail(NonEmptyList.fromList(stages).toRight("Folge-Plan ohne Stufen"))
+      folge <- orFail(CheckedFolge.of(nel.map(st => st.stufe.name -> st.checked)))
+      _ <- IO.println(folgeFooter(folge))
+      terminal <- IO.blocking(Terminal.stdin)
+      // ohne Menschen gilt D#103 für jede Stufe: keine Wirkung nach außen ohne Ask davor
+      open = if cmd.noAsk || !terminal then stages.flatMap(st => Effects.unguarded(st.checked.term, st.config.check)) else Nil
+      code <-
+        if open.nonEmpty then IO.println(unattendedRefusal(open)).as(ExitCode(4))
+        else
+          approveFolge(folge, cmd.approve, terminal, IO.readLine).flatMap {
+            case None    => IO.println("nicht freigegeben").as(ExitCode(4))
+            case Some(a) => runFolge(a, stages, cmd)
+          }
+    yield code
+
+  private final case class FolgeStage(stufe: FolgePlanFile.Stufe, config: RunnerConfig, file: PlanFile, checked: CheckedTerm)
+
+  private def runFolge(approved: ApprovedFolge, stages: List[FolgeStage], cmd: Command.Run): IO[ExitCode] =
+    val record = cmd.record.getOrElse(Path.of("record", LocalDateTime.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss")) + ".log"))
+    def go(rest: List[((String, ApprovedTerm), FolgeStage)]): IO[ExitCode] = rest match
+      case Nil => IO.println(s"\nfolge     done: alle ${stages.size} Stufen").as(ExitCode.Success)
+      case ((name, a), st) :: tail =>
+        val stageCmd = cmd.copy(config = st.stufe.config.map(Path.of(_)), record = Some(Folge.suffixed(record, name)), summary = cmd.summary.map(Folge.suffixed(_, name)))
+        IO.println(s"\n── Stufe $name") >> runApproved(a, st.file, stageCmd, st.config).flatMap { code =>
+          if code == ExitCode.Success then go(tail)
+          else
+            val label = code.code match { case 2 => "ask"; case 3 => "aborted"; case c => s"Exit $c" }
+            val rest = if tail.isEmpty then "" else s"; nicht gelaufen: ${tail.map(_._1._1).mkString(", ")}"
+            IO.println(s"\nfolge     Stufe $name endete mit $label$rest").as(code)
+        }
+    go(approved.stages.toList.zip(stages))
+
+  /** Freigabe einer Folge (D#112): wie approve, aber über den Hash der Folge; der Hash einer Stufe gibt nichts frei. */
+  private[runner] def approveFolge(folge: CheckedFolge, confirmed: Option[String], terminal: Boolean, answer: IO[String]): IO[Option[ApprovedFolge]] =
+    confirmed match
+      case Some(hex) =>
+        orFail(TermHash.fromHex(hex).toRight(s"--approve: „$hex“ ist kein Hash aus 64 Hex-Zeichen")).flatMap { h =>
+          Approval.approveFolge(folge, h) match
+            case Right(a) => IO.pure(Some(a))
+            case Left(ApprovalError.HashMismatch(expected, got)) =>
+              IO.println(s"Freigabe gescheitert: bestätigt ${got.short}, geprüft ist die Folge ${expected.short}").as(None)
+        }
+      case None if !terminal => IO.println(Terminal.refusal).as(None)
+      case None =>
+        IO.print(s"\nFolge freigeben (${folge.stages.size} Stufen)? [y/N] ") >> answer.recover { case _: java.io.EOFException => "" }.map(_.trim.toLowerCase).map {
+          case "y" | "j" => Approval.approveFolge(folge, folge.hash).toOption
           case _         => None
         }
 

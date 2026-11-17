@@ -91,3 +91,64 @@ object PlanFile:
 
   private def int(o: JsonObject, name: String): Either[String, Int] =
     o(name).flatMap(_.asNumber).flatMap(_.toInt).toRight(s"plan.$name fehlt")
+
+/** Was `ase plan --folge` ablegt (D#112): je Stufe Name, Flow, Hülle und Konfiguration als absolute Pfade und die
+  * Plan-Datei der Stufe. `ase run` liest Hülle und Konfiguration neu von diesen Pfaden, prüft jede Stufe neu (DryRun)
+  * und gibt nur den Hash der Folge frei, der dabei herauskommt. Kein CheckedFolge (D#11).
+  */
+final case class FolgePlanFile(source: String, sourceSha: String, params: Map[String, String], stufen: List[FolgePlanFile.Stufe])
+
+object FolgePlanFile:
+  val Version = 1
+
+  /** plan: die Plan-Datei der Stufe als JSON; gelesen wird sie erst mit der Konfiguration der Stufe (Schachtelungsgrenze). */
+  final case class Stufe(name: String, flow: String, envelope: String, config: Option[String], plan: Json)
+
+  def isFolge(text: String): Boolean =
+    parser.parse(text).toOption.flatMap(_.hcursor.get[String]("kind").toOption).contains("folge")
+
+  def encode(f: FolgePlanFile): Json = Json.obj(
+    "v" -> Json.fromInt(Version),
+    "kind" -> Json.fromString("folge"),
+    "source" -> Json.fromString(f.source),
+    "sourceSha" -> Json.fromString(f.sourceSha),
+    "params" -> Json.obj(f.params.toList.sorted.map((k, v) => k -> Json.fromString(v))*),
+    "stufen" -> Json.arr(f.stufen.map(s =>
+      Json.obj(
+        "name" -> Json.fromString(s.name),
+        "flow" -> Json.fromString(s.flow),
+        "envelope" -> Json.fromString(s.envelope),
+        "config" -> s.config.fold(Json.Null)(Json.fromString),
+        "plan" -> s.plan
+      ).dropNullValues
+    )*)
+  )
+
+  def parse(text: String): Either[String, FolgePlanFile] =
+    def str(o: JsonObject, k: String, at: String) = o(k).flatMap(_.asString).toRight(s"Folge-Plan: $at$k fehlt")
+    for
+      json <- parser.parse(text).leftMap(e => s"Kein gültiges JSON: ${e.message}")
+      o <- json.asObject.toRight("Folge-Plan: erwartet ein Objekt")
+      _ <- o.keys.find(k => !Set("v", "kind", "source", "sourceSha", "params", "stufen")(k)).map(k => s"Folge-Plan: Feld „$k“ ist nicht vorgesehen").toLeft(())
+      v <- o("v").flatMap(_.asNumber).flatMap(_.toInt).toRight("Folge-Plan: v fehlt")
+      _ <- Either.cond(v == Version, (), s"Folge-Plan Version $v wird nicht unterstützt (erwartet $Version)")
+      _ <- Either.cond(o("kind").flatMap(_.asString).contains("folge"), (), "Folge-Plan: kind ist nicht folge")
+      source <- str(o, "source", "")
+      sourceSha <- str(o, "sourceSha", "")
+      params <- o("params").flatMap(_.asObject).toRight("Folge-Plan: params fehlt").flatMap(
+        _.toList.traverse((k, j) => j.asString.map(k -> _).toRight(s"Folge-Plan: params.$k: erwartet einen Text")).map(_.toMap)
+      )
+      list <- o("stufen").flatMap(_.asArray).filter(_.nonEmpty).toRight("Folge-Plan: stufen fehlt oder ist leer")
+      stufen <- list.toList.zipWithIndex.traverse { (j, i) =>
+        val at = s"stufen[$i]."
+        for
+          s <- j.asObject.toRight(s"Folge-Plan: stufen[$i]: erwartet ein Objekt")
+          _ <- s.keys.find(k => !Set("name", "flow", "envelope", "config", "plan")(k)).map(k => s"Folge-Plan: $at$k ist nicht vorgesehen").toLeft(())
+          name <- str(s, "name", at)
+          flow <- str(s, "flow", at)
+          envelope <- str(s, "envelope", at)
+          config <- s("config").traverse(_.asString.toRight(s"Folge-Plan: ${at}config: erwartet einen Text"))
+          plan <- s("plan").toRight(s"Folge-Plan: ${at}plan fehlt")
+        yield Stufe(name, flow, envelope, config, plan)
+      }
+    yield FolgePlanFile(source, sourceSha, params, stufen)

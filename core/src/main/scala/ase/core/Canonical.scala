@@ -33,6 +33,13 @@ object TermHash:
 
   def fromHex(s: String): Option[TermHash] = Option.when(Hex.matches(s))(s)
 
+  /** Hash einer Stufenfolge (D#112): über Namen und Hash jeder Stufe, in Reihenfolge. Der Hash einer Stufe deckt schon
+    * Term, Hülle, implizite Flags und Konfiguration; eine andere Reihenfolge oder ein anderer Name ist eine andere Folge.
+    */
+  def ofFolge(stages: List[(String, TermHash)]): TermHash =
+    val list = stages.map((name, h) => Json.obj("name" -> Json.fromString(name), "hash" -> Json.fromString(h)))
+    Canonical.sha256Hex(Canonical.print(Json.obj("folge" -> Json.arr(list*))))
+
   extension (h: TermHash)
     def hex: String = h
     def short: String = s"${h.take(6)}…${h.takeRight(4)}"
