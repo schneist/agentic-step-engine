@@ -1,0 +1,7 @@
+{
+  "allowedOps": ["WriteFile"],
+  "pathPrefix": "out",
+  "maxSteps": 110,
+  "maxDepth": 0,
+  "shellAllowlist": []
+}
