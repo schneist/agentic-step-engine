@@ -29,6 +29,8 @@ Nichts wird ausgeführt, was nicht vorher geprüft wurde. Weder ein Plan noch ei
 ## Arbeitsregeln
 
 - Verify-before-assert: erst `knowledge/context.yaml`, dann die Datei öffnen, dann behaupten. Das gilt auch für Anfragen, Antworten und den Leitstand: Was dort für die andere Session oder den Nutzer steht, ist geprüft oder ausdrücklich „ungeprüft“ (Anlass: „flock ist auf Harrysole vorhanden“, 14.11.).
+- Antworten nicht auslegen: Enthält eine kurze Antwort des Nutzers auf eine Frage ein Wort, das nicht zur Frage passt und wie ein Tipp- oder Diktierfehler aussieht, in einem Satz zurückfragen, bevor danach gehandelt oder etwas eingetragen wird (L#11: „Ja morgen“ für „Ja mergen“).
+- sbt in der Cloud-Session nur über `tools/sbt-cloud.sh` (findet sbt, löst Links im PATH für bwrap auf; L#12).
 - Wirkung prüfen, nicht nur Ausführung: Nach einer Änderung an Rechten, Konfiguration oder Umgebung eine Probe dessen, was sie bewirken soll (darf lesen, darf schreiben, darf nicht löschen), und das Ergebnis nennen. Ein Skript, dessen Teilschritt scheitert, endet nicht mit Exit 0 (Anlass: S-ase im Repo, aber nicht angewendet; `harrysole_abgeben.sh` meldete Erfolg nach drei gescheiterten Kopien).
 - Supersede-Grep: bei überholten Zahlen und umbenannten Symbolen jedes Vorkommen suchen und angleichen.
 - Jede Änderung an Algebra, Hüllen oder Werkzeugbeschreibungen braucht einen `M#`-Eintrag (Messung über n Läufe), ab M#1; davor gibt es keine Basis (D#13). Ein Einzellauf ist keine Messung.

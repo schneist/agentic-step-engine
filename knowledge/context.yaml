@@ -503,6 +503,12 @@ interpreters:
     source: tools/leitstand_flows.py
     verified: 2026-11-17
     note: "Flow-Dateien als Schrittlisten für den Leitstand (Sammlung flows); Aufruf in CLAUDE.md, Abschnitt Leitstand"
+  - id: tools.sbtCloud
+    type: runner
+    status: implemented
+    source: tools/sbt-cloud.sh
+    verified: 2026-11-17
+    note: "sbt in der Cloud-Session (L#12): sucht sbt über ASE_SBT, PATH oder das Scratchpad, löst Links im PATH auf (bwrap, O#66), Exit 1 ohne sbt"
   - id: tools.lehrenExport
     type: runner
     status: implemented
@@ -807,6 +813,8 @@ lessons:
   - { id: "L#8", type: lesson, status: recorded, source: "findings.md#L#8", verified: 2026-11-16, title: "Hintergrundläufe sterben beim Neustart der Session: setsid nohup, Fertig-Datei" }
   - { id: "L#9", type: lesson, status: recorded, source: "findings.md#L#9", verified: 2026-11-16, title: "Erinnerungen werden abgelehnt: nicht auf send_later bauen, Fertig-Datei statt Erinnerung" }
   - { id: "L#10", type: lesson, status: recorded, source: "findings.md#L#10", verified: 2026-11-16, title: "Test grün ohne zu prüfen: Gegenprobe, die rot werden muss, für jeden Test eines Fehlverhaltens" }
+  - { id: "L#11", type: lesson, status: recorded, source: "findings.md#L#11", verified: 2026-11-17, title: "Kurze Antwort mit unerwartetem Wort zurückfragen statt auslegen (Regel in CLAUDE.md)" }
+  - { id: "L#12", type: lesson, status: recorded, source: "findings.md#L#12", verified: 2026-11-17, title: "sbt in der Cloud über tools/sbt-cloud.sh (sucht sbt, löst PATH-Links für bwrap auf)" }
 evals:
   - id: eval.1
     type: eval
