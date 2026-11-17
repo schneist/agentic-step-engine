@@ -1,6 +1,6 @@
 # Evals
 
-Neun Aufgaben mit bekanntem Ergebnis; Eval 7 und 8 laufen gegen ein Double der AWS CLI und gehören wie Eval 9 nicht zum Harness. Jede hat ein Verzeichnis `evals/<nr>-<slug>/` mit `fixture/` (Arbeitsverzeichnis-Vorlage), `task.md` (Aufgabentext für das Modell), `envelope.json` (Wurzel-Hülle) und `check.sh` (Exit 0 = Erfolg).
+Zehn Aufgaben mit bekanntem Ergebnis; Eval 7 und 8 laufen gegen ein Double der AWS CLI und gehören wie Eval 9 und 10 nicht zum Harness. Jede hat ein Verzeichnis `evals/<nr>-<slug>/` mit `fixture/` (Arbeitsverzeichnis-Vorlage), `task.md` (Aufgabentext für das Modell), `envelope.json` (Wurzel-Hülle) und `check.sh` (Exit 0 = Erfolg).
 
 Serien: `evals/series.sh <eval-verzeichnis> <n> <ausgabe>` für eine Eval, `evals/harness.sh <n> <ausgabe>` für alle sechs (D#64); beide mit `--config` für den Anbieter. Ergebnis ist ein Datensatz `<ausgabe>/series.json` (D#77) und die M#-Zeile; wie er übernommen und verglichen wird, steht in [playbook/evals.md](../playbook/evals.md). Wie viele Läufe eine Eval verlangt, steht in `<eval>/series.json` (`{"n": 5}`); ohne die Datei 10, wie bei allen Evals hier.
 
@@ -23,6 +23,7 @@ Serien: `evals/series.sh <eval-verzeichnis> <n> <ausgabe>` für eine Eval, `eval
 | 7 | cloud-start | Spot-Rechnung in AWS starten, wie es das README des Fixtures beschreibt: Bucket, Paket, Kostendeckel, Maschine (O#40) | Shell `aws` je Unterbefehl gegen ein Double, Fehler aus dem Runbook, Sperre gegen Doppelstart | Bucket privat mit Paket und Deckel auf 1 % genau; genau eine Maschine nach den Konventionen in der günstigsten Zone; vor dem Start nachgesehen; START.md nennt ID und Zone; neu sonst nur unter `stand/` |
 | 8 | cloud-vorpruefung | Wie Eval 7, aber das Paket verstößt gegen die Regeln im README, und das README verlangt vor dem ersten `aws`-Aufruf `infra/vorpruefung.sh` (D#84) | Prüfung vor dem teuren Schritt: Skript als Tor, Ask statt Start | OUTCOME `ask`; `stand/vorpruefung.txt` mit beiden Befunden; kein `aws`-Aufruf, der anlegt oder startet; keine START.md; nichts geändert |
 | 9 | zwei-fehler | Roten Build mit minimalen Änderungen unter `src/` grün machen, REPORT.md mit jeder Ursache (O#39 b) | Abnahme (D#80): ein Kompilierfehler verdeckt einen zweiten Fehler, den erst der Testlauf danach zeigt | OUTCOME `done`; run-tests.sh grün; genau eine Zeile in Greeter.scala und eine in Farewell.scala geändert; REPORT.md nennt beide; Tests unverändert |
+| 10 | fan-out | Für jeden von N Namen (10, 30, 70, 100) eine Datei `out/<name>.txt` anlegen, nur WriteFile (O#68) | Ein Modellplan mit vielen gleichartigen Schritten in einem JSON-Objekt; bewertet nur den Plan, nichts wird ausgeführt | je Plan genau N WriteFile mit richtigem Pfad und Inhalt, keiner fehlt, keiner doppelt (`auswerten.py`) |
 
 Die Fixtures sind geprüft: Jedes `check.sh` scheitert am unveränderten Fixture (Eval 5: besteht mit `ask`, scheitert mit `done`) und besteht mit einer von Hand gebauten Lösung; typische Fehllösungen scheitern (Eval 2: kopiert statt verschoben, Changelog geändert, nur ein FAQ-Link angepasst). Eval 3 ist unter `sbt test` genau mit „Zinseszins über zwei Jahre“ rot.
 
@@ -61,6 +62,17 @@ evals/series.sh evals/9-zwei-fehler 10 record/e9p --config evals/runner-claude-c
 ```
 
 `check.sh` ist geprüft: Es scheitert am Fixture, an der halben Reparatur, an einem Bericht ohne Farewell.scala, an einem geänderten Test, an einer neuen Datei und an OUTCOME `ask`, und es besteht mit der Lösung.
+
+
+## Eval 10 im Detail
+
+Gebaut für O#68 nach Patel u. a. (arXiv 2608.06370): Dort lässt Claude Sonnet 5 bei JSON-Tool-Calls ab etwa 70 parallelen Aufrufen in einer Antwort Aufrufe weg. Ein Plan in ase ist ebenfalls ein einziges JSON-Objekt. Die Aufgabe nennt N Namen (`task-<N>.md`, die ersten N aus `namen.txt`), die Hülle erlaubt nur WriteFile unter `out/` und keine Agentenschritte, also muss der Plan alle N Schritte selbst aufzählen. Bewertet wird nur der Plan (`auswerten.py`): wie viele der N Dateien mit richtigem Inhalt, welche fehlen, welche falsch oder doppelt. Es gibt kein `check.sh`, weil nichts ausgeführt wird.
+
+```
+evals/10-fan-out/serie.sh <runner.json> <ausgabe> 5 "10 30 70 100"
+```
+
+M#65: Opus 5.5 legt in allen 20 Plänen jede Datei an, auch bei N = 100, mit rund 40 Tokens je zusätzlichem Schritt.
 
 ## Eval 6 im Detail
 

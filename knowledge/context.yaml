@@ -3,6 +3,8 @@
 # Jeder Eintrag: id, type, status, source (Code-Pfad#Symbol oder Datei), verified (Datum, an dem Eintrag und Quelle übereinstimmten).
 # status: Code-Einträge, Evals, Flows: planned|implemented|superseded. Entscheidungen: decided|superseded. Offene Punkte: open|resolved. Referenzen: kein status.
 # IDs von Entscheidungen und offenen Punkten wie in findings.md: "D#n", "O#n".
+# Lehren ("L#n", type lesson, status recorded) stehen im Abschnitt lessons. Messungen ("M#n") stehen nur in findings.md;
+# hier verweisen Evals mit measurements darauf.
 # Kanten: implements (interpreter→operation), guards (invariant→interpreter), tested_by (invariant→Test-Symbol), decided_by (→decision), measured_by (decision→eval).
 # Nichts eintragen, was nur in einer Modellantwort stand und nie im Code gelandet ist.
 
@@ -476,9 +478,35 @@ interpreters:
     type: runner
     status: implemented
     source: bin/ase
-    verified: 2026-11-14
+    verified: 2026-11-17
     decided_by: ["D#60", "D#102", "D#104", "D#106", "D#110"]
-    note: "baut beim ersten Aufruf und nach Änderungen (Klassenpfad in target/ase-classpath.txt), startet dann java mit ase.commit; jeder Aufruf hält eine geteilte Sperre auf .ase-lock, Bauen, bin/ase pull und bin/ase checkout <commit> eine exklusive (D#104, D#106)"
+    note: "baut beim ersten Aufruf und nach Änderungen (Klassenpfad in target/ase-classpath.txt), startet dann java mit ase.commit; jeder Aufruf hält eine geteilte Sperre auf .ase-lock, Bauen, bin/ase pull und bin/ase checkout <commit> eine exklusive (D#104, D#106); eigene Exit-Codes 20 bis 23, Bau-Log target/ase-build.log, Rumpf als Block gegen Selbstaustausch (D#110)"
+  - id: tools.leitstandFlows
+    type: runner
+    status: implemented
+    source: tools/leitstand_flows.py
+    verified: 2026-11-17
+    note: "Flow-Dateien als Schrittlisten für den Leitstand (Sammlung flows); Aufruf in CLAUDE.md, Abschnitt Leitstand"
+  - id: tools.lehrenExport
+    type: runner
+    status: implemented
+    source: tools/lehren_export.py
+    verified: 2026-11-17
+    decided_by: ["D#109"]
+    note: "Sammlung lehren des Leitstands als LEHREN.md und lehren.json für s3://ducktest-cfd-<konto>/lehren/"
+  - id: tools.preCommit
+    type: runner
+    status: implemented
+    source: .githooks/pre-commit
+    verified: 2026-11-17
+    note: "lehnt Commits mit Konfliktmarkern oder ungelösten Konflikten ab (L#7); je Klon git config core.hooksPath .githooks"
+  - id: skills.lehren
+    type: runner
+    status: implemented
+    source: .claude/skills/lehren/SKILL.md
+    verified: 2026-11-17
+    decided_by: ["D#108", "D#109"]
+    note: "Lehren am Ende jeder Sitzung: Einträge des Nutzers im Leitstand zuerst, dann eigene Abweichungen; je Lehre genau eine Folge; L# in findings.md, Spiegel im Leitstand und in S3"
   - id: runner.seriesScript
     type: runner
     status: implemented
@@ -741,6 +769,16 @@ open:
   - { id: "O#66", type: open, status: resolved, issue: 26, source: "findings.md#O#66", verified: 2026-11-16, title: "sbt test in der Cloud-Session: zwei Tests rot; beide Tests falsch (PID aus dem Namensraum der Sandbox, /tmp-Wege aus PATH), korrigiert", tested_by: [ase.core.LocalToolsSuite, ase.core.SandboxSuite] }
   - { id: "O#67", type: open, status: resolved, issue: 27, source: "findings.md#O#67", verified: 2026-11-15, resolved_by: "D#110", title: "bin/ase meldet Fehlschläge ununterscheidbar und verschluckt die Ausgabe von sbt" }
   - { id: "O#68", type: open, status: resolved, issue: 28, source: "findings.md#O#68", verified: 2026-11-17, resolved_by: "M#65", title: "Fan-out in Modellplänen: bis N = 100 vollständig (Eval 10, M#65)" }
+  - { id: "O#38", type: open, status: open, issue: 5, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
+  - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
+  - { id: "O#35", type: open, status: open, issue: 4, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }
+  - { id: "O#34", type: open, status: open, issue: 3, source: "findings.md#O#34", verified: 2026-10-29, title: "runsCode als Pfadpräfix: in flachen Repos gilt jede Datei als Code" }
+  - { id: "O#33", type: open, status: resolved, source: "findings.md#O#33", verified: 2026-10-30, title: "Ergebnisse in If-Zweigen für spätere Agentenschritte unsichtbar (Befund falsch; Ursache war der pathPrefix, D#69)", resolved_by: "D#69" }
+  - { id: "O#32", type: open, status: open, issue: 2, source: "findings.md#O#32", verified: 2026-10-29, title: "BestOfN fragt bei mehreren guten Wegen meist den Menschen" }
+
+
+lessons:
+  # Lehren aus Abweichungen (Skill lehren, D#108); gespiegelt im Leitstand als ase:L<n> (D#109)
   - { id: "L#1", type: lesson, status: recorded, source: "findings.md#L#1", verified: 2026-11-15, title: "Parallele Session nicht bemerkt: list_sessions zu Beginn, Nummern vorher ansagen" }
   - { id: "L#2", type: lesson, status: recorded, source: "findings.md#L#2", verified: 2026-11-15, title: "Dokumentiert, aber nicht angewendet: Wirkung prüfen, Skripte melden Fehlschläge" }
   - { id: "L#3", type: lesson, status: recorded, source: "findings.md#L#3", verified: 2026-11-15, title: "Eingabe von Hand ungeprüft: einrichten.sh prüft Schlüssel (angefragt)" }
@@ -751,13 +789,6 @@ open:
   - { id: "L#8", type: lesson, status: recorded, source: "findings.md#L#8", verified: 2026-11-16, title: "Hintergrundläufe sterben beim Neustart der Session: setsid nohup, Fertig-Datei" }
   - { id: "L#9", type: lesson, status: recorded, source: "findings.md#L#9", verified: 2026-11-16, title: "Erinnerungen werden abgelehnt: nicht auf send_later bauen, Fertig-Datei statt Erinnerung" }
   - { id: "L#10", type: lesson, status: recorded, source: "findings.md#L#10", verified: 2026-11-16, title: "Test grün ohne zu prüfen: Gegenprobe, die rot werden muss, für jeden Test eines Fehlverhaltens" }
-  - { id: "O#38", type: open, status: open, issue: 5, source: "findings.md#O#38", verified: 2026-10-30, title: "tighten übernimmt die description mit veralteten Zahlen (niedrig)" }
-  - { id: "O#37", type: open, status: resolved, source: "findings.md#O#37", verified: 2026-10-30, title: "tighten engt Pfade auf die beobachteten Fälle ein, auch bei allgemeinem Flow", resolved_by: "D#78" }
-  - { id: "O#35", type: open, status: open, issue: 4, source: "findings.md#O#35", verified: 2026-10-29, title: "Programmschritt: Teilterm von einem Programm statt vom Modell" }
-  - { id: "O#34", type: open, status: open, issue: 3, source: "findings.md#O#34", verified: 2026-10-29, title: "runsCode als Pfadpräfix: in flachen Repos gilt jede Datei als Code" }
-  - { id: "O#33", type: open, status: resolved, source: "findings.md#O#33", verified: 2026-10-30, title: "Ergebnisse in If-Zweigen für spätere Agentenschritte unsichtbar (Befund falsch; Ursache war der pathPrefix, D#69)", resolved_by: "D#69" }
-  - { id: "O#32", type: open, status: open, issue: 2, source: "findings.md#O#32", verified: 2026-10-29, title: "BestOfN fragt bei mehreren guten Wegen meist den Menschen" }
-
 evals:
   - id: eval.1
     type: eval
@@ -838,6 +869,15 @@ evals:
     relates_to: ["O#39", "eval.6"]
     note: "Flows ohne-abnahme.json und mit-abnahme.json, gleich bis auf verify an der Reparatur; Eval9Suite mit Skript-Modell für beide; check.sh gegen Lösung und fünf Fehllösungen geprüft; nicht im Harness. Ohne Abnahme 0/10 (M#46), mit 10/10 (M#47), offener Plan 10/10 mit Abnahme in jedem Plan (M#48)"
     measurements: ["M#46", "M#47", "M#48"]
+  - id: eval.10
+    type: eval
+    status: implemented
+    source: evals/10-fan-out/
+    verified: 2026-11-17
+    title: fan-out (ein Modellplan mit N gleichartigen WriteFile-Schritten, N = 10 bis 100; bewertet nur den Plan)
+    relates_to: ["O#68", "O#35"]
+    note: "task-<N>.md, namen.txt, envelope.json (nur WriteFile, maxSteps 110), auswerten.py (Vollständigkeit des Plans), serie.sh (n Pläne je Stufe); kein check.sh, nicht im Harness. Anlass arXiv 2608.06370. Opus 5.5: 20/20 vollständig bis N = 100 (M#65)"
+    measurements: ["M#65"]
   - id: eval.lib
     type: eval
     status: implemented
@@ -912,3 +952,11 @@ references:
     type: reference
     source: github.com/schneist/IoTTE
     note: "Vorgängermuster: Algebra, Interpreter, Runner, Marshalling"
+  - id: ref.leitstand
+    type: reference
+    source: https://claude.ai/artifact/UNWXg1fbSdzGRgb3VueAWV
+    note: "Leitstand des Nutzers (Stränge, Flows, Entscheidungen, Läufe, Lehren, Anfragen, Verlauf); Pflichten in CLAUDE.md"
+  - id: ref.bitter-lesson-tool-calling
+    type: reference
+    source: arXiv 2608.06370 (Patel u. a., The Bitter Lesson of Tool Calling, PwC, August 2026)
+    note: "Programmatic tool calling gegen JSON-Tool-Calls an BFCL v4; Anlass für M#64 (Escape-Fehler) und O#68/M#65 (Fan-out); der Kern (freie Skripte) widerspricht der Invariante"

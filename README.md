@@ -175,6 +175,8 @@ Eval 7 ist schwerer gebaut: eine Rechnung auf einer Spot-Maschine in AWS starten
 
 Eval 9 misst, was die Abnahme eines Agentenschritts bringt (D#80): Ein Kompilierfehler verdeckt einen zweiten Fehler, den erst der Testlauf danach zeigt. Ein fester Flow, der nach der Reparatur einmal testet und bei Rot fragt, bestand 0 von 10 Läufen (M#46); derselbe Flow mit `verify ./run-tests.sh` an der Reparatur 10 von 10, weil jeder zweite Durchlauf den roten Test sah (M#47), bei rund 2,5-mal so vielen Tokens. Plant das Modell selbst, gibt es der Reparatur in allen 10 Läufen eine Abnahme und braucht sie in 3 (M#48).
 
+Eval 10 prüft eine Schwäche, die Patel u. a. (arXiv 2608.06370) für JSON-Tool-Calls messen: Ab etwa 70 gleichartigen Aufrufen in einer Antwort fallen welche weg. Ein Plan in ase ist ebenfalls ein einziges JSON-Objekt; mit Opus 5.5 blieben alle 20 Pläne bis N = 100 Schritte vollständig (M#65).
+
 Im Einsatz ist `ase` an einem privaten Python-Projekt mit 75 Skripten, 18 davon in einer Prüfkette: Sie rechnet die Skripte in der vorgeschriebenen Reihenfolge, bricht ab, wenn eine Konsistenzprüfung scheitert, und ein Agentenschritt schreibt den Prüfbericht, den ein Skript abnimmt. Die Kette ist seit 11 Fassungen das Tor vor `main`; in der letzten Serie bestanden 5 von 5 Läufen, je mit einem Modellaufruf und rund 64k Tokens (M#55). Ein Agentenschritt, der Hypothesen zu einem Befund nur durch Lesen prüft, wurde in 5 von 5 Läufen abgenommen, seit seine Allowlist `python3` auf ein Werkzeugskript festlegt, bei 26 % weniger Tokens als vorher (M#57 gegen M#56). Flows für Spot-Maschinen in AWS (Spotpreise, Kostendeckel, Start, Zustand) laufen seit dem 04.11.2026 gegen echtes AWS, alle mit festen Schritten.
 
 ## Schnellstart
