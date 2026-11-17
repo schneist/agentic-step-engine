@@ -45,6 +45,8 @@ enum Command:
   case SeriesBegin(
       eval: Path,
       flow: Option[Path],
+      /** statt Aufgabe oder Flow eine Stufenfolge (D#112) */
+      folge: Option[Path],
       commit: String,
       status: Path,
       n: Int,
@@ -64,7 +66,7 @@ object Cli:
       |ase run  --plan P [--envelope E] --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
       |ase stats PFAD …
       |ase tighten --flow F --out NEU [--min-calls N] [--config C] PFAD …
-      |ase series begin --eval DIR [--flow F] --commit C --status S --n N [--parallel] [--reference FP] [--config C] --out I
+      |ase series begin --eval DIR [--flow F | --folge F] --commit C --status S --n N [--parallel] [--reference FP] [--config C] --out I
       |ase series end --input I --out DATENSATZ PFAD …
       |ase series show DATENSATZ
       |ase compare BASIS KANDIDAT
@@ -159,7 +161,8 @@ object Cli:
       case "series" :: "begin" :: rest =>
         for
           (o, flags, free) <- opts(rest, Map.empty, Set.empty, Nil)
-          _ <- known(o, "eval", "flow", "commit", "status", "n", "reference", "config", "out")
+          _ <- known(o, "eval", "flow", "folge", "commit", "status", "n", "reference", "config", "out")
+          _ <- Either.cond(!(o.contains("flow") && o.contains("folge")), (), "höchstens eines von --flow und --folge")
           _ <- (flags - "parallel").headOption.map(f => s"unbekannte Option --$f").toLeft(())
           _ <- free.headOption.map(a => s"unerwartetes Argument „$a“").toLeft(())
           eval <- need(o, "eval")
@@ -168,7 +171,7 @@ object Cli:
           commit <- o.get("commit").filter(Commit.matches).toRight("--commit erwartet einen Commit-Hash")
           n <- o.get("n").flatMap(_.toIntOption).filter(_ >= 1).toRight("--n erwartet eine Zahl ab 1")
           reference <- o.get("reference").traverse(r => Either.cond(Hex64.matches(r), r, "--reference erwartet einen Fingerprint aus 64 Hex-Zeichen"))
-        yield Command.SeriesBegin(eval, o.get("flow").map(Path.of(_)), commit, status, n, flags("parallel"), reference, o.get("config").map(Path.of(_)), out)
+        yield Command.SeriesBegin(eval, o.get("flow").map(Path.of(_)), o.get("folge").map(Path.of(_)), commit, status, n, flags("parallel"), reference, o.get("config").map(Path.of(_)), out)
       case "series" :: "end" :: rest =>
         for
           (o, flags, free) <- opts(rest, Map.empty, Set.empty, Nil)
@@ -344,14 +347,23 @@ object Main extends IOApp:
   private def seriesBegin(cmd: Command.SeriesBegin): IO[ExitCode] =
     val dir = cmd.eval.toAbsolutePath.normalize
     val fixture = dir.resolve("fixture")
-    val (kind, sourcePath) = cmd.flow.fold((Series.SourceKind.Task, dir.resolve("task.md")))(f => (Series.SourceKind.Flow, f))
+    val (kind, sourcePath) = (cmd.flow, cmd.folge) match
+      case (Some(f), _) => (Series.SourceKind.Flow, f)
+      case (_, Some(f)) => (Series.SourceKind.Folge, f)
+      case _            => (Series.SourceKind.Task, dir.resolve("task.md"))
     val requiredFile = dir.resolve("series.json")
     for
-      (config, _) <- loadConfig(cmd.config)
-      envelope <- loadEnvelope(dir.resolve("envelope.json"))
+      // eine Folge: Konfiguration und Hüllen je Stufe, Fassung über alle Stufen (D#112)
+      (config, sourceSha, envelopeSha) <- cmd.folge match
+        case Some(f) => folgeKey(f)
+        case None =>
+          for
+            (config, _) <- loadConfig(cmd.config)
+            envelope <- loadEnvelope(dir.resolve("envelope.json"))
+            source <- read(sourcePath)
+          yield (config, Canonical.sha256Hex(source), Canonical.sha256Hex(Canonical.print(Codec.envelope(envelope))))
       checkSha <- fileSha(dir.resolve("check.sh"))
       fixtureSha <- fixtureSha(fixture)
-      source <- read(sourcePath)
       required <- IO.blocking(Files.isRegularFile(requiredFile)).ifM(
         read(requiredFile).flatMap(t => orFail(Series.parseRequired(t))),
         IO.pure(Series.DefaultRequired)
@@ -361,8 +373,8 @@ object Main extends IOApp:
       key = Series.Key(
         kind,
         sourcePath.getFileName.toString,
-        Canonical.sha256Hex(source),
-        Canonical.sha256Hex(Canonical.print(Codec.envelope(envelope))),
+        sourceSha,
+        envelopeSha,
         fixtureSha,
         checkSha,
         m.provider.toString,
@@ -378,6 +390,38 @@ object Main extends IOApp:
       _ <- IO.blocking(Files.writeString(cmd.out, Series.encodeInput(input).spaces2 + "\n", UTF_8))
       _ <- IO.println(s"Serie ${input.eval} · Schlüssel ${key.hash.take(8)} · n=${cmd.n}, verlangt $required" + (if dirty.isEmpty then "" else " · Arbeitsbaum geändert, zählt nicht"))
     yield ExitCode.Success
+
+  /** Schlüssel einer Folge für eine Serie (D#112): sourceSha über die Folge-Datei und je Stufe Name, Flow und
+    * Konfiguration, envelopeSha über die Hüllen der Stufen. Modell, Effort und System-Prompt kommen aus den
+    * Konfigurationen der Stufen; sind sie verschieden, ist die Folge keine Serie mit einem Modell (Fehler).
+    */
+  private def folgeKey(path: Path): IO[(RunnerConfig, String, String)] =
+    val file = path.toAbsolutePath.normalize
+    val dir = Option(file.getParent).getOrElse(Path.of("").toAbsolutePath)
+    for
+      text <- read(file)
+      folge <- orFail(Folge.parse(text).leftMap(_.render))
+      stages <- folge.stufen.toList.traverse { s =>
+        val config = s.config.map(c => dir.resolve(c).normalize)
+        for
+          (cfg, cfgSha) <- loadConfig(config)
+          flow <- read(dir.resolve(s.flow).normalize)
+          envelope <- loadEnvelope(dir.resolve(s.envelope).normalize)
+        yield (s.name, cfg, cfgSha, Canonical.sha256Hex(flow), envelope)
+      }
+      models = stages.map((_, c, _, _, _) => (c.model.provider.toString, c.model.model, c.model.effort, Provenance.promptSha(c.check))).distinct
+      _ <- orFail(Either.cond(models.size == 1, (), s"Folge: Stufen mit verschiedenem Modell, Effort oder System-Prompt (${stages.map(_._1).mkString(", ")}); als Serie nicht messbar"))
+      envelopes = Json.arr(stages.map((n, _, _, _, e) => Json.obj("name" -> Json.fromString(n), "envelope" -> Codec.envelope(e)))*)
+    yield (stages.head._2, folgeSourceSha(text, stages.map((n, _, cs, fs, _) => (n, fs, cs))), Canonical.sha256Hex(Canonical.print(envelopes)))
+
+  /** Fassung einer Folge (D#112): die Folge-Datei und je Stufe Name, Flow und Konfiguration. Dieselbe in der Plan-Datei,
+    * der Summe der Folge und dem Schlüssel einer Serie, damit `ase series end` die Läufe der Fassung zuordnet.
+    */
+  private def folgeSourceSha(text: String, stages: List[(String, String, String)]): String =
+    Canonical.sha256Hex(Canonical.print(Json.obj(
+      "folge" -> Json.fromString(Canonical.sha256Hex(text)),
+      "stufen" -> Json.arr(stages.map((n, fs, cs) => Json.obj("name" -> Json.fromString(n), "flow" -> Json.fromString(fs), "config" -> Json.fromString(cs)))*)
+    )))
 
   /** `ase series end` (D#77): der Datensatz aus series-input.json und jedem Verzeichnis mit run.json unter den Pfaden.
     * Hasht das Fixture erneut; was nicht zählt, wird markiert. Druckt die M#-Zeile.
@@ -471,7 +515,8 @@ object Main extends IOApp:
     }
     def load(summary: Path): IO[Option[RunStats.Run]] =
       read(summary).flatMap { text =>
-        parser.parse(text).toOption.filter(_.hcursor.downField("outcome").succeeded) match
+        // die Summe einer Folge (Feld folge) zählt nicht; ihre Stufen haben eigene Dateien (D#112)
+        parser.parse(text).toOption.filter(j => j.hcursor.downField("outcome").succeeded && !j.hcursor.downField("folge").succeeded) match
           case None => IO.pure(None)
           case Some(json) =>
             (recordOf(summary, json).flatMap(_.traverse(read)), IO.blocking(Files.getLastModifiedTime(summary).toMillis)).mapN { (log, modified) =>
@@ -585,7 +630,8 @@ object Main extends IOApp:
         case None => IO.println("\nfolge     abgelehnt; nichts abgelegt").as(ExitCode(3))
         case Some(ok) =>
           orFail(CheckedFolge.of(ok.map((s, c) => s.name -> c))).flatMap { checked =>
-            val file = FolgePlanFile(path.toString, Canonical.sha256Hex(text), cmd.values, ok.toList.map(_._1))
+            val shas = ok.toList.map((st, _) => (st.name, st.plan.hcursor.get[String]("sourceSha").getOrElse(""), st.plan.hcursor.get[String]("configSha").getOrElse("")))
+            val file = FolgePlanFile(path.toString, folgeSourceSha(text, shas), cmd.values, ok.toList.map(_._1))
             IO.blocking(Files.writeString(cmd.out, FolgePlanFile.encode(file).spaces2 + "\n", UTF_8)) >>
               IO.println(folgeFooter(checked)).as(ExitCode.Success)
           }
@@ -623,26 +669,37 @@ object Main extends IOApp:
         else
           approveFolge(folge, cmd.approve, terminal, IO.readLine).flatMap {
             case None    => IO.println("nicht freigegeben").as(ExitCode(4))
-            case Some(a) => runFolge(a, stages, cmd)
+            case Some(a) => runFolge(a, stages, cmd, plan)
           }
     yield code
 
   private final case class FolgeStage(stufe: FolgePlanFile.Stufe, config: RunnerConfig, file: PlanFile, checked: CheckedTerm)
 
-  private def runFolge(approved: ApprovedFolge, stages: List[FolgeStage], cmd: Command.Run): IO[ExitCode] =
+  /** Mit --summary S schreibt jede Stufe ihre summary-<name>.json und die Folge danach S mit den Summen (FolgeSummary),
+    * die `ase series end` liest; `ase stats` zählt nur die Stufen.
+    */
+  private def runFolge(approved: ApprovedFolge, stages: List[FolgeStage], cmd: Command.Run, plan: FolgePlanFile): IO[ExitCode] =
     val record = cmd.record.getOrElse(Path.of("record", LocalDateTime.now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss")) + ".log"))
-    def go(rest: List[((String, ApprovedTerm), FolgeStage)]): IO[ExitCode] = rest match
-      case Nil => IO.println(s"\nfolge     done: alle ${stages.size} Stufen").as(ExitCode.Success)
+    def go(rest: List[((String, ApprovedTerm), FolgeStage)], ran: List[(String, ExitCode)]): IO[(ExitCode, List[(String, ExitCode)], List[String])] = rest match
+      case Nil => IO.println(s"\nfolge     done: alle ${stages.size} Stufen").as((ExitCode.Success, ran.reverse, Nil))
       case ((name, a), st) :: tail =>
         val stageCmd = cmd.copy(config = st.stufe.config.map(Path.of(_)), record = Some(Folge.suffixed(record, name)), summary = cmd.summary.map(Folge.suffixed(_, name)))
         IO.println(s"\n── Stufe $name") >> runApproved(a, st.file, stageCmd, st.config).flatMap { code =>
-          if code == ExitCode.Success then go(tail)
+          if code == ExitCode.Success then go(tail, (name, code) :: ran)
           else
-            val label = code.code match { case 2 => "ask"; case 3 => "aborted"; case c => s"Exit $c" }
-            val rest = if tail.isEmpty then "" else s"; nicht gelaufen: ${tail.map(_._1._1).mkString(", ")}"
-            IO.println(s"\nfolge     Stufe $name endete mit $label$rest").as(code)
+            val notRun = tail.map(_._1._1)
+            val rest = if notRun.isEmpty then "" else s"; nicht gelaufen: ${notRun.mkString(", ")}"
+            IO.println(s"\nfolge     Stufe $name endete mit ${FolgeSummary.label(code.code)}$rest").as((code, ((name, code) :: ran).reverse, notRun))
         }
-    go(approved.stages.toList.zip(stages))
+    for
+      (code, ran, notRun) <- go(approved.stages.toList.zip(stages), Nil)
+      _ <- cmd.summary.traverse_ { s =>
+        ran.traverse((name, c) =>
+          val p = Folge.suffixed(s, name)
+          IO.blocking(Files.isRegularFile(p)).ifM(read(p).map(t => parser.parse(t).toOption), IO.pure(None)).map(j => (name, FolgeSummary.label(c.code), j))
+        ).flatMap(done => IO.blocking(Files.writeString(s, FolgeSummary.of(plan, approved.hash, done, notRun).spaces2 + "\n", UTF_8)))
+      }
+    yield code
 
   /** Freigabe einer Folge (D#112): wie approve, aber über den Hash der Folge; der Hash einer Stufe gibt nichts frei. */
   private[runner] def approveFolge(folge: CheckedFolge, confirmed: Option[String], terminal: Boolean, answer: IO[String]): IO[Option[ApprovedFolge]] =
@@ -783,3 +840,39 @@ object PlanSummary:
       "tokens" -> Json.fromLong(p.tokens)
     ).deepMerge(Json.obj(p.checked.map(c => "planFingerprint" -> Json.fromString(Fingerprint.of(c.term).hex)).toList*))
       .deepMerge(Json.obj(provenance.toList.flatMap(_.copy(approval = None).fields)*))
+
+/** Kennzahlen einer Folge (D#112) für `ase series end`: dieselben Schlüssel wie Summary, summiert über die gelaufenen
+  * Stufen; outcome ist der Ausgang der letzten gelaufenen Stufe (done nur, wenn alle done). Das Feld folge nennt Hash,
+  * Ausgang je Stufe und was nicht lief; `ase stats` überspringt Dateien mit diesem Feld und zählt die Stufen selbst.
+  */
+object FolgeSummary:
+  def label(code: Int): String = code match
+    case 0 => "done"
+    case 2 => "ask"
+    case 3 => "aborted"
+    case _ => "error"
+
+  private val Sums = List("steps", "planCalls", "fillCalls", "gate1Rejections", "gate2Rejections", "unusableAnswers", "runtimeFailures", "holeRounds", "verifyFailures", "tokens")
+
+  def of(plan: FolgePlanFile, hash: TermHash, stages: List[(String, String, Option[Json])], notRun: List[String]): Json =
+    val summaries = stages.flatMap(_._3)
+    def sum(f: String): Long = summaries.flatMap(_.hcursor.get[Long](f).toOption).sum
+    val first = summaries.headOption.map(_.hcursor)
+    val provenance = List("promptSha", "aseCommit", "approval").flatMap(f => first.flatMap(_.get[Json](f).toOption).map(f -> _))
+    Json.obj(
+      (List(
+        "outcome" -> Json.fromString(stages.lastOption.fold("error")(_._2)),
+        "source" -> Json.fromString(plan.source),
+        "sourceSha" -> Json.fromString(plan.sourceSha),
+        "seconds" -> Json.fromDoubleOrNull(summaries.flatMap(_.hcursor.get[Double]("seconds").toOption).sum),
+        "termHash" -> Json.fromString(hash.hex)
+      ) ++ Sums.map(f => f -> Json.fromLong(sum(f))) ++ List(
+        "asked" -> Json.fromBoolean(summaries.exists(_.hcursor.get[Boolean]("asked").getOrElse(false))),
+        "changedFiles" -> Json.arr(summaries.flatMap(_.hcursor.get[List[String]]("changedFiles").getOrElse(Nil)).distinct.map(Json.fromString)*),
+        "folge" -> Json.obj(
+          "hash" -> Json.fromString(hash.hex),
+          "stufen" -> Json.arr(stages.map((n, o, _) => Json.obj("name" -> Json.fromString(n), "outcome" -> Json.fromString(o)))*),
+          "nichtGelaufen" -> Json.arr(notRun.map(Json.fromString)*)
+        )
+      ) ++ provenance)*
+    )

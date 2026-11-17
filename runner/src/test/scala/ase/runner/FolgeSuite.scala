@@ -170,3 +170,61 @@ class FolgeSuite extends munit.FunSuite:
     val (c1, o1) = ase("run", "--plan", s.dir.resolve("one.json").toString, "--workspace", s.ws.toString, "--no-ask")
     assertEquals(c1, 1, o1)
     assert(o1.contains("--envelope fehlt"), o1)
+
+  test("Summe der Folge (--summary): Ausgang, Summen und Stufen; ase stats zählt nur die Stufen"):
+    val s = setup()
+    deckelStart(s)
+    val (_, pout) = plan(s, "m=klein")
+    assertEquals(run(s, folgeHash(pout))._1, 0)
+    val sum = io.circe.parser.parse(Files.readString(s.dir.resolve("runs/summary.json"))).fold(e => fail(e.toString), identity).hcursor
+    assertEquals(sum.get[String]("outcome"), Right("done"))
+    assertEquals(sum.get[String]("termHash"), Right(folgeHash(pout)))
+    assertEquals(sum.downField("folge").get[List[io.circe.Json]]("stufen").map(_.size), Right(2))
+    val stage = (n: String) => io.circe.parser.parse(Files.readString(s.dir.resolve(s"runs/summary-$n.json"))).toOption.get.hcursor.get[Long]("steps").toOption.get
+    assertEquals(sum.get[Long]("steps"), Right(stage("deckel") + stage("start")))
+    val (sc, sout) = ase("stats", s.dir.resolve("runs").toString)
+    assertEquals(sc, 0, sout)
+    assertEquals(sout.linesIterator.count(_.startsWith("== ")), 2, sout)
+    // nach einem Abbruch: Ausgang der Stufe, die nicht lief, steht unter nichtGelaufen
+    s.put("cfd/deckel.json", flow(seq(abort("Deckel fehlt"))))
+    s.folge(("deckel", "deckel.json", "{}"), ("start", "start.json", "{}"))
+    val (_, pout2) = plan(s, "m=x")
+    assertEquals(run(s, folgeHash(pout2), "runs2")._1, 3)
+    val sum2 = io.circe.parser.parse(Files.readString(s.dir.resolve("runs2/summary.json"))).toOption.get.hcursor
+    assertEquals(sum2.get[String]("outcome"), Right("aborted"))
+    assertEquals(sum2.downField("folge").get[List[String]]("nichtGelaufen"), Right(List("start")))
+
+  test("ase series begin --folge: Schlüssel über alle Stufen; ein Modell für alle Stufen"):
+    val s = setup()
+    deckelStart(s)
+    val eval = Files.createDirectories(s.dir.resolve("eval"))
+    Files.createDirectories(eval.resolve("fixture"))
+    Files.writeString(eval.resolve("check.sh"), "exit 0\n")
+    val status = s.put("status.txt", "")
+    def key(out: String): Series.Key =
+      val (c, o) = ase("series", "begin", "--eval", eval.toString, "--folge", s.dir.resolve("cfd/f.folge.json").toString,
+        "--commit", "f434115", "--status", status.toString, "--n", "5", "--out", s.dir.resolve(out).toString)
+      assertEquals(c, 0, o)
+      Series.parseInput(Files.readString(s.dir.resolve(out))).fold(e => fail(e), identity).key
+    val a = key("a.json")
+    assertEquals((a.kind, a.source), (Series.SourceKind.Folge, "f.folge.json"))
+    assertEquals(key("a2.json").hash, a.hash)
+    // die Läufe nennen dieselbe Fassung wie der Schlüssel, sonst zählt ase series end sie nicht
+    val (_, pout) = plan(s, "m=klein")
+    assertEquals(run(s, folgeHash(pout))._1, 0)
+    val sum = io.circe.parser.parse(Files.readString(s.dir.resolve("runs/summary.json"))).toOption.get.hcursor
+    assertEquals(sum.get[String]("sourceSha"), Right(a.sourceSha))
+    // eine Stufe ändert ihren Flow: andere Fassung, gleiche Hüllen
+    s.put("cfd/start.json", flow(seq(write("anders", "start.txt"), done)))
+    val b = key("b.json")
+    assertNotEquals(b.sourceSha, a.sourceSha)
+    assertEquals(b.envelopeSha, a.envelopeSha)
+    // eine Stufe mit anderem Modell: keine Serie
+    s.put("cfd/ase2.json", """{"sandbox": false, "model": {"model": "anderes-modell"}}""")
+    s.put("cfd/f.folge.json", Files.readString(s.dir.resolve("cfd/f.folge.json")).replaceFirst("\"ase.json\"", "\"ase2.json\""))
+    val (c, o) = ase("series", "begin", "--eval", eval.toString, "--folge", s.dir.resolve("cfd/f.folge.json").toString,
+      "--commit", "f434115", "--status", status.toString, "--n", "5", "--out", s.dir.resolve("c.json").toString)
+    assertEquals(c, 1, o)
+    assert(o.contains("verschiedenem Modell"), o)
+    assert(Cli.parse(List("series", "begin", "--eval", "e", "--flow", "f", "--folge", "g", "--commit", "37eba77", "--status", "s", "--n", "1", "--out", "o")).isLeft)
+

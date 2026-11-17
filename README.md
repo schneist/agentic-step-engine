@@ -239,7 +239,7 @@ Brauchen zwei Flows verschiedene Hüllen oder Konfigurationen, etwa einer, der e
 }
 ```
 
-Pfade gelten relativ zur Folge. `ase plan --folge F zone=… --out P` prüft jede Stufe für sich wie einen Flow, zeigt je Stufe den Explain und am Ende die Zeile `folge-hash`. `ase run --plan P --workspace W --approve <folge-hash>` prüft alle Stufen neu, gibt einmal frei und führt sie nacheinander aus, jede mit ihrer Konfiguration und Sandbox. Die nächste Stufe läuft nur, wenn die vorige mit done endet; ein `Abort` im Flow hält die Folge an (Exit 3). Record-Log und Summary bekommen je Stufe ihren Namen: `record-deckel.log`, `summary-deckel.json`. `--envelope` und `--config` entfallen bei `run`, sie stehen je Stufe in der Plan-Datei.
+Pfade gelten relativ zur Folge. `ase plan --folge F zone=… --out P` prüft jede Stufe für sich wie einen Flow, zeigt je Stufe den Explain und am Ende die Zeile `folge-hash`. `ase run --plan P --workspace W --approve <folge-hash>` prüft alle Stufen neu, gibt einmal frei und führt sie nacheinander aus, jede mit ihrer Konfiguration und Sandbox. Die nächste Stufe läuft nur, wenn die vorige mit done endet; ein `Abort` im Flow hält die Folge an (Exit 3). Record-Log und Summary bekommen je Stufe ihren Namen: `record-deckel.log`, `summary-deckel.json`. `--envelope` und `--config` entfallen bei `run`, sie stehen je Stufe in der Plan-Datei. Mit `--summary S` schreibt jede Stufe `S` mit ihrem Namen und die Folge danach `S` selbst mit den Summen über die Stufen (`ase stats` zählt nur die Stufen). Gemessen wird eine Folge mit `evals/series.sh … --folge F --werte DATEI`.
 
 ## Kommandozeile und Konfiguration
 
@@ -249,7 +249,7 @@ ase plan --folge F [name=wert …] --out P [--workspace W]
 ase run  --plan P [--envelope E] --workspace W [--approve HASH] [--record R] [--summary S] [--no-ask] [--config C]
 ase stats PFAD …
 ase tighten --flow F --out NEU [--min-calls N] [--config C] PFAD …
-ase series begin --eval DIR [--flow F] --commit C --status S --n N [--parallel] [--reference FP] [--config C] --out I
+ase series begin --eval DIR [--flow F | --folge F] --commit C --status S --n N [--parallel] [--reference FP] [--config C] --out I
 ase series end --input I --out DATENSATZ PFAD …
 ase series show DATENSATZ
 ase compare BASIS KANDIDAT

@@ -457,7 +457,7 @@ interpreters:
     verified: 2026-11-17
     decided_by: ["D#112"]
     tested_by: [ase.runner.FolgeSuite]
-    note: "Stufenfolge: parse (description, params, stufen mit name, flow, envelope, config, werte), bind (Werte der Folge in die Werte jeder Stufe), suffixed (Dateiname je Stufe); CheckedFolge, ApprovedFolge und approveFolge in Approval.scala, TermHash.ofFolge in Canonical.scala"
+    note: "Stufenfolge (Nachtrag: FolgeSummary und ase series begin --folge in Main.scala, series.sh --folge und --werte, Leitstand-Zeile Stufe): parse (description, params, stufen mit name, flow, envelope, config, werte), bind (Werte der Folge in die Werte jeder Stufe), suffixed (Dateiname je Stufe); CheckedFolge, ApprovedFolge und approveFolge in Approval.scala, TermHash.ofFolge in Canonical.scala"
   - id: core.usage
     type: interpreter
     status: implemented
@@ -502,7 +502,7 @@ interpreters:
     status: implemented
     source: tools/leitstand_flows.py
     verified: 2026-11-17
-    note: "Flow-Dateien als Schrittlisten für den Leitstand (Sammlung flows); Aufruf in CLAUDE.md, Abschnitt Leitstand"
+    note: "Flow-Dateien als Schrittlisten für den Leitstand (Sammlung flows); Stufenfolgen (*.folge.json, D#112) als Eintrag mit Zeilen Stufe und Toren; Aufruf in CLAUDE.md, Abschnitt Leitstand"
   - id: tools.sbtCloud
     type: runner
     status: implemented
@@ -715,7 +715,7 @@ decisions:
   - { id: "D#109", type: decision, status: decided, source: "findings.md#D#109", verified: 2026-11-15, title: "Lehren zentral im Leitstand (Sammlung lehren, Reiter, Formular für den Nutzer); Skill lehren beginnt mit dem Ableiten der Einträge des Nutzers" }
   - { id: "D#110", type: decision, status: decided, source: "findings.md#D#110", verified: 2026-11-15, title: "bin/ase: eigene Exit-Codes 20 bis 23, Bau-Log target/ase-build.log mit Ende bei Fehlschlag, Rumpf als Block gegen Selbstaustausch (O#67)" }
   - { id: "D#111", type: decision, status: decided, source: "findings.md#D#111", verified: 2026-11-17, title: "Abbruch im Term: Abort(reason) beendet den Lauf mit aborted; nur in Flows, nicht im Schema fürs Modell, Prompt unverändert (promptSha gleich); Voraussetzung für O#47", tested_by: [ase.core.AbortSuite] }
-  - { id: "D#112", type: decision, status: decided, source: "findings.md#D#112", verified: 2026-11-17, title: "Stufenfolge: *.folge.json, jede Stufe mit eigener Hülle, Konfiguration und Tabelle geprüft und ausgeführt; ein Folge-Hash (TermHash.ofFolge), eine Freigabe (Approval.approveFolge); nächste Stufe nur nach done; kein Term, kein M#", tested_by: [ase.runner.FolgeSuite] }
+  - { id: "D#112", type: decision, status: decided, source: "findings.md#D#112", verified: 2026-11-17, title: "Stufenfolge: *.folge.json, jede Stufe mit eigener Hülle, Konfiguration und Tabelle geprüft und ausgeführt; ein Folge-Hash (TermHash.ofFolge), eine Freigabe (Approval.approveFolge); nächste Stufe nur nach done; kein Term, kein M#; Nachtrag: Summe der Folge, ase series begin --folge, series.sh --folge, Leitstand", tested_by: [ase.runner.FolgeSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }

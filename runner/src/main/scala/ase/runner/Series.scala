@@ -18,8 +18,9 @@ object Series:
   /** Verlangte Läufe, wenn die Eval keine series.json hat (playbook/evals.md). */
   val DefaultRequired = 10
 
+  /** Folge: eine Stufenfolge (D#112); der Schlüssel deckt dann alle Stufen. */
   enum SourceKind:
-    case Task, Flow
+    case Task, Flow, Folge
 
   /** Was gleich sein muss, damit zwei Serien vergleichbar sind. source ist nur der Dateiname, die Fassung steht in
     * sourceSha; fixtureSha ist ein Tree-Hash (TreeHash), envelopeSha der SHA-256 des kanonischen JSON der Hülle.
@@ -279,6 +280,7 @@ object Series:
     val source = r.key.kind match
       case SourceKind.Task => s"Aufgabe ${r.key.source}"
       case SourceKind.Flow => s"Flow ${r.key.source}"
+      case SourceKind.Folge => s"Folge ${r.key.source}"
     List(
       s"- $id ${r.date} Eval ${r.eval}, $source",
       s"Modell ${r.key.model}, effort ${r.key.effort}, über ${r.key.provider}",
@@ -467,7 +469,7 @@ object Series:
 
   private def decodeKey(c: ACursor): Either[String, Key] =
     for
-      kind <- str(c, "kind").flatMap(k => SourceKind.values.find(_.toString == k).toRight(s"kind „$k“ ist weder Task noch Flow"))
+      kind <- str(c, "kind").flatMap(k => SourceKind.values.find(_.toString == k).toRight(s"kind „$k“ ist keiner von Task, Flow, Folge"))
       source <- str(c, "source")
       sourceSha <- str(c, "sourceSha")
       envelopeSha <- str(c, "envelopeSha")

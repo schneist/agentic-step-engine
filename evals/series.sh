@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Eine Messserie nach playbook/evals.md: n Live-Läufe einer Eval, jeder in einer frischen Kopie des Fixtures.
 # Aufruf (unter Linux, D#29; ANTHROPIC_API_KEY gesetzt):
-#   evals/series.sh <eval-verzeichnis> <n> <ausgabe-verzeichnis> [--config runner.json] [--reference flow.json] [--flow flow.json] [--parallel]
+#   evals/series.sh <eval-verzeichnis> <n> <ausgabe-verzeichnis> [--config runner.json] [--reference flow.json] [--flow flow.json | --folge f.folge.json] [--werte datei] [--parallel]
 # Vor dem ersten Lauf hält `ase series begin` Schlüssel und Bedingungen fest (D#77): Fassung, Hülle, Fixture als
 # Tree-Hash, check.sh, Modell und Effort aus der Konfiguration, Commit, geänderte Dateien, n, Parallelität.
 # Pro Lauf: ase plan, Freigabe des gezeigten Hashes, ase run --no-ask, check.sh; Ausgang, Prüfung und Code-Hinweise
@@ -11,11 +11,14 @@
 # die M#-Zeile als letzte Zeile; wer die Serie als M# übernimmt, kopiert den Datensatz nach measurements/M<n>.json.
 # --reference: Referenzflow; gezählt wird, wie viele Pläne dessen Fingerprint haben (playbook/evals.md). --flow: statt
 # eines Modellplans aus task.md läuft jedes Mal dieser Flow (ase plan --flow, kein Planaufruf); gemessen werden dann
-# nur die Fills. --parallel: alle Läufe gleichzeitig; die Dauer ist dann nur mit parallelen Serien vergleichbar.
+# nur die Fills. --folge: statt eines Flows eine Stufenfolge (D#112): ase plan --folge, Freigabe des folge-hash, je Stufe
+# deren Hülle und Konfiguration (envelope.json der Eval und --config gelten dann nicht); summary.json ist die Summe der
+# Folge, summary-<stufe>.json die der Stufen. --werte: Werte der Parameter von Flow oder Folge, je Zeile name=wert.
+# --parallel: alle Läufe gleichzeitig; die Dauer ist dann nur mit parallelen Serien vergleichbar.
 # Die Ausgabe gehört nach record/ (nicht im Repo).
 set -euo pipefail
 
-usage="Aufruf: $0 <eval-verzeichnis> <n> <ausgabe-verzeichnis> [--config datei] [--reference flow.json] [--flow flow.json] [--parallel]"
+usage="Aufruf: $0 <eval-verzeichnis> <n> <ausgabe-verzeichnis> [--config datei] [--reference flow.json] [--flow flow.json | --folge f.folge.json] [--werte datei] [--parallel]"
 [ $# -ge 3 ] || { echo "$usage" >&2; exit 1; }
 repo=$(cd "$(dirname "$0")/.." && pwd)
 eval_dir=$(cd "$1" && pwd)
@@ -28,12 +31,19 @@ abs() { echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"; }
 config=(--config "$repo/evals/runner.json")
 reference=""
 flow=""
+folge=""
+werte=()
 parallel=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --config) config=(--config "$(abs "$2")"); shift 2 ;;
     --reference) reference=$(abs "$2"); shift 2 ;;
     --flow) flow=$(abs "$2"); shift 2 ;;
+    --folge) folge=$(abs "$2"); shift 2 ;;
+    --werte)
+      [ -f "$2" ] || { echo "--werte: $2 gibt es nicht" >&2; exit 1; }
+      while IFS= read -r w || [ -n "$w" ]; do [ -z "$w" ] || werte+=("$w"); done < "$2"
+      shift 2 ;;
     --parallel) parallel=(--parallel); shift ;;
     *) echo "$usage" >&2; exit 1 ;;
   esac
@@ -49,8 +59,9 @@ if [ -n "$status" ] && [ "${ALLOW_DIRTY:-}" != 1 ]; then
 fi
 printf '%s' "$status" > "$out/git-status.txt"
 commit=$(git -C "$repo" rev-parse --short HEAD)
+[ -z "$flow" ] || [ -z "$folge" ] || { echo "höchstens eines von --flow und --folge" >&2; exit 1; }
 source=(--task "$eval_dir/task.md")
-[ -z "$flow" ] || source=(--flow "$flow")
+[ -z "$flow" ] || source=(--flow "$flow" "${werte[@]}")
 # Programme der Eval vor dem PATH, etwa das aws-Double von Eval 7 (O#40); es liegt außerhalb des Arbeitsverzeichnisses.
 # Die Sandbox hängt jeden Eintrag im PATH nur lesbar ein (D#88), sonst nichts von hier. Braucht ein Programm in bin/
 # ein Verzeichnis einer anderen Eval, nennt es die Datei <eval>/path, je Zeile relativ zur Eval (Eval 8 ruft das
@@ -79,6 +90,7 @@ fi
 
 flow_arg=()
 [ -z "$flow" ] || flow_arg=(--flow "$flow")
+[ -z "$folge" ] || flow_arg=(--folge "$folge")
 ase series begin --eval "$eval_dir" "${flow_arg[@]}" --commit "$commit" --status "$out/git-status.txt" --n "$n" \
   "${parallel[@]}" "${ref[@]}" "${config[@]}" --out "$out/series-input.json" >&2
 
@@ -92,16 +104,28 @@ one_run() {
   cp -a "$eval_dir/fixture" "$work"
 
   set +e
-  ase plan "${source[@]}" --envelope "$eval_dir/envelope.json" --out "$run/plan.json" --summary "$run/plan-summary.json" \
-    "${config[@]}" > "$run/plan.txt" 2>&1
-  local pc=$?
+  local pc
+  if [ -n "$folge" ]; then
+    ase plan --folge "$folge" "${werte[@]}" --out "$run/plan.json" > "$run/plan.txt" 2>&1
+  else
+    ase plan "${source[@]}" --envelope "$eval_dir/envelope.json" --out "$run/plan.json" --summary "$run/plan-summary.json" \
+      "${config[@]}" > "$run/plan.txt" 2>&1
+  fi
+  pc=$?
   local outcome=error
   if [ $pc -eq 0 ]; then
-    local hash
-    hash=$(sed -n 's/^hash      \([0-9a-f]\{64\}\)$/\1/p' "$run/plan.txt" | head -1)
-    ase run --plan "$run/plan.json" --envelope "$eval_dir/envelope.json" --workspace "$work" --approve "$hash" \
-      --record "$run/record.log" --summary "$run/summary.json" --no-ask "${config[@]}" > "$run/run.txt" 2>&1
-    case $? in 0) outcome=done ;; 2) outcome=ask ;; 3) outcome=aborted ;; esac
+    local hash rc
+    if [ -n "$folge" ]; then
+      hash=$(sed -n 's/^folge-hash \([0-9a-f]\{64\}\)$/\1/p' "$run/plan.txt" | head -1)
+      ase run --plan "$run/plan.json" --workspace "$work" --approve "$hash" \
+        --record "$run/record.log" --summary "$run/summary.json" --no-ask > "$run/run.txt" 2>&1
+    else
+      hash=$(sed -n 's/^hash      \([0-9a-f]\{64\}\)$/\1/p' "$run/plan.txt" | head -1)
+      ase run --plan "$run/plan.json" --envelope "$eval_dir/envelope.json" --workspace "$work" --approve "$hash" \
+        --record "$run/record.log" --summary "$run/summary.json" --no-ask "${config[@]}" > "$run/run.txt" 2>&1
+    fi
+    rc=$?
+    case $rc in 0) outcome=done ;; 2) outcome=ask ;; 3) outcome=aborted ;; esac
   elif [ $pc -eq 2 ]; then
     # keine Mehrheit unter den Plänen (bestOfN): der Mensch entscheidet, nichts ausgeführt
     outcome=ask

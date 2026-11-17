@@ -2,7 +2,7 @@
 
 Zehn Aufgaben mit bekanntem Ergebnis; Eval 7 und 8 laufen gegen ein Double der AWS CLI und gehören wie Eval 9 und 10 nicht zum Harness. Jede hat ein Verzeichnis `evals/<nr>-<slug>/` mit `fixture/` (Arbeitsverzeichnis-Vorlage), `task.md` (Aufgabentext für das Modell), `envelope.json` (Wurzel-Hülle) und `check.sh` (Exit 0 = Erfolg).
 
-Serien: `evals/series.sh <eval-verzeichnis> <n> <ausgabe>` für eine Eval, `evals/harness.sh <n> <ausgabe>` für alle sechs (D#64); beide mit `--config` für den Anbieter. Ergebnis ist ein Datensatz `<ausgabe>/series.json` (D#77) und die M#-Zeile; wie er übernommen und verglichen wird, steht in [playbook/evals.md](../playbook/evals.md). Wie viele Läufe eine Eval verlangt, steht in `<eval>/series.json` (`{"n": 5}`); ohne die Datei 10, wie bei allen Evals hier.
+Serien: `evals/series.sh <eval-verzeichnis> <n> <ausgabe>` für eine Eval, `evals/harness.sh <n> <ausgabe>` für alle sechs (D#64); beide mit `--config` für den Anbieter. Statt einer Aufgabe läuft mit `--flow F` ein Flow, mit `--folge F` eine Stufenfolge (D#112; Hülle und Konfiguration je Stufe, `envelope.json` der Eval und `--config` gelten dann nicht); `--werte DATEI` gibt die Parameter, je Zeile `name=wert`. Ergebnis ist ein Datensatz `<ausgabe>/series.json` (D#77) und die M#-Zeile; wie er übernommen und verglichen wird, steht in [playbook/evals.md](../playbook/evals.md). Wie viele Läufe eine Eval verlangt, steht in `<eval>/series.json` (`{"n": 5}`); ohne die Datei 10, wie bei allen Evals hier.
 
 ## Vertrag (D#17)
 

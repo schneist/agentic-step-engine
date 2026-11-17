@@ -177,7 +177,7 @@ class SeriesSuite extends munit.ScalaCheckSuite:
   test("Befehlszeile: series begin, end, show und compare"):
     assertEquals(
       Cli.parse(List("series", "begin", "--eval", "evals/1-todos", "--commit", "37eba77", "--status", "s.txt", "--n", "5", "--parallel", "--out", "i.json")),
-      Right(Command.SeriesBegin(Path.of("evals/1-todos"), None, "37eba77", Path.of("s.txt"), 5, true, None, None, Path.of("i.json")))
+      Right(Command.SeriesBegin(Path.of("evals/1-todos"), None, None, "37eba77", Path.of("s.txt"), 5, true, None, None, Path.of("i.json")))
     )
     assert(Cli.parse(List("series", "begin", "--eval", "e", "--commit", "HEAD", "--status", "s", "--n", "5", "--out", "i")).isLeft)
     assert(Cli.parse(List("series", "begin", "--eval", "e", "--commit", "37eba77", "--status", "s", "--n", "0", "--out", "i")).isLeft)

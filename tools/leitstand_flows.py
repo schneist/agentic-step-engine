@@ -4,7 +4,9 @@
 Liest Flow-Dateien (JSON mit "term") und schreibt je Flow ein JSON-Dokument für die Sammlung `flows`:
 Name, Zweck, Parameter, Zählung und die Schritte als flache Liste mit Tiefe. Ein If, dessen einer Zweig nur ein Done
 ist, wird als Tor dargestellt („weiter, wenn …“, sonst Ende), damit die üblichen Ketten aus Schritt und Prüfung
-lesbar bleiben. Schreibt nichts außer den JSON-Dateien; hochgeladen wird mit ArtifactData (batch, file_path).
+lesbar bleiben. Eine Stufenfolge (*.folge.json mit "stufen", D#112) wird ein eigener Eintrag: je Stufe eine Zeile
+„Stufe“ mit Flow, Hülle und Konfiguration, dazwischen ein Tor „weiter, wenn … mit done endet“; die Zählung summiert
+die Flows der Stufen. Schreibt nichts außer den JSON-Dateien; hochgeladen wird mit ArtifactData (batch, file_path).
 
   python3 tools/leitstand_flows.py --repo ducktest --root ~/ducktest --commit <sha> --out DIR ase/pruefkette.json …
 """
@@ -93,6 +95,41 @@ class Flach:
         else:
             self.step({"t": "sonst", "x": k or "?", "d": d}, False)
 
+def eintrag_id(repo, rel):
+    name = rel[:-5] if rel.endswith(".json") else rel
+    return repo + ":" + name.replace("/", ":")
+
+def gruppe(rel):
+    return "CFD" if "/cfd/" in rel else ("Evals" if rel.startswith("flows/") else "Prüfen")
+
+def folge(a, rel, d):
+    """Eine Stufenfolge als Eintrag: Stufen der Reihe nach, Tor dazwischen, Zählung über die Flows der Stufen."""
+    basis = os.path.dirname(rel)
+    rows, z, ids = [], {"schritte": 0, "agent": 0, "fragen": 0, "aws": 0, "stufen": 0}, []
+    stufen = d.get("stufen", [])
+    for i, st in enumerate(stufen):
+        flow_rel = os.path.normpath(os.path.join(basis, st.get("flow", "")))
+        ids.append(eintrag_id(a.repo, flow_rel))
+        try:
+            with open(os.path.join(a.root, flow_rel), encoding="utf-8") as f: fd = json.load(f)
+            fl = Flach(); fl.walk(fd.get("term", {}), 0)
+            for k in ("schritte", "agent", "fragen", "aws"): z[k] += fl.z[k]
+            info = f"{fl.z['schritte']} Schritt" + ("" if fl.z["schritte"] == 1 else "e")
+        except (OSError, ValueError) as e:
+            info = f"Flow nicht lesbar: {e.__class__.__name__}"
+        z["stufen"] += 1
+        werte = ", ".join(f"{k}={v}" for k, v in sorted(st.get("werte", {}).items()))
+        rows.append({"t": "stufe", "n": i + 1, "d": 0,
+                     "x": kurz(f"{st.get('name', '?')}: Flow {flow_rel} ({info})", 240),
+                     "h": kurz(f"{st.get('envelope', '?')}, Konfiguration {st.get('config', 'Standard')}" + (f"; Werte {werte}" if werte else ""), 400)})
+        if i + 1 < len(stufen):
+            rows.append({"t": "tor", "d": 0, "x": f"weiter, wenn Stufe {st.get('name', '?')} mit done endet",
+                         "e": "Abbruch: die Folge hält an, die übrigen Stufen laufen nicht"})
+    name = rel[:-5] if rel.endswith(".json") else rel
+    return {"repo": a.repo, "pfad": rel, "name": os.path.basename(name), "art": "folge", "gruppe": gruppe(rel),
+            "zweck": kurz(d.get("description", ""), 900), "params": sorted(d.get("params", {}).keys()),
+            "zaehlung": z, "schritte": rows, "stufen": ids, "commit": a.commit}
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", required=True); ap.add_argument("--root", required=True)
@@ -102,6 +139,11 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     for rel in a.flows:
         with open(os.path.join(a.root, rel), encoding="utf-8") as f: d = json.load(f)
+        if "stufen" in d:
+            doc = folge(a, rel, d)
+            with open(os.path.join(a.out, eintrag_id(a.repo, rel) + ".json"), "w", encoding="utf-8") as f: json.dump(doc, f, ensure_ascii=False)
+            print(eintrag_id(a.repo, rel), doc["zaehlung"], len(doc["schritte"]), "Zeilen (Folge)")
+            continue
         if "term" not in d: continue
         fl = Flach(); fl.walk(d["term"], 0)
         name = rel[:-5] if rel.endswith(".json") else rel
