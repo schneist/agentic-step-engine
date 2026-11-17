@@ -28,6 +28,7 @@ object Cost:
     def shell(cmd: String, args: List[String], origin: Origin): Cost = leaf((cmd :: args)*)
     def ask(question: String, origin: Origin): Cost = leaf(question)
     def done(summary: String, origin: Origin): Cost = leaf(summary)
+    def abort(reason: String, origin: Origin): Cost = leaf(reason)
     /** Mit Abnahme je Durchlauf das Loch und das Programm der Abnahme (D#80). */
     def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): Cost =
       val passes = verify.fold(1L)(v => math.max(v.max, 0).toLong)

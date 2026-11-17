@@ -157,6 +157,7 @@ object RecordLog:
         case AbortReason.AttemptsExhausted(at, n) => obj("AttemptsExhausted", "at" -> s(at.show), "attempts" -> Json.fromInt(n))
         case AbortReason.BudgetExhausted(at, n)   => obj("BudgetExhausted", "at" -> s(at.show), "maxSteps" -> Json.fromInt(n))
         case AbortReason.LimitReached(l)          => obj("LimitReached", "limit" -> encodeLimit(l))
+        case AbortReason.Requested(at, reason)    => obj("Requested", "at" -> s(at.show), "reason" -> s(reason))
       obj("Aborted", "reason" -> reason)
 
   // ---------- Decoder
@@ -304,6 +305,7 @@ object RecordLog:
           case "AttemptsExhausted" => (at(r), get[Int](r, "attempts")).mapN(AbortReason.AttemptsExhausted(_, _))
           case "BudgetExhausted"   => (at(r), get[Int](r, "maxSteps")).mapN(AbortReason.BudgetExhausted(_, _))
           case "LimitReached"      => decodeLimit(r.downField("limit")).map(AbortReason.LimitReached(_))
+          case "Requested"         => (at(r), get[String](r, "reason")).mapN(AbortReason.Requested(_, _))
           case other               => Left(s"unbekannter Abbruchgrund „$other“")
         }.map(Outcome.Aborted(_))
       case other => Left(s"unbekannter Ausgang „$other“")

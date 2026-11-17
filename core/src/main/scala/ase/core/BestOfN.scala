@@ -49,6 +49,7 @@ object BestOfN:
     case Term.Shell(cmd, _, _)     => op("Shell", "cmd" -> Json.fromString(cmd))
     case _: Term.Ask               => op("Ask")
     case _: Term.Done              => op("Done")
+    case _: Term.Abort             => op("Abort")
     case Term.Seq(steps, _)        => Json.obj("seq" -> Json.arr(steps.map(form)*))
     case Term.If(p, a, b, _)       => Json.obj("if" -> pred(p), "then" -> form(a), "else" -> form(b))
     case Term.RepeatUntil(b, u, _, _) => Json.obj("repeat" -> form(b), "until" -> pred(u))

@@ -8,10 +8,12 @@ import org.typelevel.discipline.Laws
 object CoreLaws extends Laws:
   private val limits = DecodeLimits.all()
   private val terms = Gens.anyTerm(DecodeLimits.DefaultNesting)
+  /** Terme, wie sie in Flows stehen können: dazu Abort (D#111). */
+  private val flowTerms = Gens.anyTerm(DecodeLimits.DefaultNesting, flow = true)
 
   val term: RuleSet = new SimpleRuleSet(
     "Term",
-    "JSON-Roundtrip mit origin" -> forAll(terms)(t =>
+    "JSON-Roundtrip mit origin" -> forAll(flowTerms)(t =>
       Codec.decodeTerm(Codec.term(t), OriginMode.Required, limits) == Right(t)
     ),
     "Modellform ohne origin: Engine stempelt" -> forAll(terms, Gens.origin)((t, o) =>
@@ -20,11 +22,11 @@ object CoreLaws extends Laws:
     "jeder generierte Term ohne scopePrefix validiert gegen das Schema (D#69)" -> forAll(Gens.anyTerm(DecodeLimits.DefaultNesting, scope = false))(t =>
       TestSupport.schemaErrors(DecodeLimits.DefaultNesting, Json.obj("term" -> Codec.term(t, withOrigin = false))).isEmpty
     ),
-    "toTerm(program(t)) == t" -> forAll(terms)(t => AgentAlg.toTerm(AgentAlg.program(t)) == t),
-    "Fingerprint ignoriert Prosa und origin" -> forAll(terms, Gens.origin)((t, o) =>
+    "toTerm(program(t)) == t" -> forAll(flowTerms)(t => AgentAlg.toTerm(AgentAlg.program(t)) == t),
+    "Fingerprint ignoriert Prosa und origin" -> forAll(flowTerms, Gens.origin)((t, o) =>
       Fingerprint.of(TestSupport.stamp(t, o)) == Fingerprint.of(t)
     ),
-    "Interpreter-Produkt ist kommutativ" -> forAll(terms) { t =>
+    "Interpreter-Produkt ist kommutativ" -> forAll(flowTerms) { t =>
       val ab = AgentAlg.fromTerm(t)(AgentAlg.product(Cost.interpreter(CostConfig.default), AgentAlg.termWriter))
       val ba = AgentAlg.fromTerm(t)(AgentAlg.product(AgentAlg.termWriter, Cost.interpreter(CostConfig.default)))
       ab.first == ba.second && ab.second == ba.first

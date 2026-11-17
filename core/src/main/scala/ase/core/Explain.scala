@@ -171,6 +171,7 @@ object Explain:
       if textFitsInLine(question) then step(s"fragt: „${Text.visible(question)}“", Nil)
       else step("fragt:", Nil, i => textBlock("Frage", question, i + 1))
     def done(summary: String, origin: Origin): Out[StepResult] = step(s"fertig: $summary", Nil)
+    def abort(reason: String, origin: Origin): Out[StepResult] = step(s"bricht ab: $reason", Nil)
 
     def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): Out[StepResult] = s =>
       val prefix = RelPath.parse(envelope.pathPrefix).toOption

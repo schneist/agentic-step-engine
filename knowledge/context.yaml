@@ -63,6 +63,14 @@ operations:
     verified: 2026-10-27
     decided_by: ["D#15"]
     note: in einem Fill beendet Done nur das Loch (Execute)
+  - id: op.abort
+    type: operation
+    status: implemented
+    source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.abort
+    verified: 2026-11-17
+    decided_by: ["D#111"]
+    tested_by: [ase.core.AbortSuite]
+    note: "beendet den ganzen Lauf mit Ausgang aborted (AbortReason.Requested, Exit 3); nur aus Flows (OriginMode.Required); aus dem Modell weisen Decoder und DryRun ab (Violation.AbortFromModel); nicht im Schema, Prompt unverändert"
   - id: op.think
     type: operation
     status: implemented
@@ -294,7 +302,7 @@ interpreters:
     status: implemented
     source: core/src/main/scala/ase/core/AgentAlg.scala#AgentAlg.termWriter
     verified: 2026-10-27
-    implements: [op.readFile, op.listDir, op.writeFile, op.editFile, op.moveFile, op.shell, op.ask, op.done, op.think]
+    implements: [op.readFile, op.listDir, op.writeFile, op.editFile, op.moveFile, op.shell, op.ask, op.done, op.abort, op.think]
     decided_by: ["D#4"]
   - id: int.dryRun
     type: interpreter
@@ -692,6 +700,7 @@ decisions:
   - { id: "D#108", type: decision, status: decided, source: "findings.md#D#108", verified: 2026-11-15, title: "Lehren am Ende fest im Ablauf: Skill lehren (.claude/skills/lehren), L# in findings.md, je Lehre genau eine Folge, kein Hook" }
   - { id: "D#109", type: decision, status: decided, source: "findings.md#D#109", verified: 2026-11-15, title: "Lehren zentral im Leitstand (Sammlung lehren, Reiter, Formular für den Nutzer); Skill lehren beginnt mit dem Ableiten der Einträge des Nutzers" }
   - { id: "D#110", type: decision, status: decided, source: "findings.md#D#110", verified: 2026-11-15, title: "bin/ase: eigene Exit-Codes 20 bis 23, Bau-Log target/ase-build.log mit Ende bei Fehlschlag, Rumpf als Block gegen Selbstaustausch (O#67)" }
+  - { id: "D#111", type: decision, status: decided, source: "findings.md#D#111", verified: 2026-11-17, title: "Abbruch im Term: Abort(reason) beendet den Lauf mit aborted; nur in Flows, nicht im Schema fürs Modell, Prompt unverändert (promptSha gleich); Voraussetzung für O#47", tested_by: [ase.core.AbortSuite] }
   - { id: "D#79", type: decision, status: decided, source: "findings.md#D#79", verified: 2026-10-30, title: "Umsetzung von D#77: ase series begin/end/show, ase compare, run.json aus series.sh, StartNotFixture und RunsNotAsPlanned", tested_by: [runner.SeriesSuite] }
   - { id: "D#77", type: decision, status: decided, source: "findings.md#D#77", verified: 2026-10-30, title: "Serien als Datensatz mit Schlüssel; Vergleich nur aus Comparison.of", tested_by: [runner.SeriesSuite] }
   - { id: "D#78", type: decision, status: decided, source: "findings.md#D#78", verified: 2026-10-30, title: "tighten engt Pfade nur bei verschiedenen Ausgangsständen ein (workspaceSha)", tested_by: [core.TightenSuite, runner.RunnerSuite] }

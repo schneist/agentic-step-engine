@@ -116,6 +116,8 @@ enum AbortReason:
   case AttemptsExhausted(at: StepId, attempts: Int)
   case BudgetExhausted(at: StepId, maxSteps: Int)
   case LimitReached(limit: Limit)
+  /** Ein Abort im Flow (D#111). */
+  case Requested(at: StepId, reason: String)
 
 /** Ausgang eines Laufs; geht als done | ask | aborted an check.sh (D#17). */
 enum Outcome:

@@ -170,6 +170,7 @@ class VerifySuite extends munit.FunSuite:
       def shell(cmd: String, args: List[String], origin: Origin): R[StepResult] = Vector("shell")
       def ask(question: String, origin: Origin): R[StepResult] = Vector("ask")
       def done(summary: String, origin: Origin): R[StepResult] = Vector("done")
+      def abort(reason: String, origin: Origin): R[StepResult] = Vector("abort")
       def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): R[StepResult] = Vector("think")
       def seq(steps: List[R[StepResult]], origin: Origin): R[StepResult] = steps.flatten.toVector
       def branch(pred: Pred, thenP: R[StepResult], elseP: R[StepResult], origin: Origin): R[StepResult] = thenP ++ elseP
@@ -193,6 +194,7 @@ class VerifySuite extends munit.FunSuite:
       def shell(cmd: String, args: List[String], origin: Origin): N[StepResult] = one
       def ask(question: String, origin: Origin): N[StepResult] = one
       def done(summary: String, origin: Origin): N[StepResult] = one
+      def abort(reason: String, origin: Origin): N[StepResult] = one
       def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): N[StepResult] = _ + Term.width(verify)
       def seq(steps: List[N[StepResult]], origin: Origin): N[StepResult] = n => steps.foldLeft(n)((k, s) => s(k))
       def branch(pred: Pred, thenP: N[StepResult], elseP: N[StepResult], origin: Origin): N[StepResult] = n => elseP(thenP(n))

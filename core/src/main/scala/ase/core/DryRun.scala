@@ -190,6 +190,12 @@ object DryRun:
       leaf(Some(OpKind.Ask), Output)
     def done(summary: String, origin: Origin): Check[StepResult] =
       leaf(None, Output)
+    /** Abbruch: zählt wie Done als Schritt; aus dem Modell nie (D#111), auch wenn ein Decoder es durchließe. */
+    def abort(reason: String, origin: Origin): Check[StepResult] = ctx =>
+      val a = leaf(None, Output)(ctx)
+      origin match
+        case Origin.Model(_) => a.copy(violations = a.violations :+ Violation.AbortFromModel(ctx.loc))
+        case Origin.Human    => a
 
     def shell(cmd: String, args: List[String], origin: Origin): Check[StepResult] = ctx =>
       val loc = ctx.loc

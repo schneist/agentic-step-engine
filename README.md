@@ -269,6 +269,7 @@ Term ::= ReadFile(path) | ListDir(path)                -- ListDir samt Unterverz
        | EditFile(path, expectedOld, replacement)    -- Compare-and-Swap, expectedOld genau einmal
        | MoveFile(from, to)                          -- Ziel darf nicht existieren
        | Shell(cmd, args) | Ask(question) | Done(summary)
+       | Abort(reason)                               -- beendet den Lauf als abgebrochen; nur in Flows (D#111)
        | Seq(steps) | If(pred, thenT, elseT) | RepeatUntil(body, until: pred, max)
        | Hole(goal, envelope) | Hole(goal, envelope, verify: (cmd, args, until: pred, max))
 

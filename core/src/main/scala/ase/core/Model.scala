@@ -5,7 +5,9 @@ enum Origin:
   case Human
   case Model(callId: String)
 
-/** Operationsarten, die eine Hülle erlauben kann (D#8, D#18). Seq, If, RepeatUntil und Done sind immer erlaubt. */
+/** Operationsarten, die eine Hülle erlauben kann (D#8, D#18). Seq, If, RepeatUntil und Done sind immer erlaubt, Abort nur in
+  * Flows (D#111).
+  */
 enum OpKind:
   case ReadFile, ListDir, WriteFile, EditFile, MoveFile, Shell, Ask, Hole
 
@@ -84,6 +86,8 @@ enum Term:
   case Shell(cmd: String, args: List[String], origin: Origin)
   case Ask(question: String, origin: Origin)
   case Done(summary: String, origin: Origin)
+  /** Beendet den Lauf als abgebrochen (Ausgang aborted, Exit 3), mit Grund; nur in Flows, nie aus dem Modell (D#111). */
+  case Abort(reason: String, origin: Origin)
   case Seq(steps: List[Term], origin: Origin)
   case If(pred: Pred, thenT: Term, elseT: Term, origin: Origin)
   case RepeatUntil(body: Term, until: Pred, max: Int, origin: Origin)

@@ -90,6 +90,7 @@ object Codec:
       case Term.Shell(c, args, o)       => n("Shell", o, "cmd" -> s(c), "args" -> strs(args))
       case Term.Ask(q, o)               => n("Ask", o, "question" -> s(q))
       case Term.Done(sum, o)            => n("Done", o, "summary" -> s(sum))
+      case Term.Abort(r, o)             => n("Abort", o, "reason" -> s(r))
       case Term.Seq(steps, o)           => n("Seq", o, "steps" -> Json.arr(steps.map(term(_, withOrigin))*))
       case Term.If(p, a, b, o)          => n("If", o, "pred" -> pred(p), "thenT" -> term(a, withOrigin), "elseT" -> term(b, withOrigin))
       case Term.RepeatUntil(b, u, m, o) => n("RepeatUntil", o, "body" -> term(b, withOrigin), "until" -> pred(u), "max" -> Json.fromInt(m))
@@ -202,6 +203,12 @@ object Codec:
           (leaf(OpKind.Ask, o, Set("question")), string(o, loc, "question")).mapN((or, q) => Term.Ask(q, or))
         case "Done" =>
           (header(o, loc, Set("summary"), mode), string(o, loc, "summary")).mapN((or, s) => Term.Done(s, or))
+        // Abort nur in Flows (D#111): Modellausgaben (OriginMode.Stamp) kennen den Knoten nicht
+        case "Abort" =>
+          mode match
+            case OriginMode.Required =>
+              (header(o, loc, Set("reason"), mode), string(o, loc, "reason")).mapN((or, r) => Term.Abort(r, or))
+            case OriginMode.Stamp(_) => Left(DecodeError.UnknownType(loc, "Abort"))
         case "Hole" =>
           (
             leaf(OpKind.Hole, o, Set("goal", "envelope", "verify")),

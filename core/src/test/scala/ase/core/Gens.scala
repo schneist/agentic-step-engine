@@ -65,9 +65,10 @@ object Gens:
     val args = Gen.choose(0, 3).flatMap(Gen.listOfN(_, text))
     Gen.zip(Gen.oneOf("ls", "grep", "git", "./run-tests.sh"), args, anyPred(2), Gen.choose(0, 4)).map((c, a, u, m) => Verify(c, a, u, m))
 
-  def anyTerm(level: Int, scope: Boolean = true): Gen[Term] =
+  /** flow: auch Abort, das nur in Flows vorkommt (D#111); Modellausgaben kennen es nicht. */
+  def anyTerm(level: Int, scope: Boolean = true, flow: Boolean = false): Gen[Term] =
     val args = Gen.choose(0, 3).flatMap(Gen.listOfN(_, text))
-    val leaves: Gen[Term] = Gen.oneOf(
+    val modelLeaves: List[Gen[Term]] = List(
       Gen.zip(anyPath, origin).map((p, o) => Term.ReadFile(p, o)),
       Gen.zip(anyPath, origin).map((p, o) => Term.ListDir(p, o)),
       Gen.zip(anyPath, text, origin).map((p, c, o) => Term.WriteFile(p, c, o)),
@@ -78,9 +79,11 @@ object Gens:
       Gen.zip(text, origin).map((s, o) => Term.Done(s, o)),
       Gen.zip(text, anyEnvelope(scope), origin, Gen.option(anyVerify)).map((g, e, o, v) => Term.Hole(g, e, o, v))
     )
+    val abort: List[Gen[Term]] = if flow then List(text.map(r => Term.Abort(r, Origin.Human))) else Nil
+    val leaves: Gen[Term] = Gen.oneOf(modelLeaves ++ abort).flatMap(identity)
     if level <= 0 then leaves
     else
-      val below = Gen.lzy(anyTerm(level - 1, scope))
+      val below = Gen.lzy(anyTerm(level - 1, scope, flow))
       Gen.frequency(
         6 -> leaves,
         1 -> Gen.zip(Gen.choose(0, 3).flatMap(Gen.listOfN(_, below)), origin).map((s, o) => Term.Seq(s, o)),

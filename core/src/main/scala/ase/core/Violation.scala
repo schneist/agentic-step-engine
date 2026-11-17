@@ -42,6 +42,8 @@ enum Violation:
   case RequiredFlagMissing(loc: Location, cmd: String, flag: String)
   /** Ein implizites Flag steht schon im Term; die Engine setzt es selbst (D#87). */
   case ImplicitFlagGiven(loc: Location, cmd: String, flag: String)
+  /** Abort kommt nur aus Flows, nie vom Modell (D#111). */
+  case AbortFromModel(loc: Location)
 
   def loc: Location
 
@@ -78,6 +80,8 @@ enum Violation:
       else s"maxDepth $child darf höchstens $parent sein."
     case IllFormed(_, reason) =>
       s"Loch ist unlösbar beschränkt: $reason."
+    case AbortFromModel(_) =>
+      "Abort ist hier nicht erlaubt. Beende mit Done und nenne in der Zusammenfassung, was fehlt."
     case StepBudgetExceeded(_, worstCase, maxSteps) =>
       s"Im schlechtesten Fall $worstCase Schritte, erlaubt sind $maxSteps. Verkleinere Wiederholungen oder Loch-Budgets."
     case NestingTooDeep(_, nesting, limit) =>

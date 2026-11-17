@@ -70,13 +70,18 @@ class Flach:
             self.step(row)
         elif k == "Done":
             self.step({"t": "done", "x": kurz(t.get("summary", ""), 240), "d": d}, zaehlt=False)
+        elif k == "Abort":
+            self.step({"t": "abbruch", "x": kurz(t.get("reason", ""), 240), "d": d}, zaehlt=False)
         elif k == "If":
             th, el, p = t.get("thenT", {}), t.get("elseT", {}), t.get("pred", {})
-            if el.get("type") == "Done" and th.get("type") != "Done":
-                self.step({"t": "tor", "x": "weiter, wenn " + pred(p), "e": kurz(el.get("summary", ""), 240), "d": d}, False)
+            ende = ("Done", "Abort")
+            def text(e):  # Abbruch (D#111) im Leitstand als solcher kenntlich
+                return ("Abbruch: " + e.get("reason", "")) if e.get("type") == "Abort" else e.get("summary", "")
+            if el.get("type") in ende and th.get("type") not in ende:
+                self.step({"t": "tor", "x": "weiter, wenn " + pred(p), "e": kurz(text(el), 240), "d": d}, False)
                 self.walk(th, d)
-            elif th.get("type") == "Done" and el.get("type") != "Done":
-                self.step({"t": "tor", "x": "weiter, wenn " + pred(negate(p)), "e": kurz(th.get("summary", ""), 240), "d": d}, False)
+            elif th.get("type") in ende and el.get("type") not in ende:
+                self.step({"t": "tor", "x": "weiter, wenn " + pred(negate(p)), "e": kurz(text(th), 240), "d": d}, False)
                 self.walk(el, d)
             else:
                 self.step({"t": "wenn", "x": "wenn " + pred(p), "d": d}, False)

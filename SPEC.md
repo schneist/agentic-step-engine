@@ -21,6 +21,7 @@ enum Term:
   EditFile(path, expectedOld, replacement)      -- CAS: expectedOld muss genau einmal vorkommen, sonst Abbruch mit Handlungsanweisung
   MoveFile(from, to)                            -- D#18: from normale Datei, to existiert nicht, Elternverzeichnis von to existiert
   Shell(cmd, args), Ask(question), Done(summary)
+  Abort(reason)                                 -- D#111: Lauf endet mit aborted (Exit 3); nur in Flows, nie im Schema fürs Modell
   Seq(steps: List[Term])
   If(pred: Pred, thenT: Term, elseT: Term)
   RepeatUntil(body: Term, until: Pred, max: Int)

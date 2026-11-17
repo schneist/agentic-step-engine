@@ -13,6 +13,7 @@ class AlgebraSuite extends munit.FunSuite:
     def shell(cmd: String, args: List[String], origin: Origin): Rec[StepResult] = Vector(s"shell $cmd")
     def ask(question: String, origin: Origin): Rec[StepResult] = Vector("ask")
     def done(summary: String, origin: Origin): Rec[StepResult] = Vector("done")
+    def abort(reason: String, origin: Origin): Rec[StepResult] = Vector("abort")
     def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): Rec[StepResult] =
       Vector("think" + verify.fold("")(v => s" verify ${v.command}"))
     def seq(steps: List[Rec[StepResult]], origin: Origin): Rec[StepResult] = steps.flatten.toVector

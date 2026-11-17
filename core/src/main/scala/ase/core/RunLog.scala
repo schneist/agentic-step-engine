@@ -21,6 +21,7 @@ object RunLog:
     case Term.Shell(c, _, _)          => s"Shell $c"
     case Term.Ask(_, _)               => "Ask"
     case Term.Done(_, _)              => "Done"
+    case Term.Abort(_, _)             => "Abort"
     case Term.Hole(_, e, _, v)        => s"Hole ${e.pathPrefix}${v.fold("")(x => s" verify ${x.cmd}")}"
     case Term.Seq(steps, _)           => s"Seq(${steps.map(brief).mkString(", ")})"
     case Term.If(_, a, b, _)          => s"If(${brief(a)}, ${brief(b)})"
@@ -53,6 +54,7 @@ object RunLog:
         case Limit.ModelCalls(max) => s"Limit von $max Modellaufrufen erreicht"
         case Limit.Time(seconds)   => s"Zeitlimit $seconds s erreicht"
         case Limit.Depth(max)      => s"Tiefenlimit $max erreicht"
+    case AbortReason.Requested(at, why) => s"Schritt ${at.show} bricht ab: $why"
 
   /** shown: Argumente eines Shell-Aufrufs, wie sie das Log zeigt; der Runner kürzt um die impliziten Flags
     * (Implicits.stripArgs, D#87), das Record-Log behält sie.

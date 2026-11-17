@@ -173,6 +173,8 @@ Umkehrkosten: niedrig bis mittel. Eine Funktion in LocalTools, ein Konfiguration
 
 ## O#47 Vorschlag: Flows zusammensetzen (offen, noch keine Entscheidung)
 
+Stand 2026-11-17: Die Voraussetzung unten (Abbruch im Term) ist D#111, als Knoten `Abort(reason)`, zunächst nur in Flows. Der Nutzer hat die Stufenfolge (e) für Deckel und Start gewollt; Spotpreise bleiben ein eigener Lauf, weil zwischen Stufen keine Daten fließen. Der konkrete Entwurf kommt als eigene Entscheidung.
+
 Anlass: Der erste echte Start in ducktest waren drei Flows mit drei Freigaben (O#47). `deckel.json` und `start.json` brauchen verschiedene Profile, verschiedene Konfigurationen (Argument-Policies, Skripte, Einhängungen) und verschiedene Hüllen; ein Flow hat eine Tabelle impliziter Flags (D#87), ein Lauf eine Konfiguration.
 
 Alternativen: (a) Nichts ändern; ein Skript oder der Mensch ruft die Flows nacheinander auf. (b) Einbinden im Flow-Format: ein Knoten `Include` (Flow-Datei, Parameter), vor DryRun durch den Term des Teils ersetzt, ein DryRun gegen die umgebende Hülle, ein Hash. (c) Aufruf zur Laufzeit: ein Term-Knoten `RunFlow` mit DryRun und Freigabe mitten im Lauf. (d) Mehrere Flows auf der Kommandozeile (`ase plan --flow A --flow B`), verkettet zu einem Seq. (e) Stufenfolge: Eine eingecheckte Datei nennt Stufen (Flow, Konfiguration, Parameter) und gemeinsame Parameter. `ase plan` prüft jede Stufe für sich, mit ihrer Hülle, ihrer Konfiguration und ihrer Tabelle, wie heute einen einzelnen Flow; ein Hash über die geordnete Liste aus Konfiguration, Hülle, Tabelle und Term jeder Stufe; eine Freigabe. `ase run` führt die Stufen nacheinander in je eigener Engine und Sandbox aus und hört nach der ersten auf, die nicht mit Erfolg endet.

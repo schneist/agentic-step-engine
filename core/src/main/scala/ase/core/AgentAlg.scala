@@ -14,6 +14,8 @@ trait AgentAlg[F[_]]:
   def shell(cmd: String, args: List[String], origin: Origin): F[StepResult]
   def ask(question: String, origin: Origin): F[StepResult]
   def done(summary: String, origin: Origin): F[StepResult]
+  /** Beendet den ganzen Lauf als abgebrochen (D#111). */
+  def abort(reason: String, origin: Origin): F[StepResult]
 
   /** Im ADT: Hole. In Execute: Fill, DryRun gegen envelope, rekursiv ausführen; mit verify danach die Abnahme in der
     * umgebenden Hülle und bei Misserfolg ein weiterer Durchlauf (D#80).
@@ -38,6 +40,7 @@ object AgentAlg:
     case Term.Shell(c, args, o)       => alg.shell(c, args, o)
     case Term.Ask(q, o)               => alg.ask(q, o)
     case Term.Done(s, o)              => alg.done(s, o)
+    case Term.Abort(r, o)             => alg.abort(r, o)
     case Term.Hole(g, e, o, v)        => alg.think(g, e, v, o)
     case Term.Seq(steps, o)           => alg.seq(steps.map(fromTerm(_)(alg)), o)
     case Term.If(p, a, b, o)          => alg.branch(p, fromTerm(a)(alg), fromTerm(b)(alg), o)
@@ -58,6 +61,7 @@ object AgentAlg:
     def shell(cmd: String, args: List[String], origin: Origin): Term = Term.Shell(cmd, args, origin)
     def ask(question: String, origin: Origin): Term = Term.Ask(question, origin)
     def done(summary: String, origin: Origin): Term = Term.Done(summary, origin)
+    def abort(reason: String, origin: Origin): Term = Term.Abort(reason, origin)
     def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): Term =
       Term.Hole(goal, envelope, origin, verify)
     def seq(steps: List[Term], origin: Origin): Term = Term.Seq(steps, origin)
@@ -80,6 +84,7 @@ object AgentAlg:
       def shell(cmd: String, args: List[String], origin: Origin): P = Tuple2K(f.shell(cmd, args, origin), g.shell(cmd, args, origin))
       def ask(question: String, origin: Origin): P = Tuple2K(f.ask(question, origin), g.ask(question, origin))
       def done(summary: String, origin: Origin): P = Tuple2K(f.done(summary, origin), g.done(summary, origin))
+      def abort(reason: String, origin: Origin): P = Tuple2K(f.abort(reason, origin), g.abort(reason, origin))
       def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): P =
         Tuple2K(f.think(goal, envelope, verify, origin), g.think(goal, envelope, verify, origin))
       def seq(steps: List[P], origin: Origin): P = Tuple2K(f.seq(steps.map(_.first), origin), g.seq(steps.map(_.second), origin))
@@ -108,6 +113,8 @@ object AgentAlg:
         guard(OpKind.Shell, origin)(alg.shell(cmd, args, origin))
       def ask(question: String, origin: Origin): F[StepResult] = guard(OpKind.Ask, origin)(alg.ask(question, origin))
       def done(summary: String, origin: Origin): F[StepResult] = alg.done(summary, origin)
+      // kein OpKind: Abort kommt nur aus Flows; ein Abort mit Origin.Model weist schon der Decoder und DryRun ab (D#111)
+      def abort(reason: String, origin: Origin): F[StepResult] = alg.abort(reason, origin)
       // die Abnahme ist ein Programmaufruf in dieser Hülle: ohne Shell läuft das Loch nicht (D#80)
       def think(goal: String, env: Envelope, verify: Option[Verify], origin: Origin): F[StepResult] =
         val needed = OpKind.Hole :: verify.toList.map(_ => OpKind.Shell)

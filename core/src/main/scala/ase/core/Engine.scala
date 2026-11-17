@@ -335,6 +335,15 @@ private[core] final class Engine[F[_]](ports: Ports[F], config: ExecConfig, chec
             )
       (n + 1, run)
 
+    /** Abbruch aus einem Flow (D#111): zählt als Schritt und beendet den ganzen Lauf mit Ausgang aborted. */
+    def abort(reason: String, origin: Origin): Exec[StepResult] = n =>
+      val run: Run = (ctx, s0) =>
+        val at = ctx.id(n)
+        admit(ctx, s0, at) match
+          case Some(stop) => halt(s0, stop)
+          case None       => halt(count(ctx, s0), aborted(AbortReason.Requested(at, reason)))
+      (n + 1, run)
+
     def think(goal: String, envelope: Envelope, verify: Option[Verify], origin: Origin): Exec[StepResult] = hole(goal, envelope, verify, origin)
 
     def seq(steps: List[Exec[StepResult]], origin: Origin): Exec[StepResult] = n =>
