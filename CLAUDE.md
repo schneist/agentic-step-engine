@@ -10,6 +10,11 @@ Arbeitsregeln für dieses Repository. Gilt für jede Session.
 4. `findings.md` (was entschieden und gemessen wurde)
 5. `context.md` §7 Glossar und §8 Warum
 
+## Zeiten
+
+Zeiten im Chat an den Nutzer immer in seiner Ortszeit (Mitteleuropäische Zeit: MEZ, im Sommer MESZ), mit Tag, wenn es
+nicht heute ist; UTC höchstens dahinter (Nutzer 18.11.2026). Dateien, Logs und Leitstand-Felder bleiben in UTC.
+
 ## Die Invariante
 
 Nichts wird ausgeführt, was nicht vorher geprüft wurde. Weder ein Plan noch ein Fill-Teilterm. `Execute` nimmt ausschließlich `ApprovedTerm`; `CheckedTerm` kann nur `DryRun` erzeugen, `ApprovedTerm` nur `Approval.approve` aus einem `CheckedTerm` und dem bestätigten Hash (D#11).
